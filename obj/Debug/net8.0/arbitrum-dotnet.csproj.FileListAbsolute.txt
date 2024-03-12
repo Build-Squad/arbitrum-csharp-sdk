@@ -1,0 +1,17 @@
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\bin\Debug\net8.0\arbitrum-dotnet.deps.json
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\bin\Debug\net8.0\arbitrum-dotnet.dll
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\bin\Debug\net8.0\arbitrum-dotnet.pdb
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\obj\Debug\net8.0\arbitrum-dotnet.csproj.AssemblyReference.cache
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\obj\Debug\net8.0\arbitrum-dotnet.GeneratedMSBuildEditorConfig.editorconfig
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\obj\Debug\net8.0\arbitrum-dotnet.AssemblyInfoInputs.cache
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\obj\Debug\net8.0\arbitrum-dotnet.AssemblyInfo.cs
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\obj\Debug\net8.0\arbitrum-dotnet.csproj.CoreCompileInputs.cache
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\obj\Debug\net8.0\arbitrum-dotnet.dll
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\obj\Debug\net8.0\refint\arbitrum-dotnet.dll
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\obj\Debug\net8.0\arbitrum-dotnet.pdb
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\obj\Debug\net8.0\ref\arbitrum-dotnet.dll
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\bin\Debug\net8.0\NUnit3.TestAdapter.dll
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\bin\Debug\net8.0\NUnit3.TestAdapter.pdb
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\bin\Debug\net8.0\nunit.engine.dll
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\bin\Debug\net8.0\nunit.engine.api.dll
+C:\arbitrum\arbitrum-dotnet\arbitrum-dotnet\bin\Debug\net8.0\nunit.engine.core.dll
