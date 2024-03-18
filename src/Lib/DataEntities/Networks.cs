@@ -31,20 +31,20 @@ namespace Arbitrum.DataEntities
     public class Network
     {
         public int ChainID { get; set; }
-        public string Name { get; set; }
-        public string ExplorerUrl { get; set; }
-        public string Gif { get; set; }
+        public string? Name { get; set; }
+        public string? ExplorerUrl { get; set; }
+        public string? Gif { get; set; }
         public bool IsCustom { get; set; }
         /* Minimum possible block time for the chain (in seconds). */
         public double BlockTime { get; set; }
         /* Chain ids of children chains, i.e. chains that settle to this chain. */
-        public int[] PartnerChainIDs { get; set; }
+        public int[]? PartnerChainIDs { get; set; }
     }
 
     /**
      * Represents an L1 chain, e.g. Ethereum Mainnet or Sepolia.
      */
-    public class L1Network: Network
+    public class L1Network : Network
     {
         public bool IsArbitrum { get; set; }  ///////
     }
@@ -52,19 +52,19 @@ namespace Arbitrum.DataEntities
     /**
      * Represents an Arbitrum chain, e.g. Arbitrum One, Arbitrum Sepolia, or an L3 chain.
      */
-    public class L2Network: Network
+    public class L2Network : Network
     {
-        public TokenBridge TokenBridge { get; set; }
-        public EthBridge EthBridge { get; set; }
+        public TokenBridge? TokenBridge { get; set; }
+        public EthBridge? EthBridge { get; set; }
         /**
-       * Chain id of the parent chain, i.e. the chain on which this chain settles to.
-       */
+           * Chain id of the parent chain, i.e. the chain on which this chain settles to.
+           */
         public int PartnerChainID { get; set; }
         public bool IsArbitrum { get; set; } ///////////
         public int ConfirmPeriodBlocks { get; set; }
         public int RetryableLifetimeSeconds { get; set; }
         public int NitroGenesisBlock { get; set; }
-        public int NitroGenesisL1Block {  get; set; }
+        public int NitroGenesisL1Block { get; set; }
         /**
          * How long to wait (ms) for a deposit to arrive on l2 before timing out a request
          */
@@ -74,36 +74,36 @@ namespace Arbitrum.DataEntities
            *
            * In case of a chain that uses an ERC-20 token from the parent chain as its native/gas token, this is the address of said token on the parent chain
            */
-        public string NativeToken {  get; set; }
+        public string? NativeToken { get; set; }
 
     }
 
     public class TokenBridge
     {
-        public string L1GatewayRouter { get; set; }
-        public string L2GatewayRouter { get; set; }
-        public string L1ERC20Gateway { get; set; }
-        public string L2ERC20Gateway { get; set; }
-        public string L1CustomGateway { get; set; }
-        public string L2CustomGateway { get; set; }
-        public string L1WethGateway { get; set; }
-        public string L2WethGateway { get; set; }
-        public string L2Weth { get; set; }
-        public string L1Weth { get; set; }
-        public string L1ProxyAdmin { get; set; }
-        public string L2ProxyAdmin { get; set; }
-        public string L1MultiCall { get; set; }
-        public string L2Multicall { get; set; }
+        public string? L1GatewayRouter { get; set; }
+        public string? L2GatewayRouter { get; set; }
+        public string? L1ERC20Gateway { get; set; }
+        public string? L2ERC20Gateway { get; set; }
+        public string? L1CustomGateway { get; set; }
+        public string? L2CustomGateway { get; set; }
+        public string? L1WethGateway { get; set; }
+        public string? L2WethGateway { get; set; }
+        public string? L2Weth { get; set; }
+        public string? L1Weth { get; set; }
+        public string? L1ProxyAdmin { get; set; }
+        public string? L2ProxyAdmin { get; set; }
+        public string? L1MultiCall { get; set; }
+        public string? L2Multicall { get; set; }
     }
 
     public class EthBridge
     {
-        public string Bridge { get; set; }
-        public string Inbox { get; set; }
-        public string SequencerInbox { get; set; }
-        public string Outbox { get; set; }
-        public string Rollup { get; set; }
-        public Dictionary<string, int> ClassicOutboxes { get; set; }
+        public string? Bridge { get; set; }
+        public string? Inbox { get; set; }
+        public string? SequencerInbox { get; set; }
+        public string? Outbox { get; set; }
+        public string? Rollup { get; set; }
+        public Dictionary<string, int>? ClassicOutboxes { get; set; }
     }
 
     public class L1Networks
@@ -116,17 +116,16 @@ namespace Arbitrum.DataEntities
     }
     public class EthBridgeInformation
     {
-        public string Bridge { get; set; }
-        public string Inbox { get; set; }
-        public string SequencerInbox { get; set; }
-        public string Outbox { get; set; }
-        public string Rollup { get; set; }
+        public string? Bridge { get; set; }
+        public string? Inbox { get; set; }
+        public string? SequencerInbox { get; set; }
+        public string? Outbox { get; set; }
+        public string? Rollup { get; set; }
     }
 
     public static class NetworkUtils
     {
-        private static Dictionary<int, L1Network> l1Networks = new Dictionary<int, L1Network>();
-        private static Dictionary<int, L2Network> l2Networks = new Dictionary<int, L2Network>();
+
 
         public static readonly TokenBridge MainnetTokenBridge = new TokenBridge
         {
@@ -163,10 +162,8 @@ namespace Arbitrum.DataEntities
         /**
          * Storage for all networks, either L1, L2 or L3.
          */
-        public static readonly L1Networks L1NetworksConsts = new L1Networks
+        public static Dictionary<int, L1Network> l1Networks = new Dictionary<int, L1Network>()
         {
-            L1NetworksDict = new Dictionary<int, L1Network>
-            {
                 {
                     1, new L1Network
                     {
@@ -179,13 +176,10 @@ namespace Arbitrum.DataEntities
                         IsArbitrum = false
                     }
                 }
-            }
         };
 
-        public static readonly L2Networks L2NetworksConsts = new L2Networks
+        public static Dictionary<int, L2Network> l2Networks = new Dictionary<int, L2Network>()
         {
-            L2NetworksDict = new Dictionary<int, L2Network>
-            {
                 {
                     42161, new L2Network
                     {
@@ -206,8 +200,8 @@ namespace Arbitrum.DataEntities
                         BlockTime = Constants.ARB_MINIMUM_BLOCK_TIME_IN_SECONDS
                     }
                 }
-            }
         };
+
         public async static Task<Network> GetNetwork(object signerOrProviderOrChainId, int layer)
         {
             int chainId;
@@ -250,25 +244,25 @@ namespace Arbitrum.DataEntities
             }
         }
 
-        private async static Task<int> GetChainIdAsync(IWeb3 web3)
+        public async static Task<int> GetChainIdAsync(IWeb3 web3)
         {
             return (int)(await web3.Eth.ChainId.SendRequestAsync()).Value;
         }
 
-        private async static Task<int> GetChainIdAsync(SignerOrProvider signerOrProvider)
+        public async static Task<int> GetChainIdAsync(SignerOrProvider signerOrProvider)
         {
             return (int)(await signerOrProvider.Provider.Eth.ChainId.SendRequestAsync()).Value;
         }
 
 
-        public static async Task<Network> GetL1NetworkAsync(object signerOrProviderOrChainId)
+        public static async Task<L1Network> GetL1NetworkAsync(object signerOrProviderOrChainId)
         {
-            return await GetNetwork(signerOrProviderOrChainId, 1);
+            return (L1Network)await GetNetwork(signerOrProviderOrChainId, 1);
         }
 
-        public static async Task<Network> GetL2NetworkAsync(object signerOrProviderOrChainId)
+        public static async Task<L2Network> GetL2NetworkAsync(object signerOrProviderOrChainId)
         {
-            return await GetNetwork(signerOrProviderOrChainId, 2);
+            return (L2Network)await GetNetwork(signerOrProviderOrChainId, 2);
         }
 
         public static EthBridgeInformation GetEthBridgeInformation(string rollupContractAddress, IWeb3 l1SignerOrProvider)
@@ -285,8 +279,18 @@ namespace Arbitrum.DataEntities
             };
         }
 
-        public static void AddCustomNetwork(L1Network customL1Network, L2Network customL2Network)
+        /**
+         * Registers a pair of custom L1 and L2 chains, or a single custom Arbitrum chain (L2 or L3).
+         *
+         * @param customL1Network the custom L1 chain
+         * @param customL2Network the custom L2 or L3 chain
+         */
+        public static void AddCustomNetwork(L1Network? customL1Network, L2Network customL2Network)
         {
+            if (customL1Network == null && customL2Network == null)
+            {
+                throw new ArgumentNullException(nameof(customL1Network), "Both customL1Network and customL2Network cannot be null.");
+            }
             if (customL1Network != null)
             {
                 int customL1ChainID = customL1Network.ChainID;
@@ -318,7 +322,7 @@ namespace Arbitrum.DataEntities
 
             l2Networks[customL2ChainID] = customL2Network;
 
-            L1Network l1PartnerChain = l1Networks.GetValueOrDefault(customL2Network.PartnerChainID);
+            L1Network? l1PartnerChain = l1Networks.GetValueOrDefault(customL2Network.PartnerChainID);
             if (l1PartnerChain == null)
             {
                 throw new ArbSdkError($"Network {customL2Network.ChainID}'s partner network, {customL2Network.PartnerChainID}, not recognized");
@@ -345,7 +349,7 @@ namespace Arbitrum.DataEntities
                 ExplorerUrl = string.Empty,
                 IsCustom = true,
                 Name = "EthLocal",
-                PartnerChainIDs = new [] { 412346 },
+                PartnerChainIDs = new[] { 412346 },
                 IsArbitrum = false,
             };
 
@@ -402,7 +406,14 @@ namespace Arbitrum.DataEntities
 
         public static bool IsL1Network(Network network)
         {
-            return network.GetType().GetProperty("PartnerChainIDs") != null;
+            if (network is L1Network)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
     }
 }
