@@ -3,7 +3,7 @@ using Arbitrum.DataEntities;
 using Nethereum.Web3.Accounts;
 using Nethereum.Web3;
 
-namespace Arbitrum.Lib.Utils
+namespace Arbitrum.DataEntities
 {
     public class SignerOrProvider
     {

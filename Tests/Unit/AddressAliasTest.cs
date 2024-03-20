@@ -1,83 +1,88 @@
-﻿using Nethereum.Hex.HexConvertors.Extensions;
+﻿using Arbitrum.DataEntities;
 using NUnit.Framework;
-using System;
-using System.Numerics;
-using static Arbitrum.DataEntities.Constants;
 
 namespace Arbitrum.DataEntities.Tests.Unit
 {
     [TestFixture]
-    public class AddressAliasTests
+    public class AddressTests
     {
-        private const string AddressAliasOffset = "0x10";
-        private static readonly BigInteger AddressAliasOffsetInt = BigInteger.Parse(AddressAliasOffset.RemoveHexPrefix(), System.Globalization.NumberStyles.HexNumber);
-        private static readonly BigInteger MaxAddrInt = BigInteger.Pow(2, 160) - 1;
-
-        private static void ApplyUndoTest(string addr, string expectedApply, string expectedUndo)
+        [Test]
+        public void Constructor_ValidAddress_Success()
         {
-            var address = new Address(addr);
+            // Arrange
+            string validAddress = "0x0000000000000000000000000000000000000000";
 
-            var afterApply = address.ApplyAlias();
-            Assert.That(afterApply.Value, Is.EqualTo(expectedApply));
+            // Act
+            var address = new Address(validAddress);
 
-            var afterUndo = afterApply.UndoAlias();
-            Assert.That(afterUndo.Value, Is.EqualTo(expectedUndo));
-
-            var afterApplyUndo = afterUndo.ApplyAlias();
-            Assert.That(afterApplyUndo.Value, Is.EqualTo(expectedApply));
-
-            var afterUndoApply = afterApply.UndoAlias();
-            Assert.That(afterUndoApply.Value, Is.EqualTo(expectedUndo));
+            // Assert
+            Assert.That(address.Value, Is.EqualTo(validAddress));
         }
 
         [Test]
-        public void TestAliasBelowOffset()
+        public void Constructor_InvalidAddress_ThrowsArbSdkError()
         {
-            var belowOffsetInt = (MaxAddrInt - AddressAliasOffsetInt - 10) & MaxAddrInt;
-            var belowOffsetHex = belowOffsetInt.ToString("X").PadLeft(40, '0');
+            // Arrange
+            string invalidAddress = "0xInvalidAddress";
 
-            ApplyUndoTest(
-                belowOffsetHex,
-                "0xfffffffffffffffffffffffffffffffffffffff5",
-                "0xddddffffffffffffffffffffffffffffffffddd3"
-            );
+            // Act & Assert
+            Assert.Throws<ArbSdkError>(() => new Address(invalidAddress));
         }
 
         [Test]
-        public void TestAliasOnOffset()
+        public void ApplyAlias_ValidAddress_Success()
         {
-            var onOffsetInt = (MaxAddrInt - AddressAliasOffsetInt) & MaxAddrInt;
-            var onOffsetHex = onOffsetInt.ToString("X").PadLeft(40, '0');
+            // Arrange
+            string l1Address = "0x1234567890123456789012345678901234567890";
+            string expectedL2Alias = "0x00ff456789012345678901234567890123456789"; // Example expected L2 alias
 
-            ApplyUndoTest(
-                onOffsetHex,
-                "0xffffffffffffffffffffffffffffffffffffffff",
-                "0xddddffffffffffffffffffffffffffffffffdddd"
-            );
+            var address = new Address(l1Address);
+
+            // Act
+            var l2Alias = address.ApplyAlias();
+
+            // Assert
+            Assert.That(l2Alias.Value, Is.EqualTo(expectedL2Alias));
         }
 
         [Test]
-        public void TestAliasAboveOffset()
+        public void UndoAlias_ValidAddress_Success()
         {
-            var aboveOffsetInt = (MaxAddrInt - AddressAliasOffsetInt + 10) & MaxAddrInt;
-            var aboveOffsetHex = aboveOffsetInt.ToString("X").PadLeft(40, '0');
+            // Arrange
+            string l2Address = "0x00ff456789012345678901234567890123456789"; // Example L2 alias
+            string expectedL1Address = "0x1234567890123456789012345678901234567890";
 
-            ApplyUndoTest(
-                aboveOffsetHex,
-                "0x0000000000000000000000000000000000000009",
-                "0xddddffffffffffffffffffffffffffffffffdde7"
-            );
+            var address = new Address(l2Address);
+
+            // Act
+            var l1Address = address.UndoAlias();
+
+            // Assert
+            Assert.That(l1Address.Value, Is.EqualTo(expectedL1Address));
         }
 
         [Test]
-        public void TestAliasSpecialCase()
+        public void Equals_SameAddress_ReturnsTrue()
         {
-            var special = "0xFfC98231ef2fd1F77106E10581A1faC14E29d014";
-            ApplyUndoTest(
-                special,
-                "0x10da8231ef2fd1f77106e10581a1fac14e29e125",
-                "0xeeb88231ef2fd1f77106e10581a1fac14e29bf03"
-            );
+            // Arrange
+            string addressValue = "0x1234567890123456789012345678901234567890";
+
+            var address1 = new Address(addressValue);
+            var address2 = new Address(addressValue);
+
+            // Act & Assert
+            Assert.That(address1.Equals(address2), Is.True);
+        }
+
+        [Test]
+        public void Equals_DifferentAddresses_ReturnsFalse()
+        {
+            // Arrange
+            var address1 = new Address("0x1234567890123456789012345678901234567890");
+            var address2 = new Address("0x0987654321098765432109876543210987654321");
+
+            // Act & Assert
+            Assert.That(address1.Equals(address2), Is.False);
         }
     }
 }

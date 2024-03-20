@@ -24,7 +24,6 @@ using Nethereum.Contracts;
 using Arbitrum.DataEntities;
 using Arbitrum.Utils;
 using Nethereum.Util;
-using Arbitrum.Lib.Utils;
 
 namespace Arbitrum.DataEntities
 {
