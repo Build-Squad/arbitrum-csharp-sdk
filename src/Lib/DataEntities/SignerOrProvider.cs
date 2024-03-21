@@ -8,9 +8,9 @@ namespace Arbitrum.DataEntities
     public class SignerOrProvider
     {
         public Account Account { get; }
-        public IWeb3 Provider { get; }
+        public object Provider { get; }
 
-        public SignerOrProvider(Account account, IWeb3 provider)
+        public SignerOrProvider(Account account, object provider)
         {
             Account = account;
             Provider = provider;

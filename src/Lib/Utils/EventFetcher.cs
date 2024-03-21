@@ -1,72 +1,143 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Numerics;
+using Arbitrum.Utils;
 using Nethereum.Contracts;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Web3;
-using NUnit.Framework.Internal.Execution;
+using Nethereum.Contracts.Services;
+using Nethereum.JsonRpc.Client;
+using Arbitrum.DataEntities;
+using Nethereum.RPC.Eth.Filters;
 
-namespace YourNamespace
+namespace Arbitrum.Utils
 {
-    public class FetchedEvent<TEvent>
+    public class FetchedEvent : CaseDict
     {
-        public EventArgs<TEvent> Event { get; set; }
-        public string Topic { get; set; }
-        public string Name { get; set; }
-        public BigInteger BlockNumber { get; set; }
-        public string BlockHash { get; set; }
-        public string TransactionHash { get; set; }
-        public string Address { get; set; }
-        public List<string> Topics { get; set; }
-        public string Data { get; set; }
+        public string Event { get; }
+        public string Topic { get; }
+        public string Name { get; }
+        public BigInteger BlockNumber { get; }
+        public string BlockHash { get; }
+        public string TransactionHash { get; }
+        public string Address { get; }
+        public List<string> Topics { get; }
+        public string Data { get; }
+
+        public FetchedEvent(
+            string _event,
+            string topic,
+            string name,
+            BigInteger blockNumber,
+            string blockHash,
+            string transactionHash,
+            string address,
+            List<string> topics,
+                    string data) : base(data) // Passing 'data' to the base class constructor
+        {
+            Event = _event;
+            Topic = topic?.ToString() ?? string.Empty; // Convert topic to string or default to empty string
+            Name = name;
+            BlockNumber = blockNumber;
+            BlockHash = blockHash;
+            TransactionHash = transactionHash;
+            Address = address;
+            Topics = topics;
+            Data = data;
+        }
     }
 
     public class EventFetcher
     {
-        private readonly Web3 _web3;
+        public readonly object _provider;
 
-        public EventFetcher(Web3 web3)
+        public EventFetcher(object provider)
         {
-            _web3 = web3;
+            if (provider == null)
+                throw new ArgumentNullException(nameof(provider));
+
+            if (provider is Web3 web3Provider)
+            {
+                _provider = web3Provider;
+            }
+            else if (provider is SignerOrProvider signerOrProvider)
+            {
+                _provider = signerOrProvider.Provider;
+            }
+            else if (provider is ArbitrumProvider arbitrumProvider)
+            {
+                _provider = arbitrumProvider.Provider;
+            }
+            else
+            {
+                throw new ArgumentException("Invalid provider type", nameof(provider));
+            }
         }
 
-        public async Task<List<FetchedEvent<TEvent>>> GetEvents<TContract, TEventFilter>(
-            TypeChainContractFactory<TContract> contractFactory,
-            Func<TContract, TEventFilter> topicGenerator,
-            BlockFilter filter)
-            where TContract : Contract
-            where TEventFilter : TypedEventFilter<TEvent>
+        public async Task<List<FetchedEvent>> GetEventsAsync(
+            string contractFactory,
+            string eventName,
+            object argumentFilters = null,
+            object filter = null,
+            bool isClassic = false)
         {
-            var contract = contractFactory.Connect(filter.Address ?? Constants.AddressZero, _web3);
-            var eventFilter = topicGenerator(contract);
-            var fullFilter = new Filter
+            if (filter == null)
+                filter = new { };
+
+            if (argumentFilters == null)
+                argumentFilters = new { };
+
+            var contractAddress = LoadContractUtils.GetChecksumAddress("0x0000000000000000000000000000000000000000");
+            var contract = LoadContractUtils.LoadContract(provider: _provider, contractName: contractFactory, address: contractAddress, isClassic: isClassic);
+
+            Event eventHandler = contract.GetEvent(eventName);
+            if (eventHandler == null)
+                throw new ArgumentException($"Event {eventName} not found in contract");
+
+            var ethGetLogs = new EthGetLogs((IClient)_provider);
+
+            var filterInput = new NewFilterInput
             {
-                Address = filter.Address,
-                FromBlock = filter.FromBlock,
-                ToBlock = filter.ToBlock,
-                Topics = eventFilter.GetTopics()
+                FromBlock = BlockParameter.CreateEarliest(),
+                ToBlock = BlockParameter.CreateLatest(),
+                Address = new List<string> { contract.Address }.ToArray()
             };
-            var logs = await _web3.Eth.Filters.GetLogs.SendRequestAsync(fullFilter);
-            var fetchedEvents = new List<FetchedEvent<TEvent>>();
+
+            var logs = await ethGetLogs.SendRequestAsync(filterInput);
+            var fetchedEvents = new List<FetchedEvent>();
+
             foreach (var log in logs)
             {
-                if (!log.Removed)
+                fetchedEvents.Add(new FetchedEvent(
+                    _event: log.Address,
+                    topic: log.GetTopic(0),   ///////
+                    name: eventName,
+                    blockNumber: log.BlockNumber.Value,
+                    blockHash: log.BlockHash,
+                    transactionHash: log.TransactionHash,
+                    address: log.Address,
+                    topics: ConvertToStringList(log.Topics),
+                    data: log.Data));
+            }
+
+            return fetchedEvents;
+        }
+
+        private List<string> ConvertToStringList(object[] topics)
+        {
+            if (topics == null)
+                return new List<string>();
+
+            var stringList = new List<string>();
+            foreach (var topic in topics)
+            {
+                if (topic is string str)
                 {
-                    var pLog = contract.Interface.ParseLog(log);
-                    fetchedEvents.Add(new FetchedEvent<TEvent>
-                    {
-                        Event = pLog.Event,
-                        Topic = pLog.Topic,
-                        Name = pLog.Name,
-                        BlockNumber = log.BlockNumber,
-                        BlockHash = log.BlockHash,
-                        TransactionHash = log.TransactionHash,
-                        Address = log.Address,
-                        Topics = log.Topics,
-                        Data = log.Data
-                    });
+                    stringList.Add(str);
                 }
             }
-            return fetchedEvents;
+            return stringList;
         }
     }
 }

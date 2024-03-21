@@ -35,7 +35,7 @@ namespace Arbitrum.Utils
                 }
                 catch (Exception ex)
                 {
-                    throw ex;
+                    throw;
                 }
             }
             else
@@ -51,7 +51,7 @@ namespace Arbitrum.Utils
                 }
                 catch (Exception ex)
                 {
-                    throw ex;
+                    throw;
                 }
             }
         }

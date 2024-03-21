@@ -19,6 +19,11 @@ namespace Arbitrum.Utils
     public class CaseDict
     {
         private readonly Dictionary<string, object> _data;
+        public string RetryTxHash
+        {
+            get { return Get<string>("retryTxHash"); }
+            set { this["retryTxHash"] = value; }
+        }
 
         public CaseDict(object data)
         {
@@ -109,13 +114,13 @@ namespace Arbitrum.Utils
 
     public class LoadContractUtils
     {
-        private class ContractData
+        public class ContractData
         {
             public string[] Abi { get; set; }
             public string Bytecode { get; set; }
         }
 
-        public static Contract LoadContract(string contractName, IWeb3 provider, string address = null, bool isClassic = false)
+        public static Contract LoadContract(string contractName, object provider, string address = null, bool isClassic = false)
         {
             var web3Provider = GetWeb3Provider(provider);
             var web3 = new Web3(web3Provider);
@@ -170,23 +175,23 @@ namespace Arbitrum.Utils
             }
         }
 
-        private static IClient GetWeb3Provider(IWeb3 provider)
+        public static IClient GetWeb3Provider(object provider)
         {
             if (provider is SignerOrProvider signerOrProvider)
             {
                 return (IClient)signerOrProvider.Provider;
             }
-            //else if (provider is ArbitrumProvider arbitrumProvider)
-            //{
-            //    return (IClient)arbitrumProvider.Provider;
-            //}
+            else if (provider is ArbitrumProvider arbitrumProvider)
+            {
+                return (IClient)arbitrumProvider.Provider;
+            }
             else
             {
                 return (IClient)provider;
             }
         }
 
-        private static string GetChecksumAddress(string address)
+        public static string GetChecksumAddress(string address)
         {
             return Web3.ToChecksumAddress(address);
         }

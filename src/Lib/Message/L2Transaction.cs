@@ -10,8 +10,21 @@ using Nethereum.Util.HashProviders;
 using Nethereum.Contracts.Services;
 using Nethereum.Web3;
 
+using Arbitrum.DataEntities;
+using Arbitrum.Utils;
+
 namespace Arbitrum.Message
 {
+    public class RedeemScheduledEvent
+    {
+        public string? TicketId { get; set; }
+        public string? RetryTxHash { get; set; }
+        public HexBigInteger? SequenceNum { get; set; }
+        public HexBigInteger? DonatedGas { get; set; }
+        public string? GasDonor { get; set; }
+        public HexBigInteger? MaxRefund { get; set; }
+        public HexBigInteger? SubmissionFeeRefund { get; set; }
+    }
     public class L2ContractTransaction : ContractTransactionVO
     {
         public L2ContractTransaction(string contractAddress, string code, Transaction transaction)
@@ -83,11 +96,10 @@ namespace Arbitrum.Message
             return true;
         }
 
-        public bool GetRedeemScheduledEvents()        ////////
+        public async Task<List<CaseDict>> GetRedeemScheduledEvents(Web3 provider)    ///////
         {
-            return true;
+            return await LogParser.ParseTypedLogs(provider, "ArbRetryableTx", Logs, "RedeemScheduled");
         }
-
 
     }
 }
