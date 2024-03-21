@@ -4,7 +4,8 @@ using System.Text.Json;
 using Nethereum.Contracts;
 using Nethereum.Web3;
 using Nethereum.JsonRpc.Client;
-using Arbitrum.Lib.Utils;
+using Arbitrum.DataEntities;
+using Arbitrum.Utils;
 
 namespace Arbitrum.Utils
 {
@@ -15,15 +16,111 @@ namespace Arbitrum.Utils
         }
     }
 
+    public class CaseDict
+    {
+        private readonly Dictionary<string, object> _data;
+        public string RetryTxHash
+        {
+            get { return Get<string>("retryTxHash"); }
+            set { this["retryTxHash"] = value; }
+        }
+
+        public CaseDict(object data)
+        {
+            if (data is Dictionary<string, object> dict)
+            {
+                _data = new Dictionary<string, object>(dict, StringComparer.OrdinalIgnoreCase);
+            }
+            else
+            {
+                throw new ArgumentException("Input data must be a dictionary");
+            }
+        }
+
+        public object this[string key]
+        {
+            get
+            {
+                if (_data.TryGetValue(key, out var value))
+                {
+                    return value;
+                }
+                else
+                {
+                    throw new KeyNotFoundException(key);
+                }
+            }
+            set
+            {
+                _data[key] = value; 
+            }
+        }
+
+        public T Get<T>(string key, T defaultValue = default)
+        {
+            if (_data.TryGetValue(key, out var value))
+            {
+                return (T)value;
+            }
+            else
+            {
+                return defaultValue;
+            }
+        }
+
+        public IEnumerable<KeyValuePair<string, object>> GetEnumerator()
+        {
+            return _data;
+        }
+
+        public bool ContainsKey(string key)
+        {
+            return _data.ContainsKey(key);
+        }
+
+        public Dictionary<string, object> ToDictionary()
+        {
+            return _data.ToDictionary(kvp => kvp.Key, kvp => ConvertValue(kvp.Key, kvp.Value), StringComparer.OrdinalIgnoreCase);
+        }
+
+        public override string ToString()
+        {
+            var items = string.Join(", ", ToDictionary().Select(kvp => $"{kvp.Key}: {ConvertValue(kvp.Key, kvp.Value)}"));
+            return $"CaseDict({items})";
+        }
+
+        private object ConvertValue(string key, object value)
+        {
+            if (value is Dictionary<string, object> dict)
+            {
+                return new CaseDict(dict);
+            }
+            else if (value is List<object> list)
+            {
+                return list.Select(item => ConvertValue(key, item)).ToList();
+            }
+            // Handle Contract class conversion if applicable in your context
+            // else if (value is Contract contract)
+            // {
+            //     return contract.Address;
+            // }
+            else
+            {
+                return value;
+            }
+        }
+    }
+
+
     public class LoadContractUtils
     {
-        private class ContractData
+        public class ContractData
         {
             public string[] Abi { get; set; }
             public string Bytecode { get; set; }
         }
 
-        public static Contract LoadContract(string contractName, IWeb3 provider, string address = null, bool isClassic = false)
+        public static Contract LoadContract(string contractName, object provider, string address = null, bool isClassic = false)
         {
             var web3Provider = GetWeb3Provider(provider);
             var web3 = new Web3(web3Provider);
@@ -78,23 +175,23 @@ namespace Arbitrum.Utils
             }
         }
 
-        private static IClient GetWeb3Provider(IWeb3 provider)
+        public static IClient GetWeb3Provider(object provider)
         {
             if (provider is SignerOrProvider signerOrProvider)
             {
                 return (IClient)signerOrProvider.Provider;
             }
-            //else if (provider is ArbitrumProvider arbitrumProvider)
-            //{
-            //    return (IClient)arbitrumProvider.Provider;
-            //}
+            else if (provider is ArbitrumProvider arbitrumProvider)
+            {
+                return (IClient)arbitrumProvider.Provider;
+            }
             else
             {
                 return (IClient)provider;
             }
         }
 
-        private static string GetChecksumAddress(string address)
+        public static string GetChecksumAddress(string address)
         {
             return Web3.ToChecksumAddress(address);
         }

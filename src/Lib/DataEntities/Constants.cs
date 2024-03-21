@@ -22,7 +22,7 @@ namespace Arbitrum.DataEntities
         /**
          * The offset added to an L1 address to get the corresponding L2 address
          */
-        public const string ADDRESS_ALIAS_OFFSET = "1111000000000000000000000000000000001111";
+        public const string ADDRESS_ALIAS_OFFSET = "0x1111000000000000000000000000000000001111";
 
         /**
          * Address of the gateway a token will be assigned to if it is disabled
@@ -36,6 +36,8 @@ namespace Arbitrum.DataEntities
         public const int CUSTOM_TOKEN_IS_ENABLED = 42161;
 
         public const int SEVEN_DAYS_IN_SECONDS = 7 * 24 * 60 * 60;
+        public const string ADDRESS_ZERO = "0x0000000000000000000000000000000000000000";
+
     }
 
 }

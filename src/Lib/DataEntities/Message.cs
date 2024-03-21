@@ -1,4 +1,4 @@
-﻿using Nethereum.Hex.HexTypes;
+﻿using System.Numerics;
 
 namespace Arbitrum.DataEntities
 {
@@ -11,13 +11,13 @@ namespace Arbitrum.DataEntities
         string DestAddress { get; }
 
         /* Call value in L2 message */
-        HexBigInteger L2CallValue { get; }
+        BigInteger L2CallValue { get; }
 
         /* Value sent at L1 */
-        HexBigInteger L1Value { get; }
+        BigInteger L1Value { get; }
 
         /* Max gas deducted from L2 balance to cover base submission fee */
-        HexBigInteger MaxSubmissionFee { get; }
+        BigInteger MaxSubmissionFee { get; }
 
         /* L2 address to credit (gaslimit x gasprice - execution cost) */
         string ExcessFeeRefundAddress { get; }
@@ -26,10 +26,10 @@ namespace Arbitrum.DataEntities
         string CallValueRefundAddress { get; }
 
         /* Max gas deducted from user's L2 balance to cover L2 execution */
-        HexBigInteger GasLimit { get; }
+        BigInteger GasLimit { get; }
 
         /* Gas price for L2 execution */
-        HexBigInteger MaxFeePerGas { get; }
+        BigInteger MaxFeePerGas { get; }
 
         /* Calldata for of the L2 message */
         string Data { get; }

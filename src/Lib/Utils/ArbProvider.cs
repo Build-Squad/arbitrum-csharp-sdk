@@ -1,6 +1,5 @@
 ﻿using System.Threading.Tasks;
 using Arbitrum.DataEntities;
-using Arbitrum.Lib.Utils;
 using Nethereum.RPC.Eth.DTOs;
 
 namespace Arbitrum.Utils
