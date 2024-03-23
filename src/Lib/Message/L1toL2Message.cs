@@ -12,7 +12,6 @@ using Nethereum.Signer;
 using Arbitrum.DataEntities;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.JsonRpc.Client;
-using Nethereum.Hex.HexTypes;
 
 using Arbitrum;
 using Arbitrum.Utils;
@@ -21,6 +20,11 @@ using static Arbitrum.DataEntities.NetworkUtils;
 using Nethereum.RPC.Eth.Services;
 using Nethereum.Contracts;
 using Nethereum.ABI.FunctionEncoding;
+using Nethereum.Hex.HexTypes;
+using System.Linq;
+using System.ComponentModel.DataAnnotations;
+using System.Text;
+using Org.BouncyCastle.Utilities.Encoders;
 
 namespace Arbitrum.Message
 
@@ -78,6 +82,7 @@ namespace Arbitrum.Message
             return value.ToByteArray();
         }
 
+        //from hexadecimal string to Byte array
         public static byte[] HexToBytes(string value)
         {
             return value.HexToByteArray();
@@ -192,6 +197,28 @@ namespace Arbitrum.Message
             return result;
         }
     }
+
+    /**
+     * Conditional type for Signer or Provider. If T is of type Provider
+     * then L1ToL2MessageReaderOrWriter<T> will be of type L1ToL2MessageReader.
+     * If T is of type Signer then L1ToL2MessageReaderOrWriter<T> will be of
+     * type L1ToL2MessageWriter.
+     */
+    public class L1ToL2MessageReaderOrWriter<T> where T : SignerOrProvider
+    {
+        public static Type GetReaderOrWriterType()
+        {
+            if (typeof(T) == typeof(Web3))
+            {
+                return typeof(L1ToL2MessageReader);
+            }
+            else
+            {
+                return typeof(L1ToL2MessageWriter);
+            }
+        }
+    }
+
     public class L1ToL2Message
     {
         /**
@@ -234,6 +261,24 @@ namespace Arbitrum.Message
                 MessageData.Data);
         }
 
+        /**
+         * The submit retryable transactions use the typed transaction envelope 2718.
+         * The id of these transactions is the hash of the RLP encoded transaction.
+         * @param l2ChainId
+         * @param fromAddress the aliased address that called the L1 inbox as emitted in the bridge event.
+         * @param messageNumber
+         * @param l1BaseFee
+         * @param destAddress
+         * @param l2CallValue
+         * @param l1Value
+         * @param maxSubmissionFee
+         * @param excessFeeRefundAddress refund address specified in the retryable creation. Note the L1 inbox aliases this address if it is a L1 smart contract. The user is expected to provide this value already aliased when needed.
+         * @param callValueRefundAddress refund address specified in the retryable creation. Note the L1 inbox aliases this address if it is a L1 smart contract. The user is expected to provide this value already aliased when needed.
+         * @param gasLimit
+         * @param maxFeePerGas
+         * @param data
+         * @returns
+         */
         public static string CalculateSubmitRetryableId(
             BigInteger l2ChainId,
             string fromAddress,
@@ -258,17 +303,17 @@ namespace Arbitrum.Message
 
             var fields = new byte[][]
             {
-            L1ToL2MessageUtils.FormatNumber(chainId),
-            L1ToL2MessageUtils.ZeroPad(L1ToL2MessageUtils.FormatNumber(msgNum), 32),
+            FormatNumber(chainId),
+            ZeroPad(FormatNumber(msgNum), 32),
             fromAddr.HexToByteArray().ToHex(true).HexToByteArray(),
-            L1ToL2MessageUtils.FormatNumber(l1BaseFee),
-            L1ToL2MessageUtils.FormatNumber(l1Value),
-            L1ToL2MessageUtils.FormatNumber(maxFeePerGas),
-            L1ToL2MessageUtils.FormatNumber(gasLimit),
+            FormatNumber(l1BaseFee),
+            FormatNumber(l1Value),
+            FormatNumber(maxFeePerGas),
+            FormatNumber(gasLimit),
             destAddr != "0x" ? destAddr.HexToByteArray().ToHex(true).HexToByteArray() : new byte[0],
-            L1ToL2MessageUtils.FormatNumber(l2CallValue),
+            FormatNumber(l2CallValue),
             callValueRefundAddr.HexToByteArray().ToHex(true).HexToByteArray(),
-            L1ToL2MessageUtils.FormatNumber(maxSubmissionFee),
+            FormatNumber(maxSubmissionFee),
             excessFeeRefundAddr.HexToByteArray().ToHex(true).HexToByteArray(),
             data.HexToByteArray().ToHex(true).HexToByteArray()
             };
@@ -312,6 +357,10 @@ namespace Arbitrum.Message
         }
     }
 
+    /**
+     * If the status is redeemed an l2TxReceipt is populated.
+     * For all other statuses l2TxReceipt is not populated
+     */
     public class L1ToL2MessageWaitResult
     {
         public L1ToL2MessageStatus Status { get; set; }
@@ -320,10 +369,14 @@ namespace Arbitrum.Message
 
     public class L1ToL2MessageReader : L1ToL2Message
     {
-        private Web3 _l2Provider;
-        private TransactionReceipt _retryableCreationReceipt;
-        private IEthApiTransactionsService _transactionService; // Add this field to access the transaction service
+        public Web3 _l2Provider;
+        public TransactionReceipt? _retryableCreationReceipt;
 
+        public TransactionReceipt? RetryableCreationReceipt
+        {
+            get { return _retryableCreationReceipt; }
+            set { _retryableCreationReceipt = value; }
+        }
         public L1ToL2MessageReader(
             Web3 l2Provider,
             BigInteger chainId,
@@ -333,10 +386,14 @@ namespace Arbitrum.Message
             RetryableMessageParams messageData) : base(chainId, sender, messageNumber, l1BaseFee, messageData)
         {
             _l2Provider = l2Provider;
-            _retryableCreationReceipt = null;
-            _transactionService = _l2Provider.Eth.Transactions; // Initialize the transaction service
         }
 
+        /**
+         * Try to get the receipt for the retryable ticket creation.
+         * This is the L2 transaction that creates the retryable ticket.
+         * If confirmations or timeout is provided, this will wait for the ticket to be created
+         * @returns Null if retryable has not been created
+         */
         public async Task<TransactionReceipt?> GetRetryableCreationReceipt(int? confirmations = null, int? timeout = null)
         {
             if (_retryableCreationReceipt == null)
@@ -348,6 +405,11 @@ namespace Arbitrum.Message
             return _retryableCreationReceipt;
         }
 
+        /**
+         * When retryable tickets are created, and gas is supplied to it, an attempt is
+         * made to redeem the ticket straight away. This is called an auto redeem.
+         * @returns TransactionReceipt of the auto redeem attempt if exists, otherwise null
+         */
         public async Task<TransactionReceipt?> GetAutoRedeemAttempt()
         {
             var creationReceipt = await GetRetryableCreationReceipt();
@@ -370,7 +432,10 @@ namespace Arbitrum.Message
             return null;
         }
 
-
+        /**
+         * Receipt for the successful l2 transaction created by this message.
+         * @returns TransactionReceipt of the first successful redeem if exists, otherwise the current status of the message.
+         */
         public async Task<L1ToL2MessageWaitResult> GetSuccessfulRedeem()
         {
             var l2Network = await GetL2NetworkAsync(_l2Provider);
@@ -379,6 +444,8 @@ namespace Arbitrum.Message
 
             if (creationReceipt == null)
             {
+                // retryable was never created, or not created yet
+                // therefore it cant have been redeemed or be expired
                 return new L1ToL2MessageWaitResult { Status = L1ToL2MessageStatus.NOT_YET_CREATED };
             }
 
@@ -387,6 +454,7 @@ namespace Arbitrum.Message
                 return new L1ToL2MessageWaitResult { Status = L1ToL2MessageStatus.CREATION_FAILED };
             }
 
+            // check the auto redeem first to avoid doing costly log queries in the happy case
             var autoRedeem = await GetAutoRedeemAttempt();
             if (autoRedeem != null && autoRedeem.Status.Value == 1)
             {
@@ -395,34 +463,56 @@ namespace Arbitrum.Message
 
             if (await RetryableExists())
             {
+                // the retryable was created and still exists
+                // therefore it cant have been redeemed or be expired
                 return new L1ToL2MessageWaitResult { Status = L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2 };
             }
 
-            var maxBlock = await this.l2Provider.Eth.Blocks.GetBlockNumber.SendRequestAsync();
-            var increment = 1000;
-            var fromBlock = await this.l2Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(creationReceipt.BlockNumber.Value);
+            // from this point on we know that the retryable was created but does not exist,
+            // so the retryable was either successfully redeemed, or it expired
 
-            var timeout = fromBlock.Timestamp + l2Network.RetryableLifetimeSeconds;
-            var queriedRange = new List<(ulong from, ulong to)>();
+            // the auto redeem didnt exist or wasnt successful, look for a later manual redeem
+            // to do this we need to filter through the whole lifetime of the ticket looking
+            // for relevant redeem scheduled events
+            // **below there are several explicit castings to int**
+            int increment = 1000;
+            BlockWithTransactions fromBlock = await _l2Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(new BlockParameter(creationReceipt.BlockNumber));
 
-            while (fromBlock.Number.Value < maxBlock.Value)
+            int timeout = (int)fromBlock.Timestamp.Value + l2Network.RetryableLifetimeSeconds;
+
+            List<(int from, int to)> queriedRange = new List<(int from, int to)>();
+
+            var maxBlock = await _l2Provider.Eth.Blocks.GetBlockNumber.SendRequestAsync();
+
+            while ((int)fromBlock.Number.Value < (int)maxBlock.Value)
             {
-                var toBlockNumber = Math.Min(fromBlock.Number.Value + increment, maxBlock.Value);
-                var outerBlockRange = (from: fromBlock.Number.Value, to: toBlockNumber);
-                queriedRange.Add(outerBlockRange);
+                int toBlockNumber = Math.Min((int)fromBlock.Number.Value + increment, (int)maxBlock.Value);
 
-                var redeemEvents = await eventFetcher.GetEvents(ArbRetryableTx__factory.Instance,
-                                                                 contract => contract.RedeemScheduled(this.RetryableCreationId),
-                                                                 new BlockParameter(outerBlockRange.from),
-                                                                 new BlockParameter(outerBlockRange.to),
-                                                                 ARB_RETRYABLE_TX_ADDRESS);
+                // using fromBlock.number would lead to 1 block overlap
+                // not fixing it here to keep the code simple
+                var outerBlockRange = ((int)fromBlock.Number.Value, toBlockNumber); 
+
+                queriedRange.Add(outerBlockRange);     
+
+                List<FetchedEvent> redeemEvents = await eventFetcher.GetEventsAsync(
+                                                            contractFactory: "ArbRetryableTx",
+                                                            eventName: "RedeemScheduled",
+                                                            argumentFilters: new Dictionary<string, object> { { "ticketId", this.RetryableCreationId } },
+                                                            filter: new Dictionary<string, object>
+                                                                    {
+                                                                        { "fromBlock", outerBlockRange.Item1 },    ////////
+                                                                        { "toBlock", outerBlockRange.Item2 },
+                                                                        { "address", Constants.ARB_RETRYABLE_TX_ADDRESS }
+                                                                    },
+                                                            isClassic: false
+                                                            );  
 
                 var successfulRedeem = new List<TransactionReceipt>();
 
                 foreach (var e in redeemEvents)
                 {
-                    var receipt = await this.l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(e.Event.RetryTxHash);
-                    if (receipt != null && receipt.Status == 1)
+                    var receipt = await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync("retryTxHash");   //////
+                    if (receipt != null && receipt.Status.Value == 1)
                     {
                         successfulRedeem.Add(receipt);
                     }
@@ -438,49 +528,67 @@ namespace Arbitrum.Message
                     return new L1ToL2MessageWaitResult { L2TxReceipt = successfulRedeem.First(), Status = L1ToL2MessageStatus.REDEEMED };
                 }
 
-                var toBlock = await this.l2Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(toBlockNumber);
-                if (toBlock.Timestamp > timeout)
+                var toBlock = await _l2Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(toBlockNumber.ToHexBigInteger());
+                if (toBlock.Timestamp.Value > timeout)
                 {
+                    // Check for LifetimeExtended event
                     while (queriedRange.Count > 0)
                     {
                         var blockRange = queriedRange.First();
-                        var keepaliveEvents = await eventFetcher.GetEvents(ArbRetryableTx__factory.Instance,
-                                                                           contract => contract.LifetimeExtended(this.RetryableCreationId),
-                                                                           new BlockParameter(blockRange.from),
-                                                                           new BlockParameter(blockRange.to),
-                                                                           ARB_RETRYABLE_TX_ADDRESS);
-
-                        if (keepaliveEvents.Any())
+                        List<FetchedEvent> keepAliveEvents = await eventFetcher.GetEventsAsync(   
+                                                                           contractFactory: "ArbRetryableTx",
+                                                                           eventName: "LifetimeExtended",
+                                                                           argumentFilters: new Dictionary<string, object> { { "ticketId", this.RetryableCreationId } },
+                                                                           filter: new Dictionary<string, object>
+                                                                            {
+                                                                                { "fromBlock", blockRange.from },    ////////
+                                                                                { "toBlock", blockRange.to },
+                                                                                { "address", Constants.ARB_RETRYABLE_TX_ADDRESS }
+                                                                            },
+                                                                           isClassic: false);
+                        if (keepAliveEvents.Count > 0)
                         {
-                            timeout = keepaliveEvents.Max(e => e.Event.NewTimeout);
+                            var maxTimeout = keepAliveEvents.Select(e => e.Event["newTimeout"]).OrderByDescending(t => t).First();
                             break;
                         }
                         queriedRange.RemoveAt(0);
                     }
 
-                    if (toBlock.Timestamp > timeout)
+                    // the retryable no longer exists, but we've searched beyond the timeout
+                    // so it must have expired
+                    if (toBlock.Timestamp.Value > timeout)
                     {
                         break;
                     }
 
+                    // It is possible to have another keepalive in the last range as it might include block after previous timeout
                     while (queriedRange.Count > 1)
                     {
                         queriedRange.RemoveAt(0);
                     }
                 }
 
-                var processedSeconds = (int)(toBlock.Timestamp - fromBlock.Timestamp);
+                int processedSeconds = (int)(toBlock.Timestamp.Value - fromBlock.Timestamp.Value);
                 if (processedSeconds != 0)
                 {
-                    increment = (int)Math.Ceiling((increment * 86400) / processedSeconds);
+                    // find the increment that cover ~ 1 day
+                    //explicitly casting the result of the division operation to either decimal to make the compiler choose the appropriate overload.
+                    increment = (int)Math.Ceiling((decimal)(increment * 86400) / processedSeconds);
                 }
 
                 fromBlock = toBlock;
             }
 
+            // we know from earlier that the retryable no longer exists, so if we havent found the redemption
+            // we know that it must have expired
             return new L1ToL2MessageWaitResult { Status = L1ToL2MessageStatus.EXPIRED };
         }
 
+        /**
+         * Has this message expired. Once expired the retryable ticket can no longer be redeemed.
+         * @deprecated Will be removed in v3.0.0
+         * @returns
+         */
         public async Task<bool> IsExpired()
         {
             return await this.RetryableExists();
@@ -488,11 +596,14 @@ namespace Arbitrum.Message
 
         public async Task<bool> RetryableExists()
         {
-            var currentTimestamp = (await self.l2Provider.Eth.GetBlockWithTransactionsHashesByNumber.SendRequestAsync(BlockParameter.CreateLatest())).Timestamp;
+            var currentTimestamp = (await _l2Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(BlockParameter.CreateLatest())).Timestamp;
 
             try
             {
-                var timeoutTimestamp = await GetTimeoutAsync();
+                BigInteger timeoutTimestamp = await GetTimeout();
+                // timeoutTimestamp returns the timestamp at which the retryable ticket expires
+                // it can also return revert if the ticket l2Tx does not exist
+
                 return currentTimestamp <= timeoutTimestamp;
             }
             catch (SmartContractRevertException ex)
@@ -508,6 +619,7 @@ namespace Arbitrum.Message
                 Log.Error(ex, "An error occurred while checking retryable existence.");
                 throw;
             }
+            return true;
         }
 
         public async Task<L1ToL2MessageStatus> Status()
@@ -515,6 +627,18 @@ namespace Arbitrum.Message
             return (await this.GetSuccessfulRedeem()).Status;
         }
 
+        /**
+         * Wait for the retryable ticket to be created, for it to be redeemed, and for the l2Tx to be executed.
+         * Note: The terminal status of a transaction that only does an eth deposit is FUNDS_DEPOSITED_ON_L2 as
+         * no L2 transaction needs to be executed, however the terminal state of any other transaction is REDEEMED
+         * which represents that the retryable ticket has been redeemed and the L2 tx has been executed.
+         * @param confirmations Amount of confirmations the retryable ticket and the auto redeem receipt should have
+         * @param timeout Amount of time to wait for the retryable ticket to be created
+         * Defaults to 15 minutes, as by this time all transactions are expected to be included on L2. Throws on timeout.
+         * @returns The wait result contains a status, and optionally the l2TxReceipt.
+         * If the status is "REDEEMED" then a l2TxReceipt is also available on the result.
+         * If the status has any other value then l2TxReceipt is not populated.
+         */
         public async Task<L1ToL2MessageWaitResult> WaitForStatus(int? confirmations = null, int? timeout = null)
         {
             var l2network = await GetL2NetworkAsync(this.ChainId);
@@ -539,6 +663,10 @@ namespace Arbitrum.Message
             return await this.GetSuccessfulRedeem();
         }
 
+        /**
+         * The minimium lifetime of a retryable tx
+         * @returns
+         */
         public static async Task<BigInteger> GetLifetime(object l2Provider)
         {
             Contract arbRetryableTxContract = LoadContractUtils.LoadContract(
@@ -553,9 +681,13 @@ namespace Arbitrum.Message
             return await getLifetimeFunction.CallAsync<BigInteger>();
         }
 
+        /**
+         * Timestamp at which this message expires
+         * @returns
+         */
         public async Task<BigInteger> GetTimeout()
         {
-            var arbRetryableTxContract = LoadContractUtils.LoadContract(
+            Contract arbRetryableTxContract = LoadContractUtils.LoadContract(
                 contractName: "ArbRetryableTx",
                 address: Constants.ARB_RETRYABLE_TX_ADDRESS,
                 provider: _l2Provider,
@@ -566,71 +698,322 @@ namespace Arbitrum.Message
             return await getTimeoutFunction.CallAsync<BigInteger>(RetryableCreationId);
         }
 
-        public async Task<object> GetBeneficiary()
+        /**
+         * Address to which CallValue will be credited to on L2 if the retryable ticket times out or is cancelled.
+         * The Beneficiary is also the address with the right to cancel a Retryable Ticket (if the ticket hasn’t been redeemed yet).
+         * @returns
+         */
+        public async Task<string> GetBeneficiary()
         {
-            // Implement your logic here to get the beneficiary
-            return null;
+            Contract arbRetryableTxContract = LoadContractUtils.LoadContract(
+                contractName: "ArbRetryableTx",
+                address: Constants.ARB_RETRYABLE_TX_ADDRESS,
+                provider: _l2Provider,
+                isClassic: false
+            );
+
+            var getBeneficiaryFunction = arbRetryableTxContract.GetFunction("getBeneficiary");   //////
+            return await getBeneficiaryFunction.CallAsync<string>(RetryableCreationId);
+        }
+    }
+
+    public class L1ToL2MessageReaderClassic
+    {
+        private TransactionReceipt retryableCreationReceipt;
+        public BigInteger MessageNumber { get; }
+        public string RetryableCreationId { get; }
+        public string AutoRedeemId { get; }
+        public string L2TxHash { get; }
+        public Web3 L2Provider { get; }
+
+        public L1ToL2MessageReaderClassic(Web3 l2Provider, int chainId, BigInteger messageNumber)
+        {
+            MessageNumber = messageNumber;
+            L2Provider = l2Provider;
+            RetryableCreationId = CalculateRetryableCreationId(chainId, messageNumber);
+            AutoRedeemId = CalculateAutoRedeemId(RetryableCreationId);
+            L2TxHash = CalculateL2TxHash(RetryableCreationId);
+        }
+        public static BigInteger BitFlip(BigInteger num)
+        {
+            return num | BigInteger.One << 255;
+        }
+
+
+        public static string CalculateRetryableCreationId(int chainId, BigInteger messageNumber)
+        {
+            return new Sha3Keccack().CalculateHash(
+                Concat(
+                    ZeroPad(BitConverter.GetBytes(chainId), 32),
+                    ZeroPad(BitFlip(messageNumber).ToByteArray(), 32)
+                )
+            ).ToHex();
+        }
+
+        public static string CalculateAutoRedeemId(string retryableCreationId)
+        {
+            return new Sha3Keccack().CalculateHash(
+                Concat(
+                    ZeroPad(HexToBytes(retryableCreationId), 32),
+                    ZeroPad(BigInteger.One.ToByteArray(), 32)
+                )
+            ).ToHex();
+        }
+        public static string CalculateL2TxHash(string retryableCreationId)
+        {
+            return new Sha3Keccack().CalculateHash(
+                Concat(
+                    ZeroPad(HexToBytes(retryableCreationId), 32),
+                    ZeroPad(BigInteger.Zero.ToByteArray(), 32)
+                )
+            ).ToHex();
+        }
+
+        private string CalculateL2DerivedHash(string retryableCreationId)
+        {
+            return new Sha3Keccack().CalculateHash(
+                Concat(
+                    ZeroPad(HexToBytes(retryableCreationId), 32),
+                    // BN 0 meaning L2 TX
+                    ZeroPad(BigInteger.One.ToByteArray(), 32)
+                )
+            ).ToHex();
+        }
+
+        /**
+         * Try to get the receipt for the retryable ticket creation.
+         * This is the L2 transaction that creates the retryable ticket.
+         * If confirmations or timeout is provided, this will wait for the ticket to be created
+         * @returns Null if retryable has not been created
+         */
+        public async Task<TransactionReceipt> GetRetryableCreationReceipt(int? confirmations = null, int? timeout = null)
+        {
+            if (retryableCreationReceipt == null)
+            {
+                retryableCreationReceipt = await Lib.GetTransactionReceiptAsync(
+                    L2Provider,
+                    RetryableCreationId,
+                    confirmations,
+                    timeout
+                );
+            }
+
+            return retryableCreationReceipt;
+        }
+
+        public async Task<L1ToL2MessageStatus> Status()
+        {
+            var creationReceipt = await GetRetryableCreationReceipt();
+
+            if (creationReceipt == null)
+            {
+                return L1ToL2MessageStatus.NOT_YET_CREATED;
+            }
+
+            if (creationReceipt.Status.Value == 0)
+            {
+                return L1ToL2MessageStatus.CREATION_FAILED;
+            }
+
+            var l2DerivedHash = CalculateL2DerivedHash(RetryableCreationId);
+            var l2TxReceipt = await L2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(l2DerivedHash);
+
+            if (l2TxReceipt != null && l2TxReceipt.Status.Value == 1)
+            {
+                return L1ToL2MessageStatus.REDEEMED;
+            }
+
+            return L1ToL2MessageStatus.EXPIRED;
         }
     }
 
     public class L1ToL2MessageWriter : L1ToL2MessageReader
     {
-        public readonly SignerOrProvider l2Signer;
-
+        public readonly SignerOrProvider _l2Signer;
         public L1ToL2MessageWriter(
-            Web3 l2Signer,
+            Web3 l2provider,
             BigInteger chainId,
             string sender,
             BigInteger messageNumber,
             BigInteger l1BaseFee,
-            RetryableMessageParams messageData) : base(l2Signer, chainId, sender, messageNumber, l1BaseFee, messageData)
+            RetryableMessageParams messageData) : base(l2provider, chainId, sender, messageNumber, l1BaseFee, messageData)
         {
-            if (l2Signer.Provider == null)
+            if (_l2Signer?.Provider == null)
             {
                 throw new ArbSdkError("Signer not connected to provider.");
             }
-            this.l2Signer = l2Signer;
         }
 
-        public async Task<object> Redeem(object overrides = null)
+        /**
+         * Manually redeem the retryable ticket.
+         * Throws if message status is not L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2
+         */
+        public async Task<RedeemTransaction> Redeem(Dictionary<string, object>? overrides = null)
         {
-            // Implement your logic here to redeem
-            return null;
-        }
+            var status = await Status();
 
-        public async Task<object> Cancel(object overrides = null)
-        {
-            // Implement your logic here to cancel
-            return null;
-        }
-
-        public async Task<object> KeepAlive(object overrides = null)
-        {
-            // Implement your logic here to keep alive
-            return null;
-        }
-    }
-
-    public class L1ToL2MessageReaderOrWriter<T> where T : SignerOrProvider
-    {
-        public static Type GetReaderOrWriterType()
-        {
-            if (typeof(T) == typeof(Web3))
+            if(status == L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2)
             {
-                return typeof(L1ToL2MessageReader);
+                Contract arbRetryableTxContract = LoadContractUtils.LoadContract(
+                                                        contractName: "ArbRetryableTx",
+                                                        address: Constants.ARB_RETRYABLE_TX_ADDRESS,
+                                                        provider: _l2Signer.Provider,
+                                                        isClassic: false
+                                                    );
+                if(overrides == null)
+                {
+                    overrides = new Dictionary<string, object>();
+                }
+                if (!overrides.ContainsKey("from"))
+                {
+                    overrides["from"] = _l2Signer.Account.Address;
+                }
+                if(overrides.ContainsKey("gasLimit"))
+                {
+                    overrides["gas"] = overrides["gasLimit"];
+                    if ((BigInteger)overrides["gas"] == 0)
+                        overrides.Remove("gas");
+                }
+
+                var redeemFunction = arbRetryableTxContract.GetFunction("Redeem");
+                var redeemHash = await redeemFunction.SendTransactionAsync(RetryableCreationId, overrides);
+
+                var txReceipt = await _l2Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(redeemHash);
+
+                return L2TransactionReceipt.ToRedeemTransaction(
+                    L2TransactionReceipt.MonkeyPatchWait(txReceipt), _l2Provider);
+
             }
             else
             {
-                return typeof(L1ToL2MessageWriter);
+                throw new ArbSdkError($"Cannot redeem as retryable does not exist. Message status: {Enum.GetName(typeof(L1ToL2MessageStatus), status)} must be: {Enum.GetName(typeof(L1ToL2MessageStatus), L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2)}.");
             }
         }
+
+        /**
+         * Cancel the retryable ticket.
+         * Throws if message status is not L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2
+         */
+        public async Task<TransactionReceipt> Cancel(Dictionary<string, object>? overrides = null)
+        {
+            var status = await Status();
+
+            if (status == L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2)
+            {
+                var arbRetryableTxContract = LoadContractUtils.LoadContract(
+                    contractName: "ArbRetryableTx",
+                    address: Constants.ARB_RETRYABLE_TX_ADDRESS,
+                    provider: _l2Signer.Provider,
+                    isClassic: false
+                );
+
+                if (overrides == null)
+                {
+                    overrides = new Dictionary<string, object>();
+                }
+
+                if (!overrides.ContainsKey("from"))
+                {
+                    overrides["from"] = _l2Signer.Account.Address;
+                }
+
+                if (overrides.ContainsKey("gasLimit"))
+                {
+                    overrides["gas"] = overrides["gasLimit"];
+                    if ((BigInteger)overrides["gas"] == 0)
+                        overrides.Remove("gas");
+                }
+
+                var cancelFunction = arbRetryableTxContract.GetFunction("Cancel");
+                var txHash = await cancelFunction.SendTransactionAsync(RetryableCreationId, overrides);
+
+                var txReceipt = await _l2Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
+
+                return txReceipt;
+            }
+            else
+            {
+                throw new ArbSdkError($"Cannot cancel as retryable does not exist. Message status: {Enum.GetName(typeof(L1ToL2MessageStatus), status)} must be: {Enum.GetName(typeof(L1ToL2MessageStatus), L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2)}.");
+            }
+        }
+
+        /**
+         * Increase the timeout of a retryable ticket.
+         * Throws if message status is not L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2
+         */
+        public async Task<TransactionReceipt> KeepAlive(Dictionary<string, object>? overrides = null)
+        {
+            var status = await Status();
+
+            if (status == L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2)
+            {
+                var arbRetryableTxContract = LoadContractUtils.LoadContract(
+                    contractName: "ArbRetryableTx",
+                    address: Constants.ARB_RETRYABLE_TX_ADDRESS,
+                    provider: _l2Signer.Provider,
+                    isClassic: false
+                );
+
+                if (overrides == null)
+                {
+                    overrides = new Dictionary<string, object>();
+                }
+
+                if (!overrides.ContainsKey("from"))
+                {
+                    overrides["from"] = _l2Signer.Account.Address;
+                }
+
+                if (overrides.ContainsKey("gasLimit"))
+                {
+                    overrides["gas"] = overrides["gasLimit"];
+                    if ((BigInteger)overrides["gas"] == 0)
+                        overrides.Remove("gas");
+                }
+
+                var keepAliveFunction = arbRetryableTxContract.GetFunction("KeepAlive");
+                var keepAliveTx = await keepAliveFunction.SendTransactionAsync(RetryableCreationId, overrides);
+
+                var txReceipt = await _l2Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(keepAliveTx);
+
+                return txReceipt;
+            }
+            else
+            {
+                throw new ArbSdkError($"Cannot keep alive as retryable does not exist. Message status: {Enum.GetName(typeof(L1ToL2MessageStatus), status)} must be: {Enum.GetName(typeof(L1ToL2MessageStatus), L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2)}.");
+            }
+        }
+
     }
 
+
+    /**
+     * A message for Eth deposits from L1 to L2
+     */
     public class EthDepositMessage
     {
-        private readonly RpcClient _l2Provider;
-        public readonly string L2DepositTxHash;
-        private TransactionReceipt _l2DepositTxReceipt;
+
+        public Web3 L2Provider { get; }
+        public int L2ChainId { get; }
+        public BigInteger MessageNumber { get; }
+        public string FromAddress { get; }
+        public string ToAddress { get; }
+        public BigInteger Value { get; }
+        public string L2DepositTxHash { get; }
+        public TransactionReceipt? L2DepositTxReceipt { get; set; } 
+
+
+        public EthDepositMessage(Web3 l2Provider, int l2ChainId, BigInteger messageNumber, string fromAddress, string toAddress, BigInteger value)
+        {
+            L2Provider = l2Provider;
+            L2ChainId = l2ChainId;
+            MessageNumber = messageNumber;
+            FromAddress = fromAddress;
+            ToAddress = toAddress;
+            Value = value;
+            L2DepositTxHash = CalculateDepositTxId(l2ChainId, messageNumber, fromAddress, toAddress, value);
+            L2DepositTxReceipt = null;
+        }
 
         public static string CalculateDepositTxId(
             int l2ChainId,
@@ -639,21 +1022,37 @@ namespace Arbitrum.Message
             string toAddress,
             BigInteger value)
         {
-            var chainIdBytes = l2ChainId.ToBytesForRLPEncoding();
-            var messageNumberBytes = messageNumber.ToBytesForRLPEncoding();
-            var fromAddressBytes = fromAddress.HexToByteArray();
-            var toAddressBytes = toAddress.HexToByteArray();
-            var valueBytes = value.ToBytesForRLPEncoding();
+            BigInteger chainId =  new BigInteger(l2ChainId);
+            BigInteger msgNum = messageNumber;
 
-            var encodedFields = new byte[][] { chainIdBytes, messageNumberBytes, fromAddressBytes, toAddressBytes, valueBytes };
+            byte[][] fields = new byte[][]
+            {
+                FormatNumber(chainId),
+                ZeroPad(FormatNumber(msgNum), 32),
+                HexToBytes(LoadContractUtils.GetAddress(fromAddress)),
+                HexToBytes(LoadContractUtils.GetAddress(toAddress)),
+                FormatNumber(value)
+            };
 
-            var rlpEncoded = RLP.EncodeList(encodedFields);
-            var txType = new byte[] { 0x64 }; // arbitrum eth deposit transactions have type 0x64
-            var rlpEnc = RLP.EncodeList(txType, rlpEncoded);
+            // Encode fields using RLP
+            byte[] rlpEncoded = RLP.EncodeList(fields);
 
-            return new Sha3Keccack().CalculateHash(rlpEnc).ToHex();
+            // Concatenate the RLP encoded data with prefix 0x64
+            byte[] rlpEncWithType = ByteUtil.Merge(new byte[] { 0x64 }, rlpEncoded);
+
+            // Calculate the hash
+            byte[] hashBytes = new Sha3Keccack().CalculateHash(rlpEncWithType);
+
+            // Convert the hash bytes to hexadecimal string
+            return hashBytes.ToHex();
         }
 
+        /**
+         * Parse the data field in
+         * event InboxMessageDelivered(uint256 indexed messageNum, bytes data);
+         * @param eventData
+         * @returns destination and amount
+         */
         public static (string to, BigInteger value) ParseEthDepositData(string eventData)
         {
             var to = eventData.Substring(0, 42); // Extract destination address
@@ -663,42 +1062,50 @@ namespace Arbitrum.Message
             return (to, value);
         }
 
+        /**
+         * Create an EthDepositMessage from data emitted in event when calling ethDeposit on Inbox.sol
+         * @param l2Provider
+         * @param messageNumber The message number in the Inbox.InboxMessageDelivered event
+         * @param senderAddr The sender address from Bridge.MessageDelivered event
+         * @param inboxMessageEventData The data field from the Inbox.InboxMessageDelivered event
+         * @returns
+         */
         public static async Task<EthDepositMessage> FromEventComponents(
-            SignerOrProvider l2Provider,
+            Web3 _l2Provider,
             BigInteger messageNumber,
             string senderAddr,
             string inboxMessageEventData)
         {
-            var chainId = (await l2Provider.Eth.ChainId.SendRequestAsync()).Value;
+            var chainId = (await _l2Provider.Eth.ChainId.SendRequestAsync()).Value;
             var (to, value) = ParseEthDepositData(inboxMessageEventData);
 
-            return new EthDepositMessage(_l2Provider, chainId, messageNumber, senderAddr, to, value);
+            return new EthDepositMessage(_l2Provider, ((int)chainId), messageNumber, senderAddr, to, value);
+        }
+            
+        public async Task<EthDepositStatus> Status()
+        {
+            var receipt = await L2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(L2DepositTxHash);
+            return receipt == null ? EthDepositStatus.PENDING : EthDepositStatus.DEPOSITED;
         }
 
-        public EthDepositMessage(
-            RpcClient l2Provider,
-            int l2ChainId,
-            BigInteger messageNumber,
-            string from,
-            string to,
-            BigInteger value)
-        {
-            L2DepositTxHash = CalculateDepositTxId(l2ChainId, messageNumber, from, to, value);
-        }
-
-        public async Task<L1ToL2MessageUtils.EthDepositStatus> Status()
-        {
-            var receipt = await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(L2DepositTxHash);
-            return receipt == null ? L1ToL2MessageUtils.EthDepositStatus.PENDING : L1ToL2MessageUtils.EthDepositStatus.DEPOSITED;
-        }
 
         public async Task<TransactionReceipt> Wait(int? confirmations = null, int? timeout = null)
         {
-            if (_l2DepositTxReceipt == null)
+            var l2Network = await GetL2NetworkAsync(this.L2ChainId);
+
+            var chosenTimeout = timeout ?? l2Network.DepositTimeout;
+
+            if (L2DepositTxReceipt == null)
             {
-                _l2DepositTxReceipt = await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(L2DepositTxHash);
+                L2DepositTxReceipt = await Lib.GetTransactionReceiptAsync(
+                    L2Provider,
+                    L2DepositTxHash,
+                    confirmations,
+                    chosenTimeout
+                );
             }
-            return _l2DepositTxReceipt;
+
+            return L2DepositTxReceipt;
         }
     }
 

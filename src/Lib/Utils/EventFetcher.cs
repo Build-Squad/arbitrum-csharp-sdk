@@ -10,12 +10,15 @@ using Nethereum.Contracts.Services;
 using Nethereum.JsonRpc.Client;
 using Arbitrum.DataEntities;
 using Nethereum.RPC.Eth.Filters;
+using Nethereum.RPC.Eth.Services;
+using Nethereum.Hex.HexTypes;
+
 
 namespace Arbitrum.Utils
 {
     public class FetchedEvent : CaseDict
     {
-        public string Event { get; }
+        public dynamic Event { get; }
         public string Topic { get; }
         public string Name { get; }
         public BigInteger BlockNumber { get; }
@@ -26,7 +29,7 @@ namespace Arbitrum.Utils
         public string Data { get; }
 
         public FetchedEvent(
-            string _event,
+            dynamic _event,          //Used dynamic type here as not sure of exact type of Event
             string topic,
             string name,
             BigInteger blockNumber,
@@ -50,7 +53,7 @@ namespace Arbitrum.Utils
 
     public class EventFetcher
     {
-        public readonly object _provider;
+        public readonly Web3 _provider;
 
         public EventFetcher(object provider)
         {
@@ -74,42 +77,91 @@ namespace Arbitrum.Utils
                 throw new ArgumentException("Invalid provider type", nameof(provider));
             }
         }
-
+        //generic FetchedEvent type(to be tested)
         public async Task<List<FetchedEvent>> GetEventsAsync(
-            string contractFactory,
+            dynamic contractFactory,
             string eventName,
-            object argumentFilters = null,
-            object filter = null,
+            Dictionary<string, object> argumentFilters = null,
+            Dictionary<string, object> filter = null,
             bool isClassic = false)
         {
+
+            // Initialize filter and argumentFilters if they are null
             if (filter == null)
-                filter = new { };
+                filter = new Dictionary<string, object>();
 
             if (argumentFilters == null)
-                argumentFilters = new { };
+                argumentFilters = new Dictionary<string, object>();
 
-            var contractAddress = LoadContractUtils.GetChecksumAddress("0x0000000000000000000000000000000000000000");
-            var contract = LoadContractUtils.LoadContract(provider: _provider, contractName: contractFactory, address: contractAddress, isClassic: isClassic);
+            // Get the contract instance
+            Contract contract;
 
-            Event eventHandler = contract.GetEvent(eventName);
-            if (eventHandler == null)
+            // If the contract factory is a string (indicating the contract address or name),
+            // get the contract address from the filter dictionary.
+            // If the filter contains an "address" key, use its value as the contract address.
+            // Otherwise, use a default address.
+            if (contractFactory is string)
+            {
+                string contractAddress = LoadContractUtils.GetAddress(filter.ContainsKey("address")
+                    ? (string)filter["address"]
+                    : "0x0000000000000000000000000000000000000000");
+
+                contract = LoadContractUtils.LoadContract(
+                    provider: _provider,
+                    contractName: contractFactory,
+                    address: contractAddress,
+                    isClassic: isClassic
+                );
+            }
+            else if (contractFactory is Contract contractInstance)
+            {
+                contract = contractInstance;
+            }
+            else
+            {
+                throw new ArbSdkError("Invalid contract factory type");
+            }
+
+            // Get the event instance
+            var eventInstance = contract.GetEvent(eventName);
+
+            if (eventInstance == null)
                 throw new ArgumentException($"Event {eventName} not found in contract");
 
-            var ethGetLogs = new EthGetLogs((IClient)_provider);
+            // Create event filter
+            var fromBlock = new HexBigInteger(BigInteger.Zero);
+            var toBlock = new HexBigInteger(BigInteger.Zero);
 
-            var filterInput = new NewFilterInput
+            if (filter is Dictionary<string, object> filterDict)
             {
-                FromBlock = BlockParameter.CreateEarliest(),
-                ToBlock = BlockParameter.CreateLatest(),
-                Address = new List<string> { contract.Address }.ToArray()
+                if (filterDict.TryGetValue("fromBlock", out var fromBlockObj))
+                {
+                    fromBlock = new HexBigInteger((long)fromBlockObj);
+                }
+
+                if (filterDict.TryGetValue("toBlock", out var toBlockObj))
+                {
+                    toBlock = new HexBigInteger((long)toBlockObj);
+                }
+            }
+
+            // Create event filter
+            var eventFilter = new NewFilterInput
+            {
+                FromBlock = new BlockParameter(fromBlock),
+                ToBlock = new BlockParameter(toBlock),
+                Address = new[] { contract.Address },
+                // Merge filter and argumentFilters
+                Topics = MergeTopics(filter, argumentFilters)
             };
 
-            var logs = await ethGetLogs.SendRequestAsync(filterInput);
+            var logs = await _provider.Eth.Filters.GetLogs.SendRequestAsync(eventFilter);
+
             var fetchedEvents = new List<FetchedEvent>();
 
             foreach (var log in logs)
             {
-                fetchedEvents.Add(new FetchedEvent(
+                fetchedEvents.Add(new FetchedEvent (
                     _event: log.Address,
                     topic: log.GetTopic(0),   ///////
                     name: eventName,
@@ -122,6 +174,26 @@ namespace Arbitrum.Utils
             }
 
             return fetchedEvents;
+        }
+
+        // Helper method to merge topics from filter and argumentFilters
+        private string[] MergeTopics(Dictionary<string, object> filter, Dictionary<string, object> argumentFilters)
+        {
+            List<string> topics = new List<string>();
+
+            // Add topics from filter
+            if (filter.TryGetValue("topics", out var filterTopics) && filterTopics is string[] filterTopicsArray)
+            {
+                topics.AddRange(filterTopicsArray);
+            }
+
+            // Add topics from argumentFilters
+            if (argumentFilters != null && argumentFilters.TryGetValue("topics", out var argumentFilterTopics) && argumentFilterTopics is string[] argumentFilterTopicsArray)
+            {
+                topics.AddRange(argumentFilterTopicsArray);
+            }
+
+            return topics.ToArray();
         }
 
         private List<string> ConvertToStringList(object[] topics)

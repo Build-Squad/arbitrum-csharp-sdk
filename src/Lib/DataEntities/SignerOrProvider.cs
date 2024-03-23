@@ -8,9 +8,9 @@ namespace Arbitrum.DataEntities
     public class SignerOrProvider
     {
         public Account Account { get; }
-        public object Provider { get; }
+        public Web3 Provider { get; }
 
-        public SignerOrProvider(Account account, object provider)
+        public SignerOrProvider(Account account, Web3 provider)
         {
             Account = account;
             Provider = provider;
@@ -31,7 +31,7 @@ namespace Arbitrum.DataEntities
             }
         }
 
-        public static IWeb3 GetProvider(object signerOrProvider)
+        public static Web3 GetProvider(object signerOrProvider)
         {
             if (signerOrProvider is Web3)
             {
@@ -63,7 +63,7 @@ namespace Arbitrum.DataEntities
             }
         }
 
-        public static IWeb3 GetProviderOrThrow(object signerOrProvider)
+        public static Web3 GetProviderOrThrow(object signerOrProvider)
         {
             var provider = GetProvider(signerOrProvider);
             if (provider != null)
@@ -83,7 +83,7 @@ namespace Arbitrum.DataEntities
 
         public static async Task<bool> CheckNetworkMatches(object signerOrProvider, int chainId)
         {
-            IWeb3 provider;
+            Web3 provider;
 
             if (signerOrProvider is SignerOrProvider)
             {

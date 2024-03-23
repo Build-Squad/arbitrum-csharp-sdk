@@ -3,6 +3,7 @@ using Nethereum.ABI.FunctionEncoding;
 using System.Numerics;
 using System.Text.Json;
 using Arbitrum.DataEntities;
+using Nethereum.RPC.Eth.DTOs;
 
 namespace Arbitrum.DataEntities
 {
@@ -40,6 +41,31 @@ namespace Arbitrum.DataEntities
         public byte[] Data { get; set; }
     }
 
+    // Define the params type for the CreateRetryableTicket method
+    public class CreateRetryableTicketParams
+    {
+        public L1ToL2MessageParams L1ToL2MessageParams { get; set; }
+        public L1ToL2MessageGasParams L1ToL2MessageGasParams { get; set; }
+        public PayableOverrides Overrides { get; set; }
+    }
+
+    public class PayableOverrides : Overrides
+    {
+        public BigInteger? Value { get; set; }
+    }
+
+    public class Overrides
+    {
+        public BigInteger? GasLimit { get; set; }
+        public BigInteger? GasPrice { get; set; }
+        public BigInteger? MaxFeePerGas { get; set; }
+        public BigInteger? MaxPriorityFeePerGas { get; set; }
+        public BigInteger? Nonce { get; set; }
+        public int? Type { get; set; }
+        public List<AccessList>? AccessList { get; set; }
+        //public Record<string, object> CustomData { get; set; }
+        public bool? CcipReadEnabled { get; set; }
+    }
     /**
      * Tools for parsing retryable data from errors.
      * When calling createRetryableTicket on Inbox.sol special values

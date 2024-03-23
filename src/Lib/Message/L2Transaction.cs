@@ -37,16 +37,33 @@ namespace Arbitrum.Message
         }
     }
 
-    public class RedeemTransaction : L2ContractTransaction
+    public class RedeemTransaction
     {
-        public RedeemTransaction(string contractAddress, string code, Transaction transaction)
-            : base(contractAddress, code, transaction)
+        private readonly Transaction _transaction;
+        private readonly Web3 _l2Provider;
+
+        public RedeemTransaction(Transaction transaction, Web3 l2Provider)
         {
+            _transaction = transaction;
+            _l2Provider = l2Provider;
         }
-        public Task<TransactionReceipt> WaitForRedeem()
+
+        public Transaction Wait()
         {
-            // Implement logic to wait for redeem
-            return Task.FromResult(new TransactionReceipt());
+            return _transaction;
+        }
+
+        public async Task<TransactionReceipt> WaitForRedeem()
+        {
+            var l2Receipt = new L2TransactionReceipt(_transaction);
+            var redeemScheduledEvents = l2Receipt.GetRedeemScheduledEvents(_l2Provider);
+
+            if (redeemScheduledEvents.Count != 1)
+            {
+                throw new ArbSdkError($"Transaction is not a redeem transaction: {_transaction.TransactionHash}");
+            }
+
+            return await Lib.GetTransactionReceiptAsync(redeemScheduledEvents[0]["retryTxHash"]);
         }
     }
 
@@ -99,6 +116,45 @@ namespace Arbitrum.Message
         public async Task<List<CaseDict>> GetRedeemScheduledEvents(Web3 provider)    ///////
         {
             return await LogParser.ParseTypedLogs(provider, "ArbRetryableTx", Logs, "RedeemScheduled");
+        }
+
+        public static L2ContractTransaction MonkeyPatchWait(ContractTransaction contractTransaction)
+        {
+            Func<Task<TransactionReceipt>> wait = contractTransaction.WaitAsync;
+            contractTransaction.WaitAsync = async (_confirmations) =>
+            {
+                // Ignore the confirmations for now
+                var result = await wait();
+                return new L2TransactionReceipt(result);
+            };
+
+            return contractTransaction as L2ContractTransaction;
+        }
+
+        public static RedeemTransaction ToRedeemTransaction(L2ContractTransaction redeemTx, Web3 l2Provider)
+        {
+
+            RedeemTransaction returnRec = new RedeemTransaction();
+
+            Func<Task<TransactionReceipt>> waitForRedeemFunc = async () =>
+            {
+                TransactionReceipt rec = await redeemTx.Wait();
+
+                L2TransactionReceipt l2Rec = new L2TransactionReceipt(rec); // Create an instance of L2TransactionReceipt
+
+                var redeemScheduledEvents = await l2Rec.GetRedeemScheduledEvents(l2Provider);
+
+                if (redeemScheduledEvents.Length != 1)
+                {
+                    throw new Exception($"Transaction is not a redeem transaction: {rec.TransactionHash}");
+                }
+
+                return await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(redeemScheduledEvents[0].RetryTxHash);
+            };
+
+            returnRec.WaitForRedeem = waitForRedeemFunc;
+
+            return returnRec;
         }
 
     }
