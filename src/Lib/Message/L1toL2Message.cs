@@ -25,6 +25,7 @@ using System.Linq;
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 using Org.BouncyCastle.Utilities.Encoders;
+using Arbitrum.Message;
 
 namespace Arbitrum.Message
 
@@ -86,6 +87,21 @@ namespace Arbitrum.Message
         public static byte[] HexToBytes(string value)
         {
             return value.HexToByteArray();
+        }
+
+        public static int ByteArrayToInt(byte[] data)
+        {
+            if (data == null)
+            {
+                throw new ArgumentNullException(nameof(data));
+            }
+
+            if (data.Length % 2 != 0)
+            {
+                return null;
+            }
+
+            return (data.Length / 2);
         }
 
         /** 
@@ -206,17 +222,32 @@ namespace Arbitrum.Message
      */
     public class L1ToL2MessageReaderOrWriter<T> where T : SignerOrProvider
     {
-        public static Type GetReaderOrWriterType()
+        // Define a private constructor to prevent instantiation of this class
+        private L1ToL2MessageReaderOrWriter() { }
+
+        // Define static methods to mimic conditional behavior
+        public static L1ToL2MessageReader FromProvider(Web3 provider, BigInteger chainId, string sender, BigInteger messageNumber, BigInteger l1BaseFee, RetryableMessageParams messageData)
         {
-            if (typeof(T) == typeof(Web3))
-            {
-                return typeof(L1ToL2MessageReader);
-            }
-            else
-            {
-                return typeof(L1ToL2MessageWriter);
-            }
+            return new L1ToL2MessageReader(provider, chainId, sender, messageNumber, l1BaseFee, messageData);
         }
+
+        public static L1ToL2MessageWriter FromSigner(Web3 signer, BigInteger chainId, string sender, BigInteger messageNumber, BigInteger l1BaseFee, RetryableMessageParams messageData)
+        {
+            return new L1ToL2MessageWriter(signer, chainId, sender, messageNumber, l1BaseFee, messageData);
+        }
+    }
+
+        //public static Type GetReaderOrWriterType()
+        //{
+        //    if (typeof(T) == typeof(Web3))
+        //    {
+        //        return typeof(L1ToL2MessageReader);
+        //    }
+        //    else
+        //    {
+        //        return typeof(L1ToL2MessageWriter);
+        //    }
+        //}
     }
 
     public class L1ToL2Message
@@ -326,13 +357,13 @@ namespace Arbitrum.Message
             return retryableTxId.ToHex();
         }
 
-        public static L1ToL2Message FromEventComponents(
-            Web3 l2SignerOrProvider,
+        public static L1ToL2Message FromEventComponents<T>(
+            T l2SignerOrProvider,
             BigInteger chainId,
             string sender,
             BigInteger messageNumber,
             BigInteger l1BaseFee,
-            RetryableMessageParams messageData)
+            RetryableMessageParams messageData) where T : SignerOrProvider
         {
             if (SignerProviderUtils.IsSigner(l2SignerOrProvider))
             {
@@ -366,10 +397,27 @@ namespace Arbitrum.Message
         public L1ToL2MessageStatus Status { get; set; }
         public TransactionReceipt? L2TxReceipt { get; set; }
     }
+    public class L1EthDepositTransactionReceiptResults
+    {
+        public bool Complete { get; set; }
+        public EthDepositMessage Message { get; set; }
+        public TransactionReceipt L2TxReceipt { get; set; }
+    }
+    public class L1ContractCallTransactionReceiptResults
+    {
+        public bool Complete { get; set; }
+        public L1ToL2Message Message { get; set; }
+        public L1ToL2MessageWaitResult Result { get; set; }
+    }
+
+    public class EthDepositMessageWaitResult : TransactionReceipt
+    {
+        public TransactionReceipt L2TxReceipt { get; set; }
+    }
 
     public class L1ToL2MessageReader : L1ToL2Message
     {
-        public Web3 _l2Provider;
+        public SignerOrProvider _l2Provider;
         public TransactionReceipt? _retryableCreationReceipt;
 
         public TransactionReceipt? RetryableCreationReceipt
@@ -378,7 +426,7 @@ namespace Arbitrum.Message
             set { _retryableCreationReceipt = value; }
         }
         public L1ToL2MessageReader(
-            Web3 l2Provider,
+            SignerOrProvider l2Provider,
             BigInteger chainId,
             string sender,
             BigInteger messageNumber,
@@ -831,14 +879,14 @@ namespace Arbitrum.Message
     {
         public readonly SignerOrProvider _l2Signer;
         public L1ToL2MessageWriter(
-            Web3 l2provider,
+            SignerOrProvider l2provider,
             BigInteger chainId,
             string sender,
             BigInteger messageNumber,
             BigInteger l1BaseFee,
             RetryableMessageParams messageData) : base(l2provider, chainId, sender, messageNumber, l1BaseFee, messageData)
         {
-            if (_l2Signer?.Provider == null)
+            if (l2provider?.Provider == null)
             {
                 throw new ArbSdkError("Signer not connected to provider.");
             }

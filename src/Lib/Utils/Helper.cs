@@ -7,6 +7,8 @@ using Nethereum.JsonRpc.Client;
 using Arbitrum.DataEntities;
 using Arbitrum.Utils;
 using Nethereum.Util;
+using System.Collections.Generic;
+using System.Collections;
 
 namespace Arbitrum.Utils
 {
@@ -17,9 +19,9 @@ namespace Arbitrum.Utils
         }
     }
 
-    public class CaseDict
+    public class CaseDict : IEnumerable<KeyValuePair<string, object>>
     {
-        private readonly Dictionary<string, object> _data;
+        private readonly Dictionary<string, object> _data = new Dictionary<string, object>();
         public string RetryTxHash
         {
             get { return Get<string>("retryTxHash"); }
@@ -69,9 +71,22 @@ namespace Arbitrum.Utils
             }
         }
 
-        public IEnumerable<KeyValuePair<string, object>> GetEnumerator()
+        // Implementing IEnumerable<KeyValuePair<string, object>>
+        public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
         {
-            return _data;
+            return _data.GetEnumerator();
+        }
+
+        // Implementing IEnumerable
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        // Method to add key-value pairs
+        public void Add(string key, object value)
+        {
+            _data.Add(key, value);
         }
 
         public bool ContainsKey(string key)
