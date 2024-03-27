@@ -6,6 +6,9 @@ using Nethereum.Web3;
 using Nethereum.JsonRpc.Client;
 using Arbitrum.DataEntities;
 using Arbitrum.Utils;
+using Nethereum.Util;
+using System.Collections.Generic;
+using System.Collections;
 
 namespace Arbitrum.Utils
 {
@@ -16,9 +19,9 @@ namespace Arbitrum.Utils
         }
     }
 
-    public class CaseDict
+    public class CaseDict : IEnumerable<KeyValuePair<string, object>>
     {
-        private readonly Dictionary<string, object> _data;
+        private readonly Dictionary<string, object> _data = new Dictionary<string, object>();
         public string RetryTxHash
         {
             get { return Get<string>("retryTxHash"); }
@@ -56,7 +59,7 @@ namespace Arbitrum.Utils
             }
         }
 
-        public T Get<T>(string key, T defaultValue = default)
+        public T Get<T>(string key, T? defaultValue = default)
         {
             if (_data.TryGetValue(key, out var value))
             {
@@ -68,9 +71,22 @@ namespace Arbitrum.Utils
             }
         }
 
-        public IEnumerable<KeyValuePair<string, object>> GetEnumerator()
+        // Implementing IEnumerable<KeyValuePair<string, object>>
+        public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
         {
-            return _data;
+            return _data.GetEnumerator();
+        }
+
+        // Implementing IEnumerable
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        // Method to add key-value pairs
+        public void Add(string key, object value)
+        {
+            _data.Add(key, value);
         }
 
         public bool ContainsKey(string key)
@@ -116,11 +132,11 @@ namespace Arbitrum.Utils
     {
         public class ContractData
         {
-            public string[] Abi { get; set; }
-            public string Bytecode { get; set; }
+            public string[]? Abi { get; set; }
+            public string? Bytecode { get; set; }
         }
 
-        public static Contract LoadContract(string contractName, object provider, string address = null, bool isClassic = false)
+        public static Contract LoadContract(string contractName, object provider, string? address = null, bool isClassic = false)
         {
             var web3Provider = GetWeb3Provider(provider);
             var web3 = new Web3(web3Provider);
@@ -148,7 +164,7 @@ namespace Arbitrum.Utils
 
                 if (address != null)
                 {
-                    var contractAddress = GetChecksumAddress(address);
+                    var contractAddress = GetAddress(address);
 
                     if (string.IsNullOrEmpty(bytecode))
                     {
@@ -175,25 +191,32 @@ namespace Arbitrum.Utils
             }
         }
 
-        public static IClient GetWeb3Provider(object provider)
+        public static Web3 GetWeb3Provider(object provider)
         {
             if (provider is SignerOrProvider signerOrProvider)
             {
-                return (IClient)signerOrProvider.Provider;
+                return signerOrProvider.Provider;
             }
             else if (provider is ArbitrumProvider arbitrumProvider)
             {
-                return (IClient)arbitrumProvider.Provider;
+                return arbitrumProvider.Provider;
             }
             else
             {
-                return (IClient)provider;
+                return (Web3)provider;
             }
         }
 
-        public static string GetChecksumAddress(string address)
+        public static string GetAddress(string address)
         {
-            return Web3.ToChecksumAddress(address);
+            if (AddressUtil.Current.IsChecksumAddress(address))
+            {
+                return AddressUtil.Current.ConvertToChecksumAddress(address);
+            }
+            else
+            {
+                throw new ArgumentException($"Invalid Ethereum address: {address}");
+            }
         }
     }
 }

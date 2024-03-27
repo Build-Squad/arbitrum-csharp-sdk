@@ -2,7 +2,15 @@
 using Nethereum.ABI.FunctionEncoding;
 using System.Numerics;
 using System.Text.Json;
+using Nethereum.Hex.HexConvertors.Extensions;
+using Nethereum.ABI.Decoders;
 using Arbitrum.DataEntities;
+using Nethereum.RPC.Eth.DTOs;
+using Arbitrum.Utils;
+using Nethereum.Util;
+using System.Formats.Asn1;
+using Nethereum.ABI.ABIDeserialisation;
+using Nethereum.ABI;
 
 namespace Arbitrum.DataEntities
 {
@@ -40,6 +48,31 @@ namespace Arbitrum.DataEntities
         public byte[] Data { get; set; }
     }
 
+    // Define the params type for the CreateRetryableTicket method
+    public class CreateRetryableTicketParams
+    {
+        public L1ToL2MessageParams L1ToL2MessageParams { get; set; }
+        public L1ToL2MessageGasParams L1ToL2MessageGasParams { get; set; }
+        public PayableOverrides Overrides { get; set; }
+    }
+
+    public class PayableOverrides : Overrides
+    {
+        public BigInteger? Value { get; set; }
+    }
+
+    public class Overrides
+    {
+        public BigInteger? GasLimit { get; set; }
+        public BigInteger? GasPrice { get; set; }
+        public BigInteger? MaxFeePerGas { get; set; }
+        public BigInteger? MaxPriorityFeePerGas { get; set; }
+        public BigInteger? Nonce { get; set; }
+        public int? Type { get; set; }
+        public List<AccessList>? AccessList { get; set; }
+        //public Record<string, object> CustomData { get; set; }
+        public bool? CcipReadEnabled { get; set; }
+    }
     /**
      * Tools for parsing retryable data from errors.
      * When calling createRetryableTicket on Inbox.sol special values
@@ -100,22 +133,48 @@ namespace Arbitrum.DataEntities
         }
 
         /**
-             * Try to parse a retryable data struct from the supplied ethersjs error, or any explicitly supplied error data
-             * @param ethersJsErrorOrData
-             * @returns
-             */
-        //public static RetryableData TryParseError(object ethersJsErrorOrData)
-        //{
-        //    string errorData = (ethersJsErrorOrData is string)
-        //        ? (string)ethersJsErrorOrData
-        //        : TryGetErrorData(ethersJsErrorOrData);
+        * Try to parse a retryable data struct from the supplied ethersjs error, or any explicitly supplied error data
+        * @param ethersJsErrorOrData
+        * @returns
+        */
 
-        //    if (string.IsNullOrEmpty(errorData))
-        //    {
-        //        return null;
-        //    }
+        public static RetryableData TryParseError(string errorDataHex)
+        {
+            try
+            {
+                if (errorDataHex.StartsWith("0x"))
+                {
+                    errorDataHex = errorDataHex.Substring(2);
+                }
+                errorDataHex = errorDataHex.Substring(8);
 
-        //    return ErrorInterface.ParseError(errorData).Args as RetryableData;
-        //}
+                var decodedData = ABIDecoder.Current.Decode<BigInteger[]>(errorDataHex.HexToByteArray(), RetryableData.AbiTypes);
+
+                if (decodedData.Length != RetryableData.AbiTypes.Length)
+                {
+                    return null;
+                }
+                else
+                {
+                    return new RetryableData
+                    {
+                        From = AddressUtil.Current.ConvertToChecksumAddress(decodedData[0].ToHex()),
+                        To = AddressUtil.Current.ConvertToChecksumAddress(decodedData[1].ToHex()),
+                        L2CallValue = decodedData[2],
+                        Deposit = decodedData[3],
+                        MaxSubmissionCost = decodedData[4],
+                        ExcessFeeRefundAddress = AddressUtil.Current.ConvertToChecksumAddress(decodedData[5].ToHex()),
+                        CallValueRefundAddress = AddressUtil.Current.ConvertToChecksumAddress(decodedData[6].ToHex()),
+                        GasLimit = decodedData[7],
+                        MaxFeePerGas = decodedData[8],
+                        Data = decodedData[9]
+                    };
+                }
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
     }
 }

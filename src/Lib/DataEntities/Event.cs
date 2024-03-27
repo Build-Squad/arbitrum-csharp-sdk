@@ -14,6 +14,7 @@ using System.Text.Json;
 using Arbitrum.Utils;
 using System.Text;
 using Nethereum.Hex.HexConvertors.Extensions;
+using Arbitrum.Message;
 
 namespace Arbitrum.DataEntities
 {
@@ -26,7 +27,7 @@ namespace Arbitrum.DataEntities
             return BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
         }
 
-        public static async Task<List<CaseDict>> ParseTypedLogs(
+        public static async Task<IEnumerable<MessageEvents>> ParseTypedLogs(
             Web3 web3,
             string contractName,
             JArray logs,
@@ -51,12 +52,12 @@ namespace Arbitrum.DataEntities
             });
 
             if (eventAbi == null)
-                return new List<CaseDict>();
+                return new List<MessageEvents>();
 
             var eventInputs = ((JsonElement)eventAbi.GetProperty("inputs")).EnumerateArray().Select(i => i.GetProperty("type").GetString());
             var eventSignature = Keccak($"{eventName}({string.Join(",", eventInputs)})").ToString();
 
-            var parsedLogs = new List<CaseDict>();
+            var parsedLogs = new List<MessageEvents>();
             foreach (var log in logs)
             {
                 var logTopic = log.Topics[0];
@@ -66,7 +67,7 @@ namespace Arbitrum.DataEntities
                     try
                     {
                         var logReceipt = new FilterLog[] { log }; // Corrected instantiation
-                        var decodedLog = contract.GetEvent<CaseDict>(eventName).DecodeAllEvents(logReceipt);
+                        var decodedLog = contract.GetEvent<MessageEvents>(eventName).DecodeAllEvents(logReceipt);
                         parsedLogs.Add(decodedLog);
                     }
 

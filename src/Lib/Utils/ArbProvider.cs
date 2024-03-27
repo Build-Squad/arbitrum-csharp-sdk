@@ -1,6 +1,8 @@
 ﻿using System.Threading.Tasks;
 using Arbitrum.DataEntities;
+using Nethereum.Web3;
 using Nethereum.RPC.Eth.DTOs;
+using Nethereum.Hex.HexTypes;
 
 namespace Arbitrum.Utils
 {
@@ -47,17 +49,17 @@ namespace Arbitrum.Utils
 
     public class ArbitrumProvider
     {
-        public readonly dynamic Provider; // Replace "dynamic" with the actual provider type
+        public readonly Web3 Provider; // Replace "dynamic" with the actual provider type
 
-        public ArbitrumProvider(dynamic provider, string network = null)
+        public ArbitrumProvider(Web3 provider, string? network = null)
         {
             if (provider is SignerOrProvider)
             {
-                Provider = provider.provider;
+                Provider = provider;
             }
             else if (provider is ArbitrumProvider)
             {
-                Provider = provider.provider;
+                Provider = provider;
             }
 
             this.Provider = provider;
@@ -65,19 +67,19 @@ namespace Arbitrum.Utils
 
         public async Task<ArbTransactionReceipt> GetTransactionReceipt(string transactionHash)
         {
-            dynamic receipt = await Provider.eth.get_transaction_receipt.SendRequestAsync(transactionHash);
+            dynamic receipt = await Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(transactionHash);
             return new ArbFormatter().Receipt(receipt);
         }
 
         public async Task<ArbBlockWithTransactions> GetBlockWithTransactions(string blockIdentifier)
         {
-            dynamic block = await Provider.eth.get_block.SendRequestAsync(blockIdentifier, true);
+            var block = await Provider.Eth.Blocks.GetBlockWithTransactionsByHash.SendRequestAsync(blockIdentifier);    /////
             return new ArbFormatter().BlockWithTransactions(block);
         }
 
         public async Task<ArbBlock> GetBlock(string blockIdentifier)
         {
-            dynamic block = await Provider.eth.get_block.SendRequestAsync(blockIdentifier);
+            var block =  await Provider.Eth.Blocks.GetBlockWithTransactionsByHash.SendRequestAsync(blockIdentifier);   /////
             return new ArbFormatter().Block(block);
         }
     }
