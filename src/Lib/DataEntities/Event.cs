@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Nethereum.Contracts;
@@ -15,9 +16,78 @@ using Arbitrum.Utils;
 using System.Text;
 using Nethereum.Hex.HexConvertors.Extensions;
 using Arbitrum.Message;
+using Nethereum.ABI.FunctionEncoding.Attributes;
 
 namespace Arbitrum.DataEntities
 {
+    public class GlobalStateStructOutput
+    {
+        public string Item1 { get; set; }
+        public string Item2 { get; set; }
+        public string[] Bytes32Vals { get; set; }
+        public string[] U64Vals { get; set; }
+    }
+
+    public class ExecutionStateStructOutput
+    {
+        public GlobalStateStructOutput GlobalState { get; set; }
+        public int MachineStatus { get; set; }
+    }
+
+    public class AssertionStructOutput
+    {
+        public ExecutionStateStructOutput BeforeState { get; set; }
+        public ExecutionStateStructOutput AfterState { get; set; }
+        public int NumBlocks { get; set; }
+    }
+
+    public class NodeCreatedEvent: FetchedEvent<NodeCreatedEvent>, IEventLog
+    {
+        public int NodeNum { get; set; }
+        public string ParentNodeHash { get; set; }
+        public string NodeHash { get; set; }
+        public string ExecutionHash { get; set; }
+        public AssertionStructOutput Assertion { get; set; }
+        public string AfterInboxBatchAcc { get; set; }
+        public string WasmModuleRoot { get; set; }
+        public int InboxMaxCount { get; set; }
+
+        public FilterLog Log => throw new System.NotImplementedException();
+
+        public NodeCreatedEvent(
+            NodeCreatedEvent eventArgs, // Update the argument type here
+            string topic,
+            string name,
+            int blockNumber,
+            string blockHash,
+            string transactionHash,
+            string address,
+            List<string> topics,
+            string data,
+
+            int nodeNum,
+            string parentNodeHash,
+            string nodeHash,
+            string executionHash,
+            AssertionStructOutput assertion,
+            string afterInboxBatchAcc,
+            string wasmModuleRoot,
+            int inboxMaxCount
+            ) : base(eventArgs, topic, name, blockNumber, blockHash, transactionHash, address, topics, data) // Explicit cast to object to resolve dynamic dispatch issue
+        {
+            NodeNum = nodeNum;
+            ParentNodeHash = parentNodeHash;
+            NodeHash = nodeHash;
+            ExecutionHash = executionHash;
+            Assertion = assertion;
+            AfterInboxBatchAcc = afterInboxBatchAcc;
+            WasmModuleRoot = wasmModuleRoot;
+            InboxMaxCount = inboxMaxCount;
+        }
+    }
+
+
+
     public static class LogParser
     {
         public static string Keccak(string text)

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Numerics;
 using System.Text.Json;
 using Nethereum.Contracts;
 using Nethereum.Web3;
@@ -9,6 +10,11 @@ using Arbitrum.Utils;
 using Nethereum.Util;
 using System.Collections.Generic;
 using System.Collections;
+using Nethereum.ABI.FunctionEncoding.Attributes;
+using Nethereum.ABI.FunctionEncoding;
+using Nethereum.RPC.Eth.DTOs;
+using System.Reflection.Metadata.Ecma335;
+using Nethereum.ABI.Model;
 
 namespace Arbitrum.Utils
 {
@@ -16,6 +22,50 @@ namespace Arbitrum.Utils
     {
         public LoadContractException(string message) : base(message)
         {
+        }
+    }
+    public class L2ToL1TransactionEvent
+    {
+        public string Caller { get; set; }
+        public string Destination { get; set; }
+        public BigInteger ArbBlockNum { get; set; }
+        public BigInteger EthBlockNum { get; set; }
+        public BigInteger Timestamp { get; set; }
+        public BigInteger CallValue { get; set; }
+        public string Data { get; set; }
+        public BigInteger UniqueId { get; set; }
+        public BigInteger BatchNumber { get; set; }
+        public BigInteger IndexInBatch { get; set; }
+        public BigInteger Hash { get; set; }
+        public BigInteger Position { get; set; }
+
+    }
+    public class ClassicL2ToL1TransactionEvent : L2ToL1TransactionEvent
+    {
+        public new BigInteger UniqueId { get; set; }
+        public new BigInteger BatchNumber { get; set; }
+        public new BigInteger IndexInBatch { get; set; }
+    }
+    public class NitroL2ToL1TransactionEvent : L2ToL1TransactionEvent
+    {
+        public new BigInteger Hash { get; set; }
+        public new BigInteger Position { get; set; }
+    }
+    public class BlockTag
+    {
+        public string? StringValue { get; set; }
+        public int? NumberValue { get; set; }
+
+        public BlockTag(string stringValue)
+        {
+            StringValue = stringValue;
+            NumberValue = null;
+        }
+
+        public BlockTag(int numberValue)
+        {
+            StringValue = null;
+            NumberValue = numberValue;
         }
     }
 
@@ -130,6 +180,61 @@ namespace Arbitrum.Utils
 
     public class LoadContractUtils
     {
+        public static object FormatContractOutput(Contract contract, string functionName, object output)
+        {
+            // Get the FunctionABI object for the specified function name
+            var funcAbi = contract.ContractBuilder.GetFunctionAbi(functionName);
+
+            // Check if the FunctionABI object is null
+            if (funcAbi == null)
+            {
+                // Throw an exception if the function ABI is not found
+                throw new ArgumentException($"Function {functionName} not found in contract ABI");
+            }
+
+            return FormatOutput(funcAbi.OutputParameters, output);
+        }
+
+        private static object FormatOutput(Parameter[] outputParameters, object output)
+        {
+            if (outputParameters == null || !outputParameters.Any())
+            {
+                return output;
+            }
+
+            var formattedOutput = new Dictionary<string, object>();
+
+            for (int i = 0; i < outputParameters.Length; i++)
+            {
+                var parameter = outputParameters[i];
+                var parameterName = parameter.Name ?? $"output_{i}";
+
+                if (parameter.Type.StartsWith("tuple"))
+                {
+                    if (output is object[] outputArray && outputArray.Length > i)
+                    {
+                        formattedOutput[parameterName] = FormatOutput(parameter.Components, outputArray[i]);
+                    }
+                    else
+                    {
+                        formattedOutput[parameterName] = FormatOutput(parameter.Components, output);
+                    }
+                }
+                else
+                {
+                    if (output is object[] outputArray && outputArray.Length > i)
+                    {
+                        formattedOutput[parameterName] = outputArray[i];
+                    }
+                    else
+                    {
+                        formattedOutput[parameterName] = output;
+                    }
+                }
+            }
+
+            return formattedOutput;
+        }
         public class ContractData
         {
             public string[]? Abi { get; set; }

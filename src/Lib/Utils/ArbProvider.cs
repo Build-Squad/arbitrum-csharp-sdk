@@ -77,9 +77,9 @@ namespace Arbitrum.Utils
             return new ArbFormatter().BlockWithTransactions(block);
         }
 
-        public async Task<ArbBlock> GetBlock(string blockIdentifier)
+        public async Task<ArbBlock> GetBlock(HexBigInteger blockIdentifier)
         {
-            var block =  await Provider.Eth.Blocks.GetBlockWithTransactionsByHash.SendRequestAsync(blockIdentifier);   /////
+            var block =  await Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(blockIdentifier);   /////
             return new ArbFormatter().Block(block);
         }
     }

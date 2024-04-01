@@ -16,31 +16,31 @@ using Nethereum.Hex.HexTypes;
 
 namespace Arbitrum.Utils
 {
-    public class FetchedEvent : CaseDict
+    public class FetchedEvent<TEvent> where TEvent : IEventLog
     {
-        public dynamic Event { get; }
-        public string Topic { get; }
-        public string Name { get; }
-        public BigInteger BlockNumber { get; }
-        public string BlockHash { get; }
-        public string TransactionHash { get; }
-        public string Address { get; }
-        public List<string> Topics { get; }
-        public string Data { get; }
+        public TEvent Event { get; set; }
+        public string Topic { get; set; }
+        public string Name { get; set; }
+        public int BlockNumber { get; set; }
+        public string BlockHash { get; set; }
+        public string TransactionHash { get; set; }
+        public string Address { get; set; }
+        public List<string> Topics { get; set; }
+        public string Data { get; set; }
 
         public FetchedEvent(
-            dynamic _event,          //Used dynamic type here as not sure of exact type of Event
+            TEvent eventArgs,
             string topic,
             string name,
-            BigInteger blockNumber,
+            int blockNumber,
             string blockHash,
             string transactionHash,
             string address,
             List<string> topics,
-                    string data) : base(data) // Passing 'data' to the base class constructor
+            string data)
         {
-            Event = _event;
-            Topic = topic?.ToString() ?? string.Empty; // Convert topic to string or default to empty string
+            Event = eventArgs;
+            Topic = topic;
             Name = name;
             BlockNumber = blockNumber;
             BlockHash = blockHash;

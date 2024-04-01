@@ -108,19 +108,23 @@ namespace Arbitrum.Message
             Status = tx.Status;
         }
 
-        public bool GetL2ToL1Events(IEthApiContractService provider)  ///////
+        public List<L2ToL1TransactionEvent> GetL2ToL1Events()
         {
-            return true;
+            var classicLogs = ParseTypedLogs<ArbSys__factory.L2ToL1TransactionEvent>(this.Logs, "L2ToL1Transaction");
+            var nitroLogs = ParseTypedLogs<ArbSys__factory.L2ToL1TransactionEvent>(this.Logs, "L2ToL1Tx");
+
+            return classicLogs.Concat(nitroLogs).ToList();
         }
 
-        public async Task<List<CaseDict>> GetRedeemScheduledEvents(Web3 provider)    ///////
+        public List<RedeemScheduledEvent> GetRedeemScheduledEvents()
         {
-            return await LogParser.ParseTypedLogs(provider, "ArbRetryableTx", Logs, "RedeemScheduled");
+            var redeemScheduledEvents = LogParser.ParseTypedLogs(provider: Web3 provider, logs: this.Logs,contractName: "RedeemScheduled");
+            return redeemScheduledEvents.Select(log => new EventArgs<RedeemScheduledEvent>(log)).ToList();
         }
 
-        public static L2ContractTransaction MonkeyPatchWait(ContractTransaction contractTransaction)
+        public static L2ContractTransaction MonkeyPatchWait(TransactionReceipt contractTransaction)
         {
-            Func<Task<TransactionReceipt>> wait = contractTransaction.WaitAsync;
+            Func<Task<TransactionReceipt>> wait = contractTransaction.WaitAsync();
             contractTransaction.WaitAsync = async (_confirmations) =>
             {
                 // Ignore the confirmations for now

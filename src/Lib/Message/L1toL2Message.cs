@@ -220,22 +220,22 @@ namespace Arbitrum.Message
      * If T is of type Signer then L1ToL2MessageReaderOrWriter<T> will be of
      * type L1ToL2MessageWriter.
      */
-    public class L1ToL2MessageReaderOrWriter<T> where T : SignerOrProvider
-    {
-        // Define a private constructor to prevent instantiation of this class
-        private L1ToL2MessageReaderOrWriter() { }
+    //public class L1ToL2MessageReaderOrWriter<T> where T : SignerOrProvider
+    //{
+    //    // Define a private constructor to prevent instantiation of this class
+    //    private L1ToL2MessageReaderOrWriter() { }
 
-        // Define static methods to mimic conditional behavior
-        public static L1ToL2MessageReader FromProvider(Web3 provider, BigInteger chainId, string sender, BigInteger messageNumber, BigInteger l1BaseFee, RetryableMessageParams messageData)
-        {
-            return new L1ToL2MessageReader(provider, chainId, sender, messageNumber, l1BaseFee, messageData);
-        }
+    //    // Define static methods to mimic conditional behavior
+    //    public static L1ToL2MessageReader FromProvider(Web3 provider, BigInteger chainId, string sender, BigInteger messageNumber, BigInteger l1BaseFee, RetryableMessageParams messageData)
+    //    {
+    //        return new L1ToL2MessageReader(provider, chainId, sender, messageNumber, l1BaseFee, messageData);
+    //    }
 
-        public static L1ToL2MessageWriter FromSigner(Web3 signer, BigInteger chainId, string sender, BigInteger messageNumber, BigInteger l1BaseFee, RetryableMessageParams messageData)
-        {
-            return new L1ToL2MessageWriter(signer, chainId, sender, messageNumber, l1BaseFee, messageData);
-        }
-    }
+    //    public static L1ToL2MessageWriter FromSigner(Web3 signer, BigInteger chainId, string sender, BigInteger messageNumber, BigInteger l1BaseFee, RetryableMessageParams messageData)
+    //    {
+    //        return new L1ToL2MessageWriter(signer, chainId, sender, messageNumber, l1BaseFee, messageData);
+    //    }
+    //}
 
         //public static Type GetReaderOrWriterType()
         //{
