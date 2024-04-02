@@ -97,7 +97,7 @@ namespace Arbitrum.DataEntities
             return BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
         }
 
-        public static async Task<IEnumerable<MessageEvents>> ParseTypedLogs(
+        public static async Task<IEnumerable<L2ToL1TransactionEvent>> ParseTypedLogs(   //////
             Web3 web3,
             string contractName,
             JArray logs,

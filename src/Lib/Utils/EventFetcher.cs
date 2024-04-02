@@ -82,7 +82,7 @@ namespace Arbitrum.Utils
             dynamic contractFactory,
             string eventName,
             Dictionary<string, object> argumentFilters = null,
-            Dictionary<string, object> filter = null,
+            NewFilterInput filter = null,
             bool isClassic = false)
         {
 

@@ -923,7 +923,7 @@ namespace Arbitrum.Message
                         overrides.Remove("gas");
                 }
 
-                var redeemFunction = arbRetryableTxContract.GetFunction("Redeem");
+                var redeemFunction = arbRetryableTxContract.GetFunction("redeem");
                 var redeemHash = await redeemFunction.SendTransactionAsync(RetryableCreationId, overrides);
 
                 var txReceipt = await _l2Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(redeemHash);
@@ -972,7 +972,7 @@ namespace Arbitrum.Message
                         overrides.Remove("gas");
                 }
 
-                var cancelFunction = arbRetryableTxContract.GetFunction("Cancel");
+                var cancelFunction = arbRetryableTxContract.GetFunction("cancel");
                 var txHash = await cancelFunction.SendTransactionAsync(RetryableCreationId, overrides);
 
                 var txReceipt = await _l2Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
@@ -1019,7 +1019,7 @@ namespace Arbitrum.Message
                         overrides.Remove("gas");
                 }
 
-                var keepAliveFunction = arbRetryableTxContract.GetFunction("KeepAlive");
+                var keepAliveFunction = arbRetryableTxContract.GetFunction("keepAlive");
                 var keepAliveTx = await keepAliveFunction.SendTransactionAsync(RetryableCreationId, overrides);
 
                 var txReceipt = await _l2Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(keepAliveTx);
