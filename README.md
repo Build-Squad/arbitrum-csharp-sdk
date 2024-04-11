@@ -80,11 +80,80 @@ class ArbitrumDeposit
 - ##### Redeem an L1 to L2 Message
 
 ```
+using System.Threading.Tasks;
+using Arbitrum.Message;
+using Nethereum.RPC.Eth.DTOs;
+using Nethereum.Web3.Accounts;
+using static Arbitrum.Message.L1ToL2MessageUtils;
+
+class ArbitrumMessage
+{
+    public async Task RedeemL1ToL2MessageAsync(TransactionReceipt txnReceipt, string l2SignerPrivateKey)
+    {
+        // Create an instance of L1TransactionReceipt using the provided transaction receipt
+        var l1TxnReceipt = new L1TransactionReceipt(txnReceipt);
+
+        // Create an instance of an L2 signer using the provided private key
+        var l2Signer = new Account(l2SignerPrivateKey);
+
+        // Get the L1 to L2 message from the transaction receipt
+        var l1ToL2Message = (await l1TxnReceipt.GetL1ToL2Messages(l2Signer)).FirstOrDefault() as L1ToL2MessageReader;
+
+        // Wait for the message status
+        var res = await l1ToL2Message?.WaitForStatus();
+
+        if (res.Status == L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2)
+        {
+            // Message wasn't auto-redeemed; redeem it now
+            var receipt = await l1ToL2Message.GetAutoRedeemAttempt();
+            Console.WriteLine("Message wasn't auto-redeemed; redeem it now");
+        }
+        else if (res.Status == L1ToL2MessageStatus.REDEEMED)
+        {
+            Console.WriteLine("Message successfully redeemed");
+        }
+    }
+}
 ```
 
 - ##### Check if sequencer has included a transaction in L1 data
 
 ```
+using System;
+using System.Threading.Tasks;
+using Arbitrum.Message;
+using Arbitrum.SDK;
+using Nethereum.RPC.Eth.DTOs;
+using Nethereum.Web3;
+using Nethereum.Web3.Accounts;
+
+class ArbitrumSequencer
+{
+    public async Task CheckTransactionInL1DataAsync(TransactionReceipt txnReceipt, string l2ProviderUrl)
+    {
+        // Create an instance of L2TransactionReceipt using the provided transaction receipt
+        var l2TxnReceipt = new L2TransactionReceipt(txnReceipt);
+
+        // Create the L2 and L1 providers
+        var l2Provider = new Web3(l2ProviderUrl);
+
+        // Wait for 3 minutes
+        await Task.Delay(3 * 60 * 1000);
+
+        // Check if data is available on L1
+        var dataIsOnL1 = await l2TxnReceipt.IsDataAvailable(l2Provider);
+
+        if (dataIsOnL1)
+        {
+            Console.WriteLine("Sequencer has posted data, and it inherits full rollup/L1 security.");
+        }
+        else
+        {
+            Console.WriteLine("Data is not yet available on L1.");
+        }
+    }
+}
+
 ```
 
 ### Bridging assets
