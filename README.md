@@ -11,6 +11,70 @@ Below is an overview of the Arbitrum C# SDK functionality.
 - ##### Deposit Ether Into Arbitrum
 
 ```
+using System;
+using System.Threading.Tasks;
+using Nethereum.Web3;
+using Nethereum.Web3.Accounts;
+using Arbitrum;
+using Arbitrum.DataEntities;
+using Arbitrum.AssetBridgerModule;
+using Nethereum.Util;
+
+class ArbitrumDeposit
+{
+    public static async Task DepositEtherAsync(string l2ChainId, string l1Url, string l2Url, string privateKey)
+    {
+        // Get the L2 network
+        var l2Network = await NetworkUtils.GetL2NetworkAsync(l2ChainId);
+
+        // Create an instance of the EthBridger
+        var ethBridger = new EthBridger(l2Network);
+
+        // Create the L1 and L2 providers
+        var l1Web3 = new Web3(l1Url);
+        var l2Web3 = new Web3(l2Url);
+
+        // Create an instance of the account using the private key
+        var account = new Account(privateKey);
+
+        // Set up the L1 signer
+        var l1Signer = account;
+
+        // Deposit Ether into Arbitrum
+        var amountInEther = Web3.Convert.ToWei(23);
+        var depositParams = new EthDepositParams
+        {
+            Amount = amountInEther,
+            L1Signer = l1Signer,
+            L2Provider = l2Web3
+        };
+
+        // Execute the deposit transaction
+        var ethDepositTxResponse = await ethBridger.Deposit(depositParams);
+
+        // Wait for the transaction to be mined and get the receipt
+        var ethDepositTxReceipt = await l1Web3.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(ethDepositTxResponse.TransactionHash);
+
+        // Check the transaction receipt status
+        if (ethDepositTxReceipt != null)
+        {
+            Console.WriteLine($"Transaction Receipt Status: {ethDepositTxReceipt.Status}");
+            if (ethDepositTxReceipt.Status.Value == 1)
+            {
+                Console.WriteLine("Transaction successful");
+            }
+            else
+            {
+                Console.WriteLine("Transaction failed");
+            }
+        }
+        else
+        {
+            Console.WriteLine("Transaction receipt not available");
+        }
+    }
+}
+
 ```
 
 - ##### Redeem an L1 to L2 Message
