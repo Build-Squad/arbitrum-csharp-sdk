@@ -217,7 +217,7 @@ namespace Arbitrum.Message
             }
 
 
-            var nodeInterface = LoadContractUtils.LoadContract(
+            var nodeInterface = await LoadContractUtils.LoadContract(
                                     contractName: "NodeInterface",
                                     provider: l2Provider,
                                     address: Constants.NODE_INTERFACE_ADDRESS,
@@ -233,7 +233,7 @@ namespace Arbitrum.Message
         {
             var l2Network = await NetworkUtils.GetL2NetworkAsync(l2Provider);
 
-            var outboxContract = LoadContractUtils.LoadContract(
+            var outboxContract = await LoadContractUtils.LoadContract(
                 provider: l2Provider,
                 contractName: "Outbox",
                 address: l2Network?.EthBridge?.Outbox,
@@ -363,7 +363,7 @@ namespace Arbitrum.Message
             {
                 try
                 {
-                    var nodeInterfaceContract = LoadContractUtils.LoadContract(
+                    var nodeInterfaceContract = await LoadContractUtils.LoadContract(
                         provider: l2Provider,
                         contractName: "NodeInterface",
                         address: Constants.NODE_INTERFACE_ADDRESS,
@@ -387,7 +387,7 @@ namespace Arbitrum.Message
             {
                 var l2Network = await NetworkUtils.GetL2NetworkAsync(l2Provider);
 
-                var rollupContract = LoadContractUtils.LoadContract(
+                var rollupContract = await LoadContractUtils.LoadContract(
                     provider: l2Provider,
                     contractName: "RollupUserLogic",
                     address: l2Network?.EthBridge?.Rollup,
@@ -448,7 +448,7 @@ namespace Arbitrum.Message
         {
             var l2Network = await NetworkUtils.GetL2NetworkAsync(l2Provider);
 
-            var rollupContract = LoadContractUtils.LoadContract(
+            var rollupContract = await LoadContractUtils.LoadContract(
                 provider: l1Provider,
                 contractName: "RollupUserLogic",
                 address: l2Network?.EthBridge?.Rollup,
@@ -555,7 +555,7 @@ namespace Arbitrum.Message
             var l2Network = await NetworkUtils.GetL2NetworkAsync(l2Provider);
 
 
-            var outboxContract = LoadContractUtils.LoadContract(
+            var outboxContract = await LoadContractUtils.LoadContract(
                                                         contractName: "Outbox",
                                                         provider: l1Signer.Provider,
                                                         address: l2Network?.EthBridge?.Outbox,

@@ -3,11 +3,62 @@ using Arbitrum.DataEntities;
 using Nethereum.Web3;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Hex.HexTypes;
+using System.Runtime.Serialization;
+using System.Numerics;
+using static Org.BouncyCastle.Bcpg.Attr.ImageAttrib;
+using Nethereum.ABI.Util;
 
 namespace Arbitrum.Utils
 {
+    public class Formats
+    {
+        public Transaction transaction { get; set; }
+        public TransactionInput transactionRequest { get; set; }
+        public TransactionReceipt receipt { get; set; }
+        public dynamic receiptLog { get; set; }
+        public Block block { get; set; }
+        public BlockWithTransactions blockWithTransactions { get; set; }
+        public NewFilterInput filter { get; set; }
+        public FilterLog filterLog { get; set; }
+    }
     public class ArbFormatter
     {
+        private readonly Formats _formats;
+        public Formats Formats => _formats;
+
+        public ArbFormatter(Formats formats)
+        {
+            _formats = formats ?? throw new ArgumentNullException(nameof(formats));
+        }
+
+        public Formats GetDefaultFormats()
+        {
+            Formats superFormats = base.GetDefaultFormats();
+
+            Func<dynamic, BigInteger> bigNumber = this.BigNumber;
+            Func<dynamic, string> hash = this.Hash;
+            Func<dynamic, int> number = this.Number;
+
+            var arbBlockProps = new
+            {
+                sendRoot = hash,
+                sendCount = bigNumber,
+                l1BlockNumber = number
+            };
+
+            var arbReceiptFormat = new Formats()
+            {
+                l1BlockNumber = number,
+                gasUsedForL1 = bigNumber
+            };
+
+            return new Formats
+            {
+                receipt = arbReceiptFormat,
+                block = new { superFormats.block, arbBlockProps },
+                blockWithTransactions = new { superFormats.blockWithTransactions, arbBlockProps }
+            };
+        }
         public ArbTransactionReceipt Receipt(dynamic value)
         {
             var formattedValue = new ArbTransactionReceipt

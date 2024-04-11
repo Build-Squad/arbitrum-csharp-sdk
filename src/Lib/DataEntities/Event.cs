@@ -17,6 +17,7 @@ using System.Text;
 using Nethereum.Hex.HexConvertors.Extensions;
 using Arbitrum.Message;
 using Nethereum.ABI.FunctionEncoding.Attributes;
+using Nethereum.ABI.Model;
 
 namespace Arbitrum.DataEntities
 {
@@ -97,7 +98,7 @@ namespace Arbitrum.DataEntities
             return BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
         }
 
-        public static async Task<IEnumerable<L2ToL1TransactionEvent>> ParseTypedLogs(   //////
+        public static async Task<FilterLog[]> ParseTypedLogs(   //////
             Web3 web3,
             string contractName,
             JArray logs,
@@ -106,47 +107,12 @@ namespace Arbitrum.DataEntities
         {
             var (abi, contractAddress) = await LoadAbi(contractName, isClassic);
 
-            var contract = web3.Eth.GetContract(abi, contractAddress);
+            var contract = new ContractBuilder(abi, contractAddress);
 
-            var eventAbi = contract.Abi.FirstOrDefault(e =>
-            {
-                if (e is Dictionary<string, object> dictionary)
-                {
-                    if (dictionary.ContainsKey("name") && dictionary.ContainsKey("type") &&
-                        dictionary["name"].ToString() == eventName && dictionary["type"].ToString() == "event")
-                    {
-                        return true;
-                    }
-                }
-                return false;
-            });
+            var eventABI = contract.GetEventAbi(contractName);
 
-            if (eventAbi == null)
-                return new List<MessageEvents>();
+            var parsedLogs = EventExtensions.GetLogsForEvent(eventABI, logs);
 
-            var eventInputs = ((JsonElement)eventAbi.GetProperty("inputs")).EnumerateArray().Select(i => i.GetProperty("type").GetString());
-            var eventSignature = Keccak($"{eventName}({string.Join(",", eventInputs)})").ToString();
-
-            var parsedLogs = new List<MessageEvents>();
-            foreach (var log in logs)
-            {
-                var logTopic = log.Topics[0];
-                var logTopicHex = logTopic.ToHex();
-                if (!string.IsNullOrEmpty(logTopicHex) && logTopicHex == eventSignature)
-                {
-                    try
-                    {
-                        var logReceipt = new FilterLog[] { log }; // Corrected instantiation
-                        var decodedLog = contract.GetEvent<MessageEvents>(eventName).DecodeAllEvents(logReceipt);
-                        parsedLogs.Add(decodedLog);
-                    }
-
-                    catch (Exception ex)
-                    {
-                        throw new Exception("Error decoding log: " + ex.Message);
-                    }
-                }
-            }
             return parsedLogs;
         }
 

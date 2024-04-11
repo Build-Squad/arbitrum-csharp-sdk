@@ -241,59 +241,15 @@ namespace Arbitrum.Utils
             public string? Bytecode { get; set; }
         }
 
-        public static Contract LoadContract(string contractName, object provider, string? address = null, bool isClassic = false)
+        public static async Task<Contract> LoadContract(string contractName, object provider, string? address = null, bool isClassic = false)
         {
             var web3Provider = GetWeb3Provider(provider);
-            var web3 = new Web3(web3Provider);
 
-            string filePath;
-            if (isClassic)
-            {
-                filePath = $"src/abi/classic/{contractName}.json";
-            }
-            else
-            {
-                filePath = $"src/abi/{contractName}.json";
-            }
+            var (abi, contractAddress) =await LogParser.LoadAbi(contractName, isClassic);
 
-            using (var abiFile = File.OpenText(filePath))
-            {
-                var contractData = JsonSerializer.Deserialize<ContractData>(abiFile.ReadToEnd());
-                if (contractData == null || contractData.Abi == null)
-                {
-                    throw new Exception($"No ABI found for contract: {contractName}");
-                }
+            var contract = web3Provider.Eth.GetContract(abi, contractAddress);
 
-                var abi = string.Join(",", contractData.Abi);
-                var bytecode = contractData.Bytecode;
-
-                if (address != null)
-                {
-                    var contractAddress = GetAddress(address);
-
-                    if (string.IsNullOrEmpty(bytecode))
-                    {
-                        return web3.Eth.GetContract(abi, contractAddress);
-                    }
-                    //else
-                    //{
-                    //    return web3.Eth.GetContract(abi, bytecode, contractAddress);
-                    //}
-                    return null; ///////
-                }
-                else
-                {
-                    if (string.IsNullOrEmpty(bytecode))
-                    {
-                        return web3.Eth.GetContract<object>(abi);
-                    }
-
-                    else
-                    {
-                        return web3.Eth.GetContract(abi, bytecode);
-                    }
-                }
-            }
+            return contract;
         }
 
         public static Web3 GetWeb3Provider(object provider)

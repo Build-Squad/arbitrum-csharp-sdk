@@ -12,6 +12,7 @@ using Nethereum.Contracts;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Web3;
 using Newtonsoft.Json.Linq;
+using static Arbitrum.Message.L1EthDepositTransactionReceipt;
 using static Arbitrum.Message.L1ToL2MessageUtils;
 
 namespace Arbitrum.Message
@@ -19,10 +20,21 @@ namespace Arbitrum.Message
     public class L1Transaction
     {
     }
-    public class L1ContractTransaction
-    {
+    //public class L1ContractTransaction<TReceipt> where TReceipt : L1TransactionReceipt
+    //{
+    //    Task<TReceipt> Wait(int confirmations = 1);
+    //}
 
-    }
+    //public class L1EthDepositTransaction : L1ContractTransaction<L1EthDepositTransactionReceipt>
+    //{
+    //    public async Task<L1EthDepositTransactionReceipt> Wait(int confirmations = 1)
+    //    {
+    //        // Implement wait logic for L1EthDepositTransactionReceipt
+    //        // Example:
+    //        return await Task.FromResult(new L1EthDepositTransactionReceipt());
+    //    }
+    //}
+
     public class InboxMessageDeliveredEvent 
     {
         public BigInteger MessageNum { get; set; }
@@ -93,38 +105,14 @@ namespace Arbitrum.Message
             return BlockNumber < network.NitroGenesisL1Block;
         }
 
-        public async Task<IEnumerable<MessageDeliveredEvent>> GetMessageDeliveredEvents(Web3 provider)
+        public async Task<FilterLog[]> GetMessageDeliveredEvents(Web3 provider)
         {
-            var messageEvents = await LogParser.ParseTypedLogs(provider, "Bridge", Logs, "InboxMessageDelivered", isClassic: false);
-
-            // Transform each MessageEvents object into a MessageDeliveredEvent object
-            var messageDeliveredEvents = messageEvents.Select(messageEvent => new MessageDeliveredEvent
-            {
-                MessageIndex = messageEvent.InboxMessageEvent.MessageNum,
-                BeforeInboxAcc = messageEvent.BridgeMessageEvent.BeforeInboxAcc,
-                Inbox = messageEvent.BridgeMessageEvent.Inbox,
-                Kind = messageEvent.BridgeMessageEvent.Kind,
-                Sender = messageEvent.BridgeMessageEvent.Sender,
-                MessageDataHash = messageEvent.BridgeMessageEvent.MessageDataHash,
-                BaseFeeL1 = messageEvent.BridgeMessageEvent.BaseFeeL1,
-                Timestamp = messageEvent.BridgeMessageEvent.Timestamp
-            });
-
-            return messageDeliveredEvents;
+            return await LogParser.ParseTypedLogs(provider, "Bridge", Logs, "InboxMessageDelivered", isClassic: false);
         }
 
-        public async Task<IEnumerable<InboxMessageDeliveredEvent>> GetInboxMessageDeliveredEvents(Web3 provider)
+        public async Task<FilterLog[]> GetInboxMessageDeliveredEvents(Web3 provider)
         {
-            var messageEvents = await LogParser.ParseTypedLogs(provider, "Inbox", Logs, "InboxMessageDelivered", isClassic: false);
-
-            // Transform each MessageEvents object into an InboxMessageDeliveredEvent object
-            var inboxMessageDeliveredEvents = messageEvents.Select(messageEvent => new InboxMessageDeliveredEvent
-            {
-                MessageNum = messageEvent.InboxMessageEvent.MessageNum,
-                Data = messageEvent.InboxMessageEvent.Data
-            });
-
-            return inboxMessageDeliveredEvents;
+            return await LogParser.ParseTypedLogs(provider, "Inbox", Logs, "InboxMessageDelivered", isClassic: false);
         }
 
 
@@ -242,7 +230,7 @@ namespace Arbitrum.Message
                 });
         }
 
-        public async Task<IEnumerable> GetTokenDepositEvents( Web3 provider)
+        public async Task<IEnumerable> GetTokenDepositEvents(Web3 provider)
         {
             return await LogParser.ParseTypedLogs(provider, "L1ERC20Gateway", Logs, "DepositInitiated", isClassic: true);
         }
@@ -250,6 +238,16 @@ namespace Arbitrum.Message
         public static L1TransactionReceipt MonkeyPatchWait(TransactionReceipt contractTransaction)
         {
             return new L1TransactionReceipt(contractTransaction);
+        }
+
+        public static L1TransactionReceipt MonkeyPatchEthDepositWait(TransactionReceipt contractTransaction)
+        {
+            return new L1EthDepositTransactionReceipt(contractTransaction);
+        }
+
+        public static L1TransactionReceipt MonkeyPatchContractCallWait(TransactionReceipt contractTransaction)
+        {
+            return new L1ContractCallTransactionReceipt(contractTransaction);
         }
     }
 

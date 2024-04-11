@@ -11,12 +11,27 @@ using Nethereum.Util;
 using System.Formats.Asn1;
 using Nethereum.ABI.ABIDeserialisation;
 using Nethereum.ABI;
+using Newtonsoft.Json.Linq;
 
 namespace Arbitrum.DataEntities
 {
     [FunctionOutput]
     public class RetryableData
     {
+        // Equivalent of TypeScript's RetryableData interface
+        public static readonly string[] AbiTypes = {
+            "address",
+            "address",
+            "uint256",
+            "uint256",
+            "uint256",
+            "address",
+            "address",
+            "uint256",
+            "uint256",
+            "bytes"
+        };
+
         [Parameter("address", "from", 1)]
         public string From { get; set; }
 
@@ -99,31 +114,30 @@ namespace Arbitrum.DataEntities
             return false;
         }
 
-        private static string TryGetErrorData(object ethersJsError)
+        private static string TryGetErrorData(dynamic ethersJsError)
         {
             if (IsErrorData(ethersJsError))
             {
-                var errorDataProperty = ethersJsError.GetType().GetProperty("errorData");
-                return errorDataProperty?.GetValue(ethersJsError)?.ToString();
+                return ethersJsError.errorData;
             }
             else
             {
                 dynamic typedError = ethersJsError;
 
-                if (typedError.data != null)
+                if (!string.IsNullOrEmpty(typedError.data))
                 {
                     return typedError.data;
                 }
-                else if (typedError.error?.error?.body != null)
+                else if (!string.IsNullOrEmpty(typedError.error?.error?.body))
                 {
-                    dynamic maybeData = JsonSerializer.Deserialize<JsonElement>(
-                        typedError.error?.error?.body).GetProperty("error")?.GetProperty("data")?.GetString();
-
-                    return maybeData ?? null;
+                    var maybeData = JObject.Parse(typedError.error?.error?.body)?.SelectToken("error.data")?.Value<string>();
+                    if (string.IsNullOrEmpty(maybeData))
+                        return null;
+                    return maybeData;
                 }
-                else if (typedError.error?.error?.data != null)
+                else if (!string.IsNullOrEmpty(typedError.error?.error?.data))
                 {
-                    return typedError.error?.error?.data;
+                    return typedError?.error?.error?.data;
                 }
                 else
                 {
@@ -148,7 +162,9 @@ namespace Arbitrum.DataEntities
                 }
                 errorDataHex = errorDataHex.Substring(8);
 
-                var decodedData = ABIDecoder.Current.Decode<BigInteger[]>(errorDataHex.HexToByteArray(), RetryableData.AbiTypes);
+                var abiDecoder = new ABIEncode();
+
+                var decodedData = abiDecoder.DecodeEncodedString(errorDataHex.HexToByteArray());
 
                 if (decodedData.Length != RetryableData.AbiTypes.Length)
                 {
@@ -158,16 +174,16 @@ namespace Arbitrum.DataEntities
                 {
                     return new RetryableData
                     {
-                        From = AddressUtil.Current.ConvertToChecksumAddress(decodedData[0].ToHex()),
-                        To = AddressUtil.Current.ConvertToChecksumAddress(decodedData[1].ToHex()),
-                        L2CallValue = decodedData[2],
-                        Deposit = decodedData[3],
-                        MaxSubmissionCost = decodedData[4],
-                        ExcessFeeRefundAddress = AddressUtil.Current.ConvertToChecksumAddress(decodedData[5].ToHex()),
-                        CallValueRefundAddress = AddressUtil.Current.ConvertToChecksumAddress(decodedData[6].ToHex()),
-                        GasLimit = decodedData[7],
-                        MaxFeePerGas = decodedData[8],
-                        Data = decodedData[9]
+                        From = AddressUtil.Current.ConvertToChecksumAddress(decodedData[0].ToString().ToHexUTF8()),
+                        To = AddressUtil.Current.ConvertToChecksumAddress(decodedData[1].ToString().ToHexUTF8()),
+                        L2CallValue = BigInteger.Parse(decodedData[2].ToString()),
+                        Deposit = BigInteger.Parse(decodedData[3].ToString()),
+                        MaxSubmissionCost = BigInteger.Parse(decodedData[4].ToString()),
+                        ExcessFeeRefundAddress = AddressUtil.Current.ConvertToChecksumAddress(decodedData[5].ToString().ToHexUTF8()),
+                        CallValueRefundAddress = AddressUtil.Current.ConvertToChecksumAddress(decodedData[6].ToString().ToHexUTF8()),
+                        GasLimit = BigInteger.Parse(decodedData[7].ToString()),
+                        MaxFeePerGas = BigInteger.Parse(decodedData[8].ToString()),
+                        Data = decodedData[9].ToString().HexToByteArray()
                     };
                 }
             }

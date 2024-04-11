@@ -19,7 +19,7 @@ namespace Arbitrum.Utils
         {
             try
             {
-                var arbSysContract = LoadContractUtils.LoadContract(
+                var arbSysContract = await LoadContractUtils.LoadContract(
                     provider: provider,
                     contractName: "ArbSys",
                     address: Constants.ARB_SYS_ADDRESS,

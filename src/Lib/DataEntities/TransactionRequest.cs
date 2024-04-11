@@ -1,5 +1,6 @@
 ﻿using System.Threading.Tasks;
 using System.Numerics;
+using Nethereum.RPC.Eth.DTOs;
 
 namespace Arbitrum.DataEntities
 {
@@ -18,7 +19,7 @@ namespace Arbitrum.DataEntities
         public BigInteger? L2CallValue { get; set; }
         public string? ExcessFeeRefundAddress { get; set; }
         public string? CallValueRefundAddress { get; set; }
-        public byte[] Data { get; set; }
+        public byte[]? Data { get; set; }
     }
 
     public class L1ToL2MessageParams : L1ToL2MessageNoGasParams
@@ -26,58 +27,42 @@ namespace Arbitrum.DataEntities
         public new string? ExcessFeeRefundAddress { get; set; }
         public new string? CallValueRefundAddress { get; set; }
     }
-    public class TransactionRequest
+    public class TransactionRequest : TransactionInput            //////////
     {
-        public string To { get; set; }
-        public byte[] Data { get; set; }
-        public BigInteger Value { get; set; }
-        public string From { get; set; }
+        public new string? To { get; set; }
+        public new string? Data { get; set; }
+        public new BigInteger? Value { get; set; }
+        public new string? From { get; set; }
     }
 
     public class L1ToL2TransactionRequest
     {
-        public TransactionRequest TxRequest { get; set; }
-        public RetryableData RetryableData { get; set; }
+        public TransactionRequest? TxRequest { get; set; }
+        public RetryableData? RetryableData { get; set; }
         public Func<Task<bool>>? IsValid { get; set; }
 
-
-        public L1ToL2TransactionRequest(TransactionRequest txRequest, RetryableData retryableData)
-        {
-            TxRequest = txRequest;
-            RetryableData = retryableData;
-        }
     }
 
     public class L2ToL1TransactionRequest
     {
-        public TransactionRequest TxRequest { get; }
-        public object EstimateL1GasLimit { get; }
+        public TransactionRequest? TxRequest { get; }
+        public Func<Task<BigInteger>>? EstimateL1GasLimit { get; set; }
 
-        public L2ToL1TransactionRequest(TransactionRequest txRequest, object estimateL1GasLimit)
-        {
-            TxRequest = txRequest;
-            EstimateL1GasLimit = estimateL1GasLimit;
-        }
     }
 
-    public static class Utils
+    public static class TransactionUtils
     {
         public static bool IsL1ToL2TransactionRequest<T>(T possibleRequest)
         {
-            if (possibleRequest is L1ToL2TransactionRequest)
-            {
-                var l1ToL2Request = (L1ToL2TransactionRequest)(object)possibleRequest;
-                return l1ToL2Request.TxRequest != null;
-            }
-            return false;
+            return possibleRequest is L1ToL2TransactionRequest;
         }
 
-        public static bool IsL2ToL1TransactionRequest(object possibleRequest)
+        public static bool IsL2ToL1TransactionRequest<T>(T possibleRequest)
         {
-            return IsDefined(possibleRequest is IDictionary<string, object> dict ? dict["txRequest"] : null);
+            return possibleRequest is L2ToL1TransactionRequest;
         }
 
-        public static bool IsDefined(object val)
+        public static bool IsDefined<T>(T val)
         {
             return val != null;
         }

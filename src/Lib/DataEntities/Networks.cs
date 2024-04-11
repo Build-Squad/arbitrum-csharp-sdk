@@ -201,7 +201,7 @@ namespace Arbitrum.DataEntities
                 }
         };
 
-        public async static Task<Network> GetNetwork(object signerOrProviderOrChainId, int layer)
+        public async static Task<Network> GetNetwork(dynamic signerOrProviderOrChainId, int layer)
         {
             int chainId;
 
@@ -254,19 +254,19 @@ namespace Arbitrum.DataEntities
         }
 
 
-        public static async Task<L1Network> GetL1NetworkAsync(object signerOrProviderOrChainId)
+        public static async Task<L1Network> GetL1NetworkAsync(dynamic signerOrProviderOrChainId)
         {
             return (L1Network)await GetNetwork(signerOrProviderOrChainId, 1);
         }
 
-        public static async Task<L2Network> GetL2NetworkAsync(object signerOrProviderOrChainId)
+        public static async Task<L2Network> GetL2NetworkAsync(dynamic signerOrProviderOrChainId)
         {
             return (L2Network)await GetNetwork(signerOrProviderOrChainId, 2);
         }
 
-        public static EthBridgeInformation GetEthBridgeInformation(string rollupContractAddress, IWeb3 l1SignerOrProvider)
+        public static async Task<EthBridgeInformation> GetEthBridgeInformation(string rollupContractAddress, SignerOrProvider l1SignerOrProvider)
         {
-            Contract rollup = LoadContractUtils.LoadContract("RollupAdminLogic", l1SignerOrProvider, rollupContractAddress, false);
+            Contract rollup = await LoadContractUtils.LoadContract("RollupAdminLogic", l1SignerOrProvider, rollupContractAddress, false);
 
             return new EthBridgeInformation
             {

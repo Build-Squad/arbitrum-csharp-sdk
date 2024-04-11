@@ -165,7 +165,7 @@ namespace Arbitrum.Message
         private async Task<BigInteger> OutboxEntryExists(Web3 l2Provider)
         {
             var outboxAddress = await GetOutboxAddress(l2Provider, (int)BatchNumber);
-            var outboxContract = LoadContractUtils.LoadContract(
+            var outboxContract = await LoadContractUtils.LoadContract(
                 provider: l2Provider,
                 contractName: "Outbox",
                 address: outboxAddress,
@@ -182,7 +182,7 @@ namespace Arbitrum.Message
             BigInteger batchNumber,
             BigInteger indexInBatch)
         {
-            var nodeInterfaceContract = LoadContractUtils.LoadContract(
+            var nodeInterfaceContract = await LoadContractUtils.LoadContract(
                 provider: l2Provider,
                 contractName: "NodeInterface",
                 address: Constants.NODE_INTERFACE_ADDRESS,
@@ -220,7 +220,7 @@ namespace Arbitrum.Message
 
             var outboxAddress = await GetOutboxAddress(l2Provider, (int)BatchNumber);
 
-            var outboxContract = LoadContractUtils.LoadContract(
+            var outboxContract = await LoadContractUtils.LoadContract(
                 provider: l2Provider,
                 contractName: "Outbox",
                 address: outboxAddress,
@@ -320,7 +320,7 @@ namespace Arbitrum.Message
 
             var outboxAddress = await GetOutboxAddress(l2Provider, (int)BatchNumber);
 
-            var outboxContract = LoadContractUtils.LoadContract(
+            var outboxContract = await LoadContractUtils.LoadContract(
                 provider: l2Provider,
                 contractName: "Outbox",
                 address: outboxAddress,

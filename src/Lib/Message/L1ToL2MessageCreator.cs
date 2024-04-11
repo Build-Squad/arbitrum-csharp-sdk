@@ -8,7 +8,6 @@ using Nethereum.Contracts;
 using Arbitrum.Message;
 using Arbitrum.Utils;
 using Arbitrum.DataEntities;
-using static Arbitrum.DataEntities.Utils;
 using Nethereum.RPC.Eth.DTOs;
 using Org.BouncyCastle.Asn1.X509;
 using Nethereum.Hex.HexConvertors.Extensions;
@@ -64,7 +63,7 @@ namespace Arbitrum.Message
 
             bool nativeTokenIsEth = l2Network.NativeToken == null;
 
-            var inboxContract = LoadContractUtils.LoadContract(
+            var inboxContract = await LoadContractUtils.LoadContract(
                                                     contractName: "Inbox",
                                                     provider: l1Provider,
                                                     address: l2Network?.EthBridge?.Inbox,
@@ -124,7 +123,7 @@ namespace Arbitrum.Message
         {
             var l1Provider = SignerProviderUtils.GetProviderOrThrow(this.l1Signer);
 
-            var createRequest = IsL1ToL2TransactionRequest(parameters)
+            var createRequest = TransactionUtils.IsL1ToL2TransactionRequest(parameters)
                 ? parameters
                 : await GetTicketCreationRequest(
                     parameters,

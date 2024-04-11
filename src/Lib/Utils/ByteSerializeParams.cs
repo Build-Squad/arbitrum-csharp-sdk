@@ -165,17 +165,18 @@ public static class AddressSerializer
         if (Web3.IsChecksumAddress(value))
             return AddressUtil.Current.ConvertToChecksumAddress(value).HexToByteArray();
 
-        if (bool.TryParse(value, out var boolValue))
+        if (value is bool boolValue)
             return BitConverter.GetBytes(boolValue ? 1 : 0);
 
-        if (int.TryParse(value, out var intValue))
+        if (value is int intValue)
             return BitConverter.GetBytes(intValue);
 
-        if (string.TryParse(value, out var intValue))
-            return BitConverter.GetBytes(intValue);
+        if (value is string stringValue)
+            return stringValue.HexToByteArray();
 
-        if (int.TryParse(value, out var intValue))
-            return BitConverter.GetBytes(intValue);
+        if (value is BigInteger bigIntegerValue)
+            bigIntegerValue.ToByteArray();
+
         // Handle other primitive types here
 
         throw new ArgumentException("Unsupported type", nameof(value));

@@ -81,7 +81,7 @@ namespace Arbitrum.DataEntities
             return signer is SignerOrProvider;
         }
 
-        public static async Task<bool> CheckNetworkMatches(object signerOrProvider, int chainId)
+        public static async Task<bool> CheckNetworkMatches(dynamic signerOrProvider, int chainId)
         {
             Web3 provider;
 

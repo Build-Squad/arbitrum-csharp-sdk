@@ -125,7 +125,7 @@ namespace Arbitrum.Message
         {
             var defaultedOptions = ApplySubmissionPriceDefaults(options);
             var network = await NetworkUtils.GetL2NetworkAsync(l1Provider);
-            Contract inbox =  LoadContractUtils.LoadContract(
+            var inbox =  await LoadContractUtils.LoadContract(
                                                 contractName: "Inbox",
                                                 provider: l1Provider,
                                                 address: network?.EthBridge?.Inbox,
@@ -151,7 +151,7 @@ namespace Arbitrum.Message
                 senderDeposit = Web3.Convert.ToWei(1, UnitConversion.EthUnit.Ether) + parameters.L2CallValue;
             }
 
-            Contract nodeInterface = LoadContractUtils.LoadContract(
+            var nodeInterface = await LoadContractUtils.LoadContract(
                                     contractName: "NodeInterface",
                                     provider: _l2Provider,
                                     address: Constants.NODE_INTERFACE_ADDRESS,

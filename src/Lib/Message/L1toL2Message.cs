@@ -417,7 +417,7 @@ namespace Arbitrum.Message
 
     public class L1ToL2MessageReader : L1ToL2Message
     {
-        public SignerOrProvider _l2Provider;
+        public Web3 _l2Provider;
         public TransactionReceipt? _retryableCreationReceipt;
 
         public TransactionReceipt? RetryableCreationReceipt
@@ -426,7 +426,7 @@ namespace Arbitrum.Message
             set { _retryableCreationReceipt = value; }
         }
         public L1ToL2MessageReader(
-            SignerOrProvider l2Provider,
+            Web3 l2Provider,
             BigInteger chainId,
             string sender,
             BigInteger messageNumber,
@@ -540,20 +540,20 @@ namespace Arbitrum.Message
                 // not fixing it here to keep the code simple
                 var outerBlockRange = ((int)fromBlock.Number.Value, toBlockNumber); 
 
-                queriedRange.Add(outerBlockRange);     
+                queriedRange.Add(outerBlockRange);
 
-                List<FetchedEvent> redeemEvents = await eventFetcher.GetEventsAsync(
-                                                            contractFactory: "ArbRetryableTx",
-                                                            eventName: "RedeemScheduled",
-                                                            argumentFilters: new Dictionary<string, object> { { "ticketId", this.RetryableCreationId } },
-                                                            filter: new Dictionary<string, object>
-                                                                    {
-                                                                        { "fromBlock", outerBlockRange.Item1 },    ////////
-                                                                        { "toBlock", outerBlockRange.Item2 },
-                                                                        { "address", Constants.ARB_RETRYABLE_TX_ADDRESS }
-                                                                    },
-                                                            isClassic: false
-                                                            );  
+            var redeemEvents = await eventFetcher.GetEventsAsync(
+                                                        contractFactory: "ArbRetryableTx",
+                                                        eventName: "RedeemScheduled",
+                                                        argumentFilters: new Dictionary<string, object> { { "ticketId", this.RetryableCreationId } },
+                                                        filter: new NewFilterInput
+                                                        {
+                                                            FromBlock = new BlockParameter(outerBlockRange.Item1.ToHexBigInteger()),
+                                                            ToBlock = new BlockParameter(outerBlockRange.Item2.ToHexBigInteger()),
+                                                            Address = new string[] { Constants.ARB_RETRYABLE_TX_ADDRESS }
+                                                         },
+                                                        isClassic: false
+                                                        ); ;  
 
                 var successfulRedeem = new List<TransactionReceipt>();
 
@@ -583,15 +583,15 @@ namespace Arbitrum.Message
                     while (queriedRange.Count > 0)
                     {
                         var blockRange = queriedRange.First();
-                        List<FetchedEvent> keepAliveEvents = await eventFetcher.GetEventsAsync(   
+                        var keepAliveEvents = await eventFetcher.GetEventsAsync(   
                                                                            contractFactory: "ArbRetryableTx",
                                                                            eventName: "LifetimeExtended",
                                                                            argumentFilters: new Dictionary<string, object> { { "ticketId", this.RetryableCreationId } },
-                                                                           filter: new Dictionary<string, object>
+                                                                           filter: new NewFilterInput
                                                                             {
-                                                                                { "fromBlock", blockRange.from },    ////////
-                                                                                { "toBlock", blockRange.to },
-                                                                                { "address", Constants.ARB_RETRYABLE_TX_ADDRESS }
+                                                                               FromBlock = new BlockParameter(blockRange.from.ToHexBigInteger()),
+                                                                               ToBlock = new BlockParameter(blockRange.to.ToHexBigInteger()),
+                                                                               Address = new string[] { Constants.ARB_RETRYABLE_TX_ADDRESS }
                                                                             },
                                                                            isClassic: false);
                         if (keepAliveEvents.Count > 0)
@@ -717,7 +717,7 @@ namespace Arbitrum.Message
          */
         public static async Task<BigInteger> GetLifetime(object l2Provider)
         {
-            Contract arbRetryableTxContract = LoadContractUtils.LoadContract(
+            var arbRetryableTxContract = await LoadContractUtils.LoadContract(
                                                 contractName: "ArbRetryableTx",
                                                 address: Constants.ARB_RETRYABLE_TX_ADDRESS,
                                                 provider: l2Provider,
@@ -735,7 +735,7 @@ namespace Arbitrum.Message
          */
         public async Task<BigInteger> GetTimeout()
         {
-            Contract arbRetryableTxContract = LoadContractUtils.LoadContract(
+            var arbRetryableTxContract = await LoadContractUtils.LoadContract(
                 contractName: "ArbRetryableTx",
                 address: Constants.ARB_RETRYABLE_TX_ADDRESS,
                 provider: _l2Provider,
@@ -753,7 +753,7 @@ namespace Arbitrum.Message
          */
         public async Task<string> GetBeneficiary()
         {
-            Contract arbRetryableTxContract = LoadContractUtils.LoadContract(
+            var arbRetryableTxContract = await LoadContractUtils.LoadContract(
                 contractName: "ArbRetryableTx",
                 address: Constants.ARB_RETRYABLE_TX_ADDRESS,
                 provider: _l2Provider,
@@ -807,6 +807,7 @@ namespace Arbitrum.Message
                 )
             ).ToHex();
         }
+
         public static string CalculateL2TxHash(string retryableCreationId)
         {
             return new Sha3Keccack().CalculateHash(
@@ -902,7 +903,7 @@ namespace Arbitrum.Message
 
             if(status == L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2)
             {
-                Contract arbRetryableTxContract = LoadContractUtils.LoadContract(
+                var arbRetryableTxContract = await LoadContractUtils.LoadContract(
                                                         contractName: "ArbRetryableTx",
                                                         address: Constants.ARB_RETRYABLE_TX_ADDRESS,
                                                         provider: _l2Signer.Provider,
@@ -948,7 +949,7 @@ namespace Arbitrum.Message
 
             if (status == L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2)
             {
-                var arbRetryableTxContract = LoadContractUtils.LoadContract(
+                var arbRetryableTxContract = await LoadContractUtils.LoadContract(
                     contractName: "ArbRetryableTx",
                     address: Constants.ARB_RETRYABLE_TX_ADDRESS,
                     provider: _l2Signer.Provider,
@@ -995,7 +996,7 @@ namespace Arbitrum.Message
 
             if (status == L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2)
             {
-                var arbRetryableTxContract = LoadContractUtils.LoadContract(
+                var arbRetryableTxContract = await LoadContractUtils.LoadContract(
                     contractName: "ArbRetryableTx",
                     address: Constants.ARB_RETRYABLE_TX_ADDRESS,
                     provider: _l2Signer.Provider,

@@ -108,18 +108,18 @@ namespace Arbitrum.Message
             Status = tx.Status;
         }
 
-        public async Task<List<L2ToL1TransactionEvent>> GetL2ToL1Events(Web3 provider)
+        public async Task<FilterLog[]> GetL2ToL1Events(Web3 provider)
         {
-            var classicLogs =await LogParser.ParseTypedLogs(provider, "ArbSys", Logs, "L2ToL1Transaction", isClassic: false);
+            var classicLogs = await LogParser.ParseTypedLogs(provider, "ArbSys", Logs, "L2ToL1Transaction", isClassic: false);
             var nitroLogs = await LogParser.ParseTypedLogs(provider, "ArbSys", Logs, "L2ToL1Tx", isClassic: false);
 
-            return new List<L2ToL1TransactionEvent>(classicLogs.Concat(nitroLogs));
+            return classicLogs.Concat(nitroLogs).ToArray();
         }
 
-        public async Task<List<RedeemScheduledEvent>> GetRedeemScheduledEvents(Web3 provider)
+        public async Task<FilterLog[]> GetRedeemScheduledEvents(Web3 provider)
         {
             var redeemScheduledEvents = await LogParser.ParseTypedLogs(provider, "ArbRetryableTx", Logs, "RedeemScheduled");
-            return redeemScheduledEvents;
+            return redeemScheduledEvents.ToArray();
         }
 
         public async Task<IEnumerable<L2ToL1Message>> GetL2ToL1Messages<T>(T l1SignerOrProvider) where T : SignerOrProvider
@@ -146,7 +146,7 @@ namespace Arbitrum.Message
 
         public async Task<BigInteger> GetBatchConfirmations(Web3 l2Provider)
         {
-            var nodeInterfaceContract = LoadContractUtils.LoadContract(
+            var nodeInterfaceContract = await LoadContractUtils.LoadContract(
                                     contractName: "NodeInterface",
                                     address: Constants.NODE_INTERFACE_ADDRESS,
                                     provider: l2Provider,
@@ -159,7 +159,7 @@ namespace Arbitrum.Message
         public async Task<BigInteger> GetBatchNumber(Web3 l2Provider)
         {
             var arbProvider = new ArbitrumProvider(l2Provider);
-            var nodeInterfaceContract = LoadContractUtils.LoadContract(
+            var nodeInterfaceContract = await LoadContractUtils.LoadContract(
                                     contractName: "NodeInterface",
                                     address: Constants.NODE_INTERFACE_ADDRESS,
                                     provider: l2Provider,

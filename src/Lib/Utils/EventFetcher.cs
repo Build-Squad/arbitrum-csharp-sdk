@@ -106,7 +106,7 @@ namespace Arbitrum.Utils
                     ? (string)filter["address"]
                     : "0x0000000000000000000000000000000000000000");
 
-                contract = LoadContractUtils.LoadContract(
+                contract = await LoadContractUtils.LoadContract(
                     provider: _provider,
                     contractName: contractFactory,
                     address: contractAddress,
