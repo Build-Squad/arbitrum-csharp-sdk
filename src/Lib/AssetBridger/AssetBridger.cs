@@ -1,5 +1,6 @@
 ﻿using Arbitrum.DataEntities;
 using Arbitrum.Message;
+using Nethereum.Web3.Accounts;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -33,12 +34,12 @@ namespace Arbitrum.AssetBridgerModule
             }
         }
 
-        protected async Task CheckL1Network(SignerOrProvider sop)
+        protected async Task CheckL1Network(Account sop)
         {
             await SignerProviderUtils.CheckNetworkMatches(sop, L1Network.ChainID);
         }
 
-        protected async Task CheckL2Network(SignerOrProvider sop)
+        protected async Task CheckL2Network(Account sop)
         {
             await SignerProviderUtils.CheckNetworkMatches(sop, L2Network.ChainID);
         }

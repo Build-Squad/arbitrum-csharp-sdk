@@ -11,12 +11,14 @@ using Nethereum.JsonRpc.Client;
 using Arbitrum.DataEntities;
 using Nethereum.RPC.Eth.Filters;
 using Nethereum.RPC.Eth.Services;
+using Nethereum.ABI.Model;
 using Nethereum.Hex.HexTypes;
+using Nethereum.ABI.FunctionEncoding.Attributes;
 
 
 namespace Arbitrum.Utils
 {
-    public class FetchedEvent<TEvent> where TEvent : IEventLog
+    public class FetchedEvent<TEvent> where TEvent : Event
     {
         public TEvent Event { get; set; }
         public string Topic { get; set; }
@@ -78,17 +80,17 @@ namespace Arbitrum.Utils
             }
         }
         //generic FetchedEvent type(to be tested)
-        public async Task<List<FetchedEvent>> GetEventsAsync(
+        public async Task<List<FetchedEvent<Event>>> GetEventsAsync(
             dynamic contractFactory,
             string eventName,
             Dictionary<string, object> argumentFilters = null,
-            NewFilterInput filter = null,
+            NewFilterInput? filter = null,
             bool isClassic = false)
         {
 
             // Initialize filter and argumentFilters if they are null
             if (filter == null)
-                filter = new Dictionary<string, object>();
+                filter = new NewFilterInput();
 
             if (argumentFilters == null)
                 argumentFilters = new Dictionary<string, object>();
@@ -102,9 +104,10 @@ namespace Arbitrum.Utils
             // Otherwise, use a default address.
             if (contractFactory is string)
             {
-                string contractAddress = LoadContractUtils.GetAddress(filter.ContainsKey("address")
-                    ? (string)filter["address"]
+                string contractAddress = LoadContractUtils.GetAddress(!string.IsNullOrEmpty(filter?.Address?.ToString())
+                    ? filter?.Address?.ToString()!
                     : "0x0000000000000000000000000000000000000000");
+
 
                 contract = await LoadContractUtils.LoadContract(
                     provider: _provider,
@@ -129,60 +132,62 @@ namespace Arbitrum.Utils
                 throw new ArgumentException($"Event {eventName} not found in contract");
 
             // Create event filter
-            var fromBlock = new HexBigInteger(BigInteger.Zero);
-            var toBlock = new HexBigInteger(BigInteger.Zero);
+            BlockParameter fromBlock = new BlockParameter(new HexBigInteger(BigInteger.Zero));
+            BlockParameter toBlock = new BlockParameter(new HexBigInteger(BigInteger.Zero));
 
-            if (filter is Dictionary<string, object> filterDict)
+            if (filter is NewFilterInput filterDict)
             {
-                if (filterDict.TryGetValue("fromBlock", out var fromBlockObj))
+                if (filterDict.FromBlock!=null)
                 {
-                    fromBlock = new HexBigInteger((long)fromBlockObj);
+                    fromBlock = filterDict.FromBlock;
                 }
 
-                if (filterDict.TryGetValue("toBlock", out var toBlockObj))
+                if (filterDict.ToBlock !=null)
                 {
-                    toBlock = new HexBigInteger((long)toBlockObj);
+                    toBlock = filterDict.ToBlock;
                 }
             }
 
             // Create event filter
             var eventFilter = new NewFilterInput
             {
-                FromBlock = new BlockParameter(fromBlock),
-                ToBlock = new BlockParameter(toBlock),
+                FromBlock = fromBlock,
+                ToBlock = toBlock,
                 Address = new[] { contract.Address },
                 // Merge filter and argumentFilters
-                Topics = MergeTopics(filter, argumentFilters)
+                Topics = MergeTopics(filter!, argumentFilters)
             };
 
             var logs = await _provider.Eth.Filters.GetLogs.SendRequestAsync(eventFilter);
 
-            var fetchedEvents = new List<FetchedEvent>();
+            var fetchedEvents = new List<FetchedEvent<Event>>();
+            int logCount = 0;
 
             foreach (var log in logs)
             {
-                fetchedEvents.Add(new FetchedEvent (
-                    _event: log.Address,
-                    topic: log.GetTopic(0),   ///////
+                fetchedEvents.Add(new FetchedEvent<Event> (
+                    eventArgs: new Event( contract, new EventABI(eventName)),
+                    topic: log.GetTopic(logCount),   ///////
                     name: eventName,
-                    blockNumber: log.BlockNumber.Value,
+                    blockNumber: (int)log.BlockNumber.Value,
                     blockHash: log.BlockHash,
                     transactionHash: log.TransactionHash,
                     address: log.Address,
                     topics: ConvertToStringList(log.Topics),
                     data: log.Data));
+                logCount++;
             }
 
             return fetchedEvents;
         }
 
         // Helper method to merge topics from filter and argumentFilters
-        private string[] MergeTopics(Dictionary<string, object> filter, Dictionary<string, object> argumentFilters)
+        private string[] MergeTopics(NewFilterInput filter, Dictionary<string, object> argumentFilters)
         {
             List<string> topics = new List<string>();
 
             // Add topics from filter
-            if (filter.TryGetValue("topics", out var filterTopics) && filterTopics is string[] filterTopicsArray)
+            if (filter.Topics != null  && filter.Topics is string[] filterTopicsArray)
             {
                 topics.AddRange(filterTopicsArray);
             }

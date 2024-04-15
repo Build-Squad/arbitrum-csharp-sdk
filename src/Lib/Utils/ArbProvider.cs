@@ -12,14 +12,14 @@ namespace Arbitrum.Utils
 {
     public class Formats
     {
-        public Transaction transaction { get; set; }
-        public TransactionInput transactionRequest { get; set; }
-        public TransactionReceipt receipt { get; set; }
-        public dynamic receiptLog { get; set; }
-        public Block block { get; set; }
-        public BlockWithTransactions blockWithTransactions { get; set; }
-        public NewFilterInput filter { get; set; }
-        public FilterLog filterLog { get; set; }
+        public Transaction? transaction { get; set; }
+        public TransactionInput? transactionRequest { get; set; }
+        public TransactionReceipt? receipt { get; set; }
+        public dynamic? receiptLog { get; set; }
+        public Block? block { get; set; }
+        public BlockWithTransactions? blockWithTransactions { get; set; }
+        public NewFilterInput? filter { get; set; }
+        public FilterLog? filterLog { get; set; }
     }
     public class ArbFormatter
     {

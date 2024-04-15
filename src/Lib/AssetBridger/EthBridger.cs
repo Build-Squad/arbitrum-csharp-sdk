@@ -13,6 +13,7 @@ using Nethereum.RPC.Eth.DTOs;
 using System.Reflection.Metadata.Ecma335;
 using Nethereum.Hex.HexTypes;
 using Nethereum.Hex.HexConvertors.Extensions;
+using Nethereum.Web3.Accounts;
 
 namespace Arbitrum.AssetBridgerModule
 {
@@ -53,7 +54,7 @@ namespace Arbitrum.AssetBridgerModule
 
     public class EthDepositParams
     {
-        public SignerOrProvider? L1Signer { get; set; }
+        public Account? L1Signer { get; set; }
         public BigInteger? Amount { get; set; }
         public PayableOverrides? Overrides { get; set; }
     }
@@ -67,13 +68,13 @@ namespace Arbitrum.AssetBridgerModule
 
     public class L1ToL2TxReqAndSigner : L1ToL2TransactionRequest
     {
-        public SignerOrProvider? L1Signer { get; set; }
+        public Account? L1Signer { get; set; }
         public Overrides? Overrides { get; set; }
     }
 
     public class L2ToL1TxReqAndSigner : L2ToL1TransactionRequest
     {
-        public SignerOrProvider? L2Signer { get; set; }
+        public Account? L2Signer { get; set; }
         public Overrides? Overrides { get; set; }
     }
 
@@ -133,7 +134,7 @@ namespace Arbitrum.AssetBridgerModule
         public async Task<L1ToL2TransactionRequest> GetDepositRequest(EthDepositRequestParams parameters)
         {
             var inbox = await LoadContractUtils.LoadContract(
-                                            provider: parameters.L1Signer.Provider,
+                                            provider: new Web3(parameters.L1Signer),
                                             contractName: "Inbox",
                                             address: _l2Network?.EthBridge?.Inbox,
                                             isClassic: false
@@ -178,7 +179,7 @@ namespace Arbitrum.AssetBridgerModule
 
             if (tx.From == null)
             {
-                tx.From = parameters.L1Signer.Account.Address;
+                tx.From = parameters.L1Signer.Address;
             }
 
             var txReceipt = await parameters.L1Signer.Provider.Eth.TransactionManager.SendTransactionAndWaitForReceiptAsync(tx);

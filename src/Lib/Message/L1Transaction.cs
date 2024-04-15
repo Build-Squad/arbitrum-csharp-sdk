@@ -11,6 +11,7 @@ using Arbitrum.Utils;
 using Nethereum.Contracts;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Web3;
+using Nethereum.Web3.Accounts;
 using Newtonsoft.Json.Linq;
 using static Arbitrum.Message.L1EthDepositTransactionReceipt;
 using static Arbitrum.Message.L1ToL2MessageUtils;
@@ -194,7 +195,7 @@ namespace Arbitrum.Message
             );
         }
 
-        public async Task<IEnumerable<L1ToL2Message>> GetL1ToL2Messages<T>(T l2SignerOrProvider) where T : SignerOrProvider
+        public async Task<IEnumerable<L1ToL2Message>> GetL1ToL2Messages<T>(T l2SignerOrProvider) where T : Account
         {
 
             var provider = SignerProviderUtils.GetProviderOrThrow(l2SignerOrProvider);

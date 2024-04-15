@@ -11,7 +11,7 @@ using System.Text;
 
 namespace Arbitrum.Message
 {
-    public class SubmitRetryableMessageDataParser
+    public static class SubmitRetryableMessageDataParser
     {
         public static RetryableMessageParams Parse(string eventData)     ////////
         {
