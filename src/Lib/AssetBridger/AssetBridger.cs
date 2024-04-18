@@ -34,20 +34,23 @@ namespace Arbitrum.AssetBridgerModule
             }
         }
 
-        protected async Task CheckL1Network(Account sop)
+        protected async Task CheckL1Network(SignerOrProvider sop)
         {
             await SignerProviderUtils.CheckNetworkMatches(sop, L1Network.ChainID);
         }
 
-        protected async Task CheckL2Network(Account sop)
+        protected async Task CheckL2Network(SignerOrProvider sop)
         {
             await SignerProviderUtils.CheckNetworkMatches(sop, L2Network.ChainID);
         }
 
         protected bool NativeTokenIsEth => string.IsNullOrEmpty(NativeToken) || NativeToken == Constants.ADDRESS_ZERO;
 
-        public abstract Task<L1ContractTransaction> Deposit(DepositParams parameters);
+        public abstract Task<L1TransactionReceipt> Deposit(DepositParams parameters);
+        public abstract Task<L1TransactionReceipt> Deposit(L1ToL2TxReqAndSigner parameters);
 
         public abstract Task<L2ContractTransaction> Withdraw(WithdrawParams parameters);
+
+        public abstract Task<L2ContractTransaction> Withdraw(L2ToL1TxReqAndSigner parameters);
     }
 }

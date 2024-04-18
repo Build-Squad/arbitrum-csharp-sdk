@@ -8,7 +8,7 @@ namespace Arbitrum.DataEntities
         /**
          * The merkle root of the withdrawals tree
          */
-        string SendRoot { get; set; }
+        string? SendRoot { get; set; }
         /**
          * Cumulative number of withdrawals since genesis
          */
@@ -20,20 +20,20 @@ namespace Arbitrum.DataEntities
     }
     public class ArbBlock : Block, IArbBlock
     {
-        public string SendRoot { get; set; }
+        public string? SendRoot { get; set; }
         public BigInteger SendCount { get; set; }
         public int L1BlockNumber { get; set; }
     }
 
     public interface IArbBlockWithTransactions
     {
-        string SendRoot { get; set; }
+        string? SendRoot { get; set; }
         BigInteger SendCount { get; set; }
         int L1BlockNumber { get; set; }
     }
     public class ArbBlockWithTransactions : BlockWithTransactions, IArbBlockWithTransactions
     {
-        public string SendRoot { get; set; }
+        public string? SendRoot { get; set; }
         public BigInteger SendCount { get; set; }
         public int L1BlockNumber { get; set; }
     }

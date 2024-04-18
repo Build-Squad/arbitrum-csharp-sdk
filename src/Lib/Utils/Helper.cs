@@ -15,9 +15,87 @@ using Nethereum.ABI.FunctionEncoding;
 using Nethereum.RPC.Eth.DTOs;
 using System.Reflection.Metadata.Ecma335;
 using Nethereum.ABI.Model;
+using System.Reflection;
 
 namespace Arbitrum.Utils
 {
+    public static class HelperMethods
+    {
+        //generic method to get bytecode from an abi
+        public static string GetBytecodeFromABI(string filePath)
+        {
+            try
+            {
+                // Read the JSON file as a string
+                string jsonString = File.ReadAllText(filePath);
+
+                // Deserialize the JSON string to a dynamic object
+                var jsonData = JsonSerializer.Deserialize<dynamic>(jsonString);
+
+                // Check if the jsonData contains an ABI object and bytecode
+                if (jsonData is not null && jsonData.ContainsKey("abi"))
+                {
+                    // Extract the ABI array
+                    var abiArray = jsonData["abi"];
+
+                    // Iterate through the ABI array to find the bytecode
+                    foreach (var item in abiArray)
+                    {
+                        if (item is not null && item.ContainsKey("bytecode"))
+                        {
+                            // Return the bytecode
+                            return item["bytecode"];
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred: {ex.Message}");
+            }
+
+            // Return null if bytecode is not found
+            return null;
+        }
+
+        //Generic method to copy properties of one type into other
+        public static TDestination CopyMatchingProperties<TDestination, TSource>(TSource source)
+        where TDestination : new()
+        {
+            // Create a new instance of the destination type
+            TDestination destination = new TDestination();
+
+            // Get the properties of the source and destination types
+            PropertyInfo[] sourceProperties = typeof(TSource).GetProperties();
+            PropertyInfo[] destinationProperties = typeof(TDestination).GetProperties();
+
+            // Create a dictionary to map property names to PropertyInfo objects for quick lookup
+            var destinationPropertyDictionary = new Dictionary<string, PropertyInfo>();
+            foreach (var destProp in destinationProperties)
+            {
+                destinationPropertyDictionary[destProp.Name] = destProp;
+            }
+
+            // Iterate through each property in the source object
+            foreach (var sourceProp in sourceProperties)
+            {
+                // Check if the property exists in the destination object
+                if (destinationPropertyDictionary.TryGetValue(sourceProp.Name, out PropertyInfo matchingDestProp))
+                {
+                    // Check if the property types match and the destination property is writable
+                    if (matchingDestProp.PropertyType == sourceProp.PropertyType && matchingDestProp.CanWrite)
+                    {
+                        // Copy the value from the source to the destination
+                        object value = sourceProp.GetValue(source);
+                        matchingDestProp.SetValue(destination, value);
+                    }
+                }
+            }
+
+            // Return the new instance of the destination type with copied properties
+            return destination;
+        }
+    }
     public class LoadContractException : Exception
     {
         public LoadContractException(string message) : base(message)
@@ -26,13 +104,13 @@ namespace Arbitrum.Utils
     }
     public class L2ToL1TransactionEvent
     {
-        public string Caller { get; set; }
-        public string Destination { get; set; }
+        public string? Caller { get; set; }
+        public string? Destination { get; set; }
         public BigInteger ArbBlockNum { get; set; }
         public BigInteger EthBlockNum { get; set; }
         public BigInteger Timestamp { get; set; }
         public BigInteger CallValue { get; set; }
-        public string Data { get; set; }
+        public string? Data { get; set; }
         public BigInteger UniqueId { get; set; }
         public BigInteger BatchNumber { get; set; }
         public BigInteger IndexInBatch { get; set; }
@@ -117,7 +195,7 @@ namespace Arbitrum.Utils
             }
             else
             {
-                return defaultValue;
+                return defaultValue!;
             }
         }
 
@@ -213,11 +291,11 @@ namespace Arbitrum.Utils
                 {
                     if (output is object[] outputArray && outputArray.Length > i)
                     {
-                        formattedOutput[parameterName] = FormatOutput(parameter.Components, outputArray[i]);
+                        formattedOutput[parameterName] = FormatOutput(outputParameters, outputArray[i]);
                     }
                     else
                     {
-                        formattedOutput[parameterName] = FormatOutput(parameter.Components, output);
+                        formattedOutput[parameterName] = FormatOutput(outputParameters, output);
                     }
                 }
                 else
@@ -260,7 +338,7 @@ namespace Arbitrum.Utils
             }
             else if (provider is ArbitrumProvider arbitrumProvider)
             {
-                return arbitrumProvider.Provider;
+                return arbitrumProvider;
             }
             else
             {

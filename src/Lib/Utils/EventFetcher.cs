@@ -72,7 +72,7 @@ namespace Arbitrum.Utils
             }
             else if (provider is ArbitrumProvider arbitrumProvider)
             {
-                _provider = arbitrumProvider.Provider;
+                _provider = arbitrumProvider;
             }
             else
             {
@@ -83,7 +83,7 @@ namespace Arbitrum.Utils
         public async Task<List<FetchedEvent<Event>>> GetEventsAsync(
             dynamic contractFactory,
             string eventName,
-            Dictionary<string, object> argumentFilters = null,
+            Dictionary<string, object>? argumentFilters = null,
             NewFilterInput? filter = null,
             bool isClassic = false)
         {

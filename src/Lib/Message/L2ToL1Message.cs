@@ -31,7 +31,7 @@ namespace Arbitrum.Message
         public static Task<L2ToL1Message> FromEvent<T>(
             T l1SignerOrProvider,
             L2ToL1TransactionEvent eventObj,
-            Web3 l1Provider = null) where T : SignerOrProvider
+            Web3? l1Provider = null) where T : SignerOrProvider
         {
             if (SignerProviderUtils.IsSigner(l1SignerOrProvider))
             {
@@ -49,7 +49,7 @@ namespace Arbitrum.Message
             Web3 l2Provider,
             NewFilterInput filter,
             BigInteger? position = null,
-            string destination = null,
+            string? destination = null,
             BigInteger? hash = null,
             BigInteger? indexInBatch = null)
         {
@@ -111,7 +111,7 @@ namespace Arbitrum.Message
                     l2Provider,
                     classicFilter,
                     position,
-                    destination,
+                    destination!,
                     hash,
                     indexInBatch));
             }
@@ -138,8 +138,8 @@ namespace Arbitrum.Message
 
     public class L2ToL1MessageReader : L2ToL1Message
     {
-        private readonly L2ToL1MessageReaderClassic classicReader;
-        private readonly L2ToL1MessageReaderNitro nitroReader;
+        private readonly L2ToL1MessageReaderClassic? classicReader;
+        private readonly L2ToL1MessageReaderNitro? nitroReader;
 
         public L2ToL1MessageReader(Web3 l1Provider, L2ToL1TransactionEvent l2ToL1TransactionEvent) : base()
         {

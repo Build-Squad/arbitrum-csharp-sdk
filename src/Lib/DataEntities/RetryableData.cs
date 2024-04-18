@@ -33,10 +33,10 @@ namespace Arbitrum.DataEntities
         };
 
         [Parameter("address", "from", 1)]
-        public string From { get; set; }
+        public string? From { get; set; }
 
         [Parameter("address", "to", 2)]
-        public string To { get; set; }
+        public string? To { get; set; }
 
         [Parameter("uint256", "l2CallValue", 3)]
         public BigInteger L2CallValue { get; set; }
@@ -48,10 +48,10 @@ namespace Arbitrum.DataEntities
         public BigInteger MaxSubmissionCost { get; set; }
 
         [Parameter("address", "excessFeeRefundAddress", 6)]
-        public string ExcessFeeRefundAddress { get; set; }
+        public string? ExcessFeeRefundAddress { get; set; }
 
         [Parameter("address", "callValueRefundAddress", 7)]
-        public string CallValueRefundAddress { get; set; }
+        public string? CallValueRefundAddress { get; set; }
 
         [Parameter("uint256", "gasLimit", 8)]
         public BigInteger GasLimit { get; set; }
@@ -60,15 +60,15 @@ namespace Arbitrum.DataEntities
         public BigInteger MaxFeePerGas { get; set; }
 
         [Parameter("bytes", "data", 10)]
-        public byte[] Data { get; set; }
+        public byte[]? Data { get; set; }
     }
 
     // Define the params type for the CreateRetryableTicket method
     public class CreateRetryableTicketParams
     {
-        public L1ToL2MessageParams L1ToL2MessageParams { get; set; }
-        public L1ToL2MessageGasParams L1ToL2MessageGasParams { get; set; }
-        public PayableOverrides Overrides { get; set; }
+        public L1ToL2MessageParams? L1ToL2MessageParams { get; set; }
+        public L1ToL2MessageGasParams? L1ToL2MessageGasParams { get; set; }
+        public PayableOverrides? Overrides { get; set; }
     }
 
     public class PayableOverrides : Overrides
@@ -132,16 +132,16 @@ namespace Arbitrum.DataEntities
                 {
                     var maybeData = JObject.Parse(typedError.error?.error?.body)?.SelectToken("error.data")?.Value<string>();
                     if (string.IsNullOrEmpty(maybeData))
-                        return null;
-                    return maybeData;
+                        return null!;
+                    return maybeData!;
                 }
                 else if (!string.IsNullOrEmpty(typedError.error?.error?.data))
                 {
-                    return typedError?.error?.error?.data;
+                    return typedError?.error?.error?.data!;
                 }
                 else
                 {
-                    return null;
+                    return null!;
                 }
             }
         }
@@ -168,7 +168,7 @@ namespace Arbitrum.DataEntities
 
                 if (decodedData.Length != RetryableData.AbiTypes.Length)
                 {
-                    return null;
+                    return null!;
                 }
                 else
                 {
@@ -189,7 +189,7 @@ namespace Arbitrum.DataEntities
             }
             catch (Exception)
             {
-                return null;
+                return null!;
             }
         }
     }

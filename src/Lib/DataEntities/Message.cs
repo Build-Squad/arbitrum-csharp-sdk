@@ -8,7 +8,7 @@ namespace Arbitrum.DataEntities
     public class RetryableMessageParams
     {
         /* Destination address for L2 message */
-        public string DestAddress { get; set; }
+        public string? DestAddress { get; set; }
 
         /* Call value in L2 message */
         public BigInteger L2CallValue { get; set; }
@@ -20,10 +20,10 @@ namespace Arbitrum.DataEntities
         public BigInteger MaxSubmissionFee { get; set; }
 
         /* L2 address to credit (gaslimit x gasprice - execution cost) */
-        public string ExcessFeeRefundAddress { get; set; }
+        public string? ExcessFeeRefundAddress { get; set; }
 
         /* Address to credit l2Callvalue on L2 if retryable txn times out or gets cancelled */
-        public string CallValueRefundAddress { get; set; }
+        public string? CallValueRefundAddress { get; set; }
 
         /* Max gas deducted from user's L2 balance to cover L2 execution */
         public BigInteger GasLimit { get; set; }
@@ -32,7 +32,7 @@ namespace Arbitrum.DataEntities
         public BigInteger MaxFeePerGas { get; set; }
 
         /* Calldata for of the L2 message */
-        public string Data { get; set; }
+        public string? Data { get; set; }
     }
 
     /* The inbox message kind as defined in:

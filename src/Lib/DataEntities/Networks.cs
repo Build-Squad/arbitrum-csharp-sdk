@@ -327,9 +327,9 @@ namespace Arbitrum.DataEntities
                 throw new ArbSdkError($"Network {customL2Network.ChainID}'s partner network, {customL2Network.PartnerChainID}, not recognized");
             }
 
-            if (!l1PartnerChain.PartnerChainIDs.Contains(customL2Network.ChainID))
+            if (!l1PartnerChain.PartnerChainIDs!.Contains(customL2Network.ChainID))
             {
-                l1PartnerChain.PartnerChainIDs.Append(customL2Network.ChainID);
+                l1PartnerChain.PartnerChainIDs!.Append(customL2Network.ChainID);
             }
         }
 

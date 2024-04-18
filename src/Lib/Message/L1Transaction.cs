@@ -39,25 +39,37 @@ namespace Arbitrum.Message
     public class InboxMessageDeliveredEvent 
     {
         public BigInteger MessageNum { get; set; }
-        public string Data { get; set; }
+        public string? Data { get; set; }
     }
 
     public class MessageDeliveredEvent 
     {
         public BigInteger MessageIndex { get; set; }
-        public string BeforeInboxAcc { get; set; }
-        public string Inbox { get; set; }
+        public string? BeforeInboxAcc { get; set; }
+        public string? Inbox { get; set; }
         public int Kind { get; set; }
-        public string Sender { get; set; }
-        public string MessageDataHash { get; set; }
+        public string? Sender { get; set; }
+        public string? MessageDataHash { get; set; }
         public BigInteger BaseFeeL1 { get; set; }
         public BigInteger Timestamp { get; set; }
     }
     public class MessageEvents
     {
-        public InboxMessageDeliveredEvent InboxMessageEvent { get; set; }
-        public MessageDeliveredEvent BridgeMessageEvent { get; set; }
+        public InboxMessageDeliveredEvent? InboxMessageEvent { get; set; }
+        public MessageDeliveredEvent? BridgeMessageEvent { get; set; }
     }
+    public class L1ContractTransaction : ContractTransactionVO
+    {
+        public L1ContractTransaction(string contractAddress, string code, Transaction transaction)
+            : base(contractAddress, code, transaction)
+        {
+        }
+        public async Task<L1TransactionReceipt> Wait(int confirmations = 0)
+        {
+            return await Task.FromResult(new L1TransactionReceipt(new TransactionReceipt()));
+        }
+    }
+
     public class L1TransactionReceipt : TransactionReceipt
     {
         public new string To { get; set; }
@@ -134,7 +146,7 @@ namespace Arbitrum.Message
             // Combine bridge and inbox messages
             foreach (var bm in bridgeMessages)
             {
-                var im = inboxMessages.FirstOrDefault(i => i.MessageNum == bm.MessageIndex);
+                var im =  inboxMessages.FirstOrDefault(i => i.MessageNum == bm.MessageIndex);
                 if (im == null)
                 {
                     throw new ArbSdkError($"Unexpected missing event for message index: {bm.MessageIndex}.");
@@ -156,12 +168,12 @@ namespace Arbitrum.Message
             var ethDepositMessages = new List<EthDepositMessage>();
 
             var ethDepositMessageTasks = messages
-                .Where(e => e.BridgeMessageEvent.Kind == (int)InboxMessageKind.L1MessageType_ethDeposit)
+                .Where(e => e.BridgeMessageEvent!.Kind == (int)InboxMessageKind.L1MessageType_ethDeposit)
                 .Select(async m => await EthDepositMessage.FromEventComponents(
                     l2Provider,
-                    m.InboxMessageEvent.MessageNum,
-                    m.BridgeMessageEvent.Sender,
-                    m.InboxMessageEvent.Data
+                    m.InboxMessageEvent!.MessageNum,
+                    m.BridgeMessageEvent!.Sender!,
+                    m.InboxMessageEvent!.Data!
                 ));
 
             foreach (var task in ethDepositMessageTasks)
@@ -195,7 +207,7 @@ namespace Arbitrum.Message
             );
         }
 
-        public async Task<IEnumerable<L1ToL2Message>> GetL1ToL2Messages<T>(T l2SignerOrProvider) where T : Account
+        public async Task<IEnumerable<L1ToL2Message>> GetL1ToL2Messages<T>(T l2SignerOrProvider) where T : SignerOrProvider
         {
 
             var provider = SignerProviderUtils.GetProviderOrThrow(l2SignerOrProvider);
@@ -213,17 +225,16 @@ namespace Arbitrum.Message
 
             return events
                 .Where(e =>
-                    e.BridgeMessageEvent.Kind == (int)InboxMessageKind.L1MessageType_submitRetryableTx &&
-                    e.BridgeMessageEvent.Inbox.ToLower() == network?.EthBridge?.Inbox?.ToLower())
+                    e.BridgeMessageEvent!.Kind == (int)InboxMessageKind.L1MessageType_submitRetryableTx &&
+                    e.BridgeMessageEvent.Inbox!.ToLower() == network?.EthBridge?.Inbox?.ToLower())
                 .Select(mn =>
                 {
-                    var messageDataParser = new SubmitRetryableMessageDataParser();
-                    var inboxMessageData = SubmitRetryableMessageDataParser.Parse(mn.InboxMessageEvent.Data);
+                    var inboxMessageData = SubmitRetryableMessageDataParser.Parse(mn.InboxMessageEvent!.Data!);
 
                     return L1ToL2Message.FromEventComponents<T>(      ////////////////
                         l2SignerOrProvider,
                         chainID,
-                        mn.BridgeMessageEvent.Sender,
+                        mn.BridgeMessageEvent!.Sender!,
                         mn.InboxMessageEvent.MessageNum,
                         mn.BridgeMessageEvent.BaseFeeL1,
                         inboxMessageData

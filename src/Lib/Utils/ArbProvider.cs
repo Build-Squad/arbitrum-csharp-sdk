@@ -7,19 +7,23 @@ using System.Runtime.Serialization;
 using System.Numerics;
 using static Org.BouncyCastle.Bcpg.Attr.ImageAttrib;
 using Nethereum.ABI.Util;
+using Nethereum.JsonRpc.Client;
+using Microsoft.VisualBasic;
+using Newtonsoft.Json.Linq;
+using System.Net.NetworkInformation;
 
 namespace Arbitrum.Utils
 {
     public class Formats
     {
-        public Transaction? transaction { get; set; }
-        public TransactionInput? transactionRequest { get; set; }
-        public TransactionReceipt? receipt { get; set; }
-        public dynamic? receiptLog { get; set; }
-        public Block? block { get; set; }
-        public BlockWithTransactions? blockWithTransactions { get; set; }
-        public NewFilterInput? filter { get; set; }
-        public FilterLog? filterLog { get; set; }
+        public Transaction? Transaction { get; set; }
+        public TransactionInput? TransactionRequest { get; set; }
+        public TransactionReceipt? Receipt { get; set; }
+        public FilterLog? ReceiptLog { get; set; }
+        public Block? Block { get; set; }
+        public BlockWithTransactions? BlockWithTransactions { get; set; }
+        public NewFilterInput? Filter { get; set; }
+        public FilterLog? FilterLog { get; set; }
     }
     public class ArbFormatter
     {
@@ -31,54 +35,100 @@ namespace Arbitrum.Utils
             _formats = formats ?? throw new ArgumentNullException(nameof(formats));
         }
 
-        public Formats GetDefaultFormats()
+        //public Formats GetDefaultFormats()
+        //{
+        //    Formats superFormats = base.GetDefaultFormats();
+
+        //    Func<dynamic, BigInteger> bigNumber = this.BigNumber;
+        //    Func<dynamic, string> hash = this.Hash;
+        //    Func<dynamic, int> number = this.Number;
+
+        //    var arbBlockProps = new
+        //    {
+        //        sendRoot = hash,
+        //        sendCount = bigNumber,
+        //        l1BlockNumber = number
+        //    };
+
+        //    var arbReceiptFormat = new Formats()
+        //    {
+        //        l1BlockNumber = number,
+        //        gasUsedForL1 = bigNumber
+        //    };
+
+        //    return new Formats
+        //    {
+        //        receipt = arbReceiptFormat,
+        //        block = new { superFormats.block, arbBlockProps },
+        //        blockWithTransactions = new { superFormats.blockWithTransactions, arbBlockProps }
+        //    };
+        //}
+        public ArbTransactionReceipt Receipt(dynamic receipt)
         {
-            Formats superFormats = base.GetDefaultFormats();
-
-            Func<dynamic, BigInteger> bigNumber = this.BigNumber;
-            Func<dynamic, string> hash = this.Hash;
-            Func<dynamic, int> number = this.Number;
-
-            var arbBlockProps = new
+            if (receipt == null)
             {
-                sendRoot = hash,
-                sendCount = bigNumber,
-                l1BlockNumber = number
-            };
-
-            var arbReceiptFormat = new Formats()
+                throw new ArgumentNullException(nameof(receipt));
+            }
+            return new ArbTransactionReceipt()
             {
-                l1BlockNumber = number,
-                gasUsedForL1 = bigNumber
+                // Assign values from `receipt` to the properties of `ArbTransactionReceipt` using null-coalescing
+                L1BlockNumber = receipt.L1BlockNumber ?? null,
+                GasUsedForL1 = receipt.GasUsedForL1 ?? null,
+                TransactionHash = receipt.TransactionHash ?? null,
+                TransactionIndex = receipt.TransactionIndex ?? null,
+                EffectiveGasPrice = receipt.EffectiveGasPrice ?? null,
+                Logs = receipt.Logs ?? null,
+                Root = receipt.Root ?? null,
+                BlockHash = receipt.BlockHash ?? null,
+                BlockNumber = receipt.BlockNumber ?? null,
+                From = receipt.From ?? null,
+                To = receipt.To ?? null,
+                CumulativeGasUsed = receipt.CumulativeGasUsed ?? null,
+                GasUsed = receipt.GasUsed ?? null,
+                ContractAddress = receipt.ContractAddress ?? null,
+                Status = receipt.Status ?? null,
+                Type = receipt.Type ?? null,
+                LogsBloom = receipt.LogsBloom ?? null
             };
-
-            return new Formats
-            {
-                receipt = arbReceiptFormat,
-                block = new { superFormats.block, arbBlockProps },
-                blockWithTransactions = new { superFormats.blockWithTransactions, arbBlockProps }
-            };
-        }
-        public ArbTransactionReceipt Receipt(dynamic value)
-        {
-            var formattedValue = new ArbTransactionReceipt
-            {
-                L1BlockNumber = value.l1BlockNumber ?? 0,
-                GasUsedForL1 = value.gasUsedForL1 ?? 0,
-                // Include other properties as needed
-            };
-
-            return formattedValue;
         }
 
         public ArbBlock Block(dynamic block)
         {
+            if (block == null)
+            {
+                throw new ArgumentNullException(nameof(block));
+            }
+
             var formattedBlock = new ArbBlock
             {
-                SendRoot = block.sendRoot ?? null,
-                SendCount = block.sendCount ?? null,
-                L1BlockNumber = block.l1BlockNumber ?? null,
-                // Include other properties as needed
+                // Assign values from `block` to the properties of `Block` using null-coalescing
+                SendRoot = block.SendRoot ?? null,
+                SendCount = block.SendCount ?? null,
+                L1BlockNumber = block.L1BlockNumber ?? null,
+                Number = block.Number ?? null,
+                BlockHash = block.BlockHash ?? null,
+                Author = block.Author ?? null,
+                SealFields = block.SealFields ?? null,
+                ParentHash = block.ParentHash ?? null,
+                Nonce = block.Nonce ?? null,
+                Sha3Uncles = block.Sha3Uncles ?? null,
+                LogsBloom = block.LogsBloom ?? null,
+                TransactionsRoot = block.TransactionsRoot ?? null,
+                StateRoot = block.StateRoot ?? null,
+                ReceiptsRoot = block.ReceiptsRoot ?? null,
+                Miner = block.Miner ?? null,
+                Difficulty = block.Difficulty ?? null,
+                TotalDifficulty = block.TotalDifficulty ?? null,
+                MixHash = block.MixHash ?? null,
+                ExtraData = block.ExtraData ?? null,
+                Size = block.Size ?? null,
+                GasLimit = block.GasLimit ?? null,
+                GasUsed = block.GasUsed ?? null,
+                Timestamp = block.Timestamp ?? null,
+                Uncles = block.Uncles ?? null,
+                BaseFeePerGas = block.BaseFeePerGas ?? null,
+                WithdrawalsRoot = block.WithdrawalsRoot ?? null,
+                Withdrawals = block.Withdrawals ?? null,
             };
 
             return formattedBlock;
@@ -86,52 +136,72 @@ namespace Arbitrum.Utils
 
         public ArbBlockWithTransactions BlockWithTransactions(dynamic block)
         {
+            if (block == null)
+            {
+                throw new ArgumentNullException(nameof(block));
+            }
+
             var formattedBlock = new ArbBlockWithTransactions
             {
-                SendRoot = block.sendRoot ?? null,
-                SendCount = block.sendCount ?? null,
-                L1BlockNumber = block.l1BlockNumber ?? null,
-                // Include other properties as needed
+                // Assign values from `block` to the properties of `Block` using null-coalescing
+                SendRoot = block.SendRoot ?? null,
+                SendCount = block.SendCount ?? null,
+                L1BlockNumber = block.L1BlockNumber ?? null,
+                Transactions = block.Transactions ?? null,
+                Number = block.Number ?? null,
+                BlockHash = block.BlockHash ?? null,
+                Author = block.Author ?? null,
+                SealFields = block.SealFields ?? null,
+                ParentHash = block.ParentHash ?? null,
+                Nonce = block.Nonce ?? null,
+                Sha3Uncles = block.Sha3Uncles ?? null,
+                LogsBloom = block.LogsBloom ?? null,
+                TransactionsRoot = block.TransactionsRoot ?? null,
+                StateRoot = block.StateRoot ?? null,
+                ReceiptsRoot = block.ReceiptsRoot ?? null,
+                Miner = block.Miner ?? null,
+                Difficulty = block.Difficulty ?? null,
+                TotalDifficulty = block.TotalDifficulty ?? null,
+                MixHash = block.MixHash ?? null,
+                ExtraData = block.ExtraData ?? null,
+                Size = block.Size ?? null,
+                GasLimit = block.GasLimit ?? null,
+                GasUsed = block.GasUsed ?? null,
+                Timestamp = block.Timestamp ?? null,
+                Uncles = block.Uncles ?? null,
+                BaseFeePerGas = block.BaseFeePerGas ?? null,
+                WithdrawalsRoot = block.WithdrawalsRoot ?? null,
+                Withdrawals = block.Withdrawals ?? null,
             };
 
             return formattedBlock;
         }
     }
 
-    public class ArbitrumProvider
+    public class ArbitrumProvider : Web3
     {
-        public readonly Web3 Provider; // Replace "dynamic" with the actual provider type
-
-        public ArbitrumProvider(Web3 provider, string? network = null)
-        {
-            if (provider is SignerOrProvider)
+        private static readonly ArbFormatter ArbFormatter = new ArbFormatter(new Formats());
+        public ArbitrumProvider(IClient provider)
+            : base(provider)
             {
-                Provider = provider;
+                
             }
-            else if (provider is ArbitrumProvider)
-            {
-                Provider = provider;
-            }
-
-            this.Provider = provider;
-        }
-
         public async Task<ArbTransactionReceipt> GetTransactionReceipt(string transactionHash)
         {
-            dynamic receipt = await Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(transactionHash);
-            return new ArbFormatter().Receipt(receipt);
+            var receipt = await Eth.Transactions.GetTransactionReceipt.SendRequestAsync(transactionHash);
+            return ArbFormatter.Receipt(receipt);
         }
 
         public async Task<ArbBlockWithTransactions> GetBlockWithTransactions(string blockIdentifier)
         {
-            var block = await Provider.Eth.Blocks.GetBlockWithTransactionsByHash.SendRequestAsync(blockIdentifier);    /////
-            return new ArbFormatter().BlockWithTransactions(block);
+            var block = await Eth.Blocks.GetBlockWithTransactionsByHash.SendRequestAsync(blockIdentifier);  
+            return ArbFormatter.BlockWithTransactions(block);
         }
 
         public async Task<ArbBlock> GetBlock(HexBigInteger blockIdentifier)
         {
-            var block =  await Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(blockIdentifier);   /////
-            return new ArbFormatter().Block(block);
+            var block =  await Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(blockIdentifier);  
+            return ArbFormatter.Block(block);
         }
     }
 }

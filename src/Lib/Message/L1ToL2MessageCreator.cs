@@ -71,23 +71,13 @@ namespace Arbitrum.Message
                                                     );
 
             // Encode ABI
-            var functionData = inboxContract.EncodeABI("createRetryableTicket", new object[]
-            {
-                parameters?.To ?? throw new ArgumentNullException(nameof(parameters.To)),
-                parameters?.L2CallValue ?? throw new ArgumentNullException(nameof(parameters.L2CallValue)),
-                estimates?.MaxSubmissionCost ?? throw new ArgumentNullException(nameof(estimates.MaxSubmissionCost)),
-                excessFeeRefundAddress ?? throw new ArgumentNullException(nameof(excessFeeRefundAddress)),
-                callValueRefundAddress ?? throw new ArgumentNullException(nameof(callValueRefundAddress)),
-                estimates?.GasLimit ?? throw new ArgumentNullException(nameof(estimates.GasLimit)),
-                estimates?.MaxFeePerGas ?? throw new ArgumentNullException(nameof(estimates.MaxFeePerGas)),
-                parameters?.Data ?? throw new ArgumentNullException(nameof(parameters.Data))
-            });
+            var functionData = inboxContract.ContractBuilder.GetFunctionAbi("createRetryableTicket");
 
             var txRequest = new TransactionRequest()
             {
                 To = l2Network?.EthBridge?.Inbox ?? throw new ArgumentNullException(nameof(l2Network.EthBridge.Inbox)),
-                Data = functionData ?? throw new ArgumentNullException(nameof(functionData)),
-                Value = nativeTokenIsEth ? (estimates.Deposit ?? BigInteger.Zero) : BigInteger.Zero,   //////
+                Data = functionData.ToString() ?? throw new ArgumentNullException(nameof(functionData)),
+                Value = nativeTokenIsEth ? (estimates.Deposit ?? BigInteger.Zero) : BigInteger.Zero,
                 From = parameters.From ?? throw new ArgumentNullException(nameof(parameters.From))
             };
 
@@ -119,9 +109,9 @@ namespace Arbitrum.Message
             };
         }
 
-        public async Task<L1ContractTransaction> CreateRetryableTicket(dynamic parameters, Web3 l2Provider, GasOverrides? options = null)    /////////
+        public async Task<L1TransactionReceipt> CreateRetryableTicket(dynamic parameters, Web3 l2Provider, GasOverrides? options = null)    /////////
         {
-            var l1Provider = SignerProviderUtils.GetProviderOrThrow(this.l1Signer);
+            var l1Provider = SignerProviderUtils.GetProviderOrThrow(l1Signer);
 
             var createRequest = TransactionUtils.IsL1ToL2TransactionRequest(parameters)
                 ? parameters
@@ -132,7 +122,7 @@ namespace Arbitrum.Message
                     options
                 );
 
-            var txReceipt = await this.l1Signer.Provider.Eth.TransactionManager.SendTransactionAndWaitForReceiptAsync(new TransactionInput
+            var txReceipt = await l1Signer.Provider.Eth.TransactionManager.SendTransactionAndWaitForReceiptAsync(new TransactionInput
             {
                 From = createRequest.TxRequest.From,
                 To = createRequest.TxRequest.To,

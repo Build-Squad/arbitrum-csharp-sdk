@@ -270,7 +270,7 @@ namespace Arbitrum.Message
             };
         }
 
-        private async Task<ArbBlock> GetBlockFromNodeLog(Web3 l2Provider, FetchedEvent<NodeCreatedEvent> log)
+        private async Task<ArbBlock> GetBlockFromNodeLog(IClient l2Provider, FetchedEvent<NodeCreatedEvent> log)
         {
             var arbitrumProvider = new ArbitrumProvider(l2Provider);
 

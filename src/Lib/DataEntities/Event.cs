@@ -1,48 +1,38 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Nethereum.Contracts;
-using Nethereum.JsonRpc.WebSocketStreamingClient;
-using Nethereum.Model;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Web3;
 using Nethereum.Util;
 using System.Text.Json;
-
 using Arbitrum.Utils;
 using System.Text;
-using Nethereum.Hex.HexConvertors.Extensions;
-using Arbitrum.Message;
-using Nethereum.ABI.FunctionEncoding.Attributes;
-using Nethereum.ABI.Model;
 
 namespace Arbitrum.DataEntities
 {
     public class GlobalStateStructOutput
     {
-        public string Item1 { get; set; }
-        public string Item2 { get; set; }
-        public string[] Bytes32Vals { get; set; }
-        public string[] U64Vals { get; set; }
+        public string? Item1 { get; set; }
+        public string? Item2 { get; set; }
+        public string[]? Bytes32Vals { get; set; }
+        public string[]? U64Vals { get; set; }
     }
 
     public class ExecutionStateStructOutput
     {
-        public GlobalStateStructOutput GlobalState { get; set; }
+        public GlobalStateStructOutput? GlobalState { get; set; }
         public int MachineStatus { get; set; }
     }
 
     public class AssertionStructOutput
     {
-        public ExecutionStateStructOutput BeforeState { get; set; }
-        public ExecutionStateStructOutput AfterState { get; set; }
+        public ExecutionStateStructOutput? BeforeState { get; set; }
+        public ExecutionStateStructOutput? AfterState { get; set; }
         public int NumBlocks { get; set; }
     }
 
-    public class NodeCreatedEvent: FetchedEvent<NodeCreatedEvent>, IEventLog
+    public class NodeCreatedEvent: FetchedEvent<Event>
     {
         public int NodeNum { get; set; }
         public string ParentNodeHash { get; set; }
@@ -56,7 +46,7 @@ namespace Arbitrum.DataEntities
         public FilterLog Log => throw new System.NotImplementedException();
 
         public NodeCreatedEvent(
-            NodeCreatedEvent eventArgs, // Update the argument type here
+            Event eventArgs, // Update the argument type here
             string topic,
             string name,
             int blockNumber,
@@ -132,7 +122,7 @@ namespace Arbitrum.DataEntities
                         throw new Exception($"No ABI found for contract: {contractName}");
 
                     abi = contractData.Abi;
-                    bytecode = contractData.Bytecode;
+                    bytecode = contractData.Bytecode!;
                 }
             }
             catch (Exception ex)
@@ -141,13 +131,13 @@ namespace Arbitrum.DataEntities
                 throw new Exception($"Error loading ABI for contract {contractName}: {ex.Message}");
             }
 
-            return (abi, bytecode);
+            return (abi!, bytecode!);
         }
 
         private class ContractData
         {
-            public string Abi { get; set; }
-            public string Bytecode { get; set; }
+            public string? Abi { get; set; }
+            public string? Bytecode { get; set; }
         }
     }
 }

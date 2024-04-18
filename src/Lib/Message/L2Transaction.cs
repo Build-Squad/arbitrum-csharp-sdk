@@ -156,7 +156,7 @@ namespace Arbitrum.Message
             return await nodeInterfaceContractFunction.CallAsync<BigInteger>(BlockHash);
         }
 
-        public async Task<BigInteger> GetBatchNumber(Web3 l2Provider)
+        public async Task<BigInteger> GetBatchNumber(IClient l2Provider)
         {
             var arbProvider = new ArbitrumProvider(l2Provider);
             var nodeInterfaceContract = await LoadContractUtils.LoadContract(

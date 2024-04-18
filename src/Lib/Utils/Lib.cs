@@ -9,13 +9,14 @@ using Nethereum.JsonRpc.Client;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Web3;
 using Nethereum.Hex.HexTypes;
+using Nethereum.RPC.Eth;
 
 namespace Arbitrum.Utils
 {
     public class Lib
     {
 
-        public static async Task<bool> IsArbitrumChain(Web3 provider)
+        public static async Task<bool> IsArbitrumChain(IClient provider)
         {
             try
             {
@@ -61,14 +62,14 @@ namespace Arbitrum.Utils
                         var latestBlock = await web3.Eth.Blocks.GetBlockNumber.SendRequestAsync();
                         if (latestBlock.Value - receipt.BlockNumber.Value < confirmations.Value)
                         {
-                            return null;
+                            return null!;
                         }
                     }
                     return receipt;
                 }
                 catch (TimeoutException)
                 {
-                    return null;
+                    return null!;
                 }
                 catch (Exception ex)
                 {
@@ -84,7 +85,7 @@ namespace Arbitrum.Utils
                 }
                 catch (Exception ex) when (ex is RpcResponseException || ex is RpcClientUnknownException)
                 {
-                    return null;
+                    return null!;
                 }
                 catch (Exception ex)
                 {
@@ -94,7 +95,7 @@ namespace Arbitrum.Utils
         }
 
         public static async Task<BigInteger?> GetFirstBlockForL1Block(
-        Web3 provider,
+        IClient provider,
         BigInteger forL1Block,
         bool allowGreater = false,
         BigInteger? minL2Block = null,
@@ -108,8 +109,8 @@ namespace Arbitrum.Utils
 
             var arbProvider = new ArbitrumProvider(provider);
 
-            var currentArbBlock = await arbProvider.Provider.Eth.Blocks.GetBlockNumber.SendRequestAsync();
-            var arbitrumChainId = await arbProvider.Provider.Eth.ChainId.SendRequestAsync();
+            var currentArbBlock = await arbProvider.Eth.Blocks.GetBlockNumber.SendRequestAsync();
+            var arbitrumChainId = await arbProvider.Eth.ChainId.SendRequestAsync();
             var nitroGenesisBlock = NetworkUtils.l2Networks[(int)arbitrumChainId.Value].NitroGenesisBlock;
              
             async Task<BigInteger> GetL1Block(BigInteger forL2Block)
@@ -173,7 +174,7 @@ namespace Arbitrum.Utils
 
 
         public static async Task<object[]> GetBlockRangesForL1Block(
-        Web3 provider,
+        IClient provider,
         int forL1Block,
         bool allowGreater = false,
         int? minL2Block = null,
@@ -183,7 +184,7 @@ namespace Arbitrum.Utils
             // Convert maxL2Block to current block number if needed
             if (maxL2Block == "latest")
             {
-                maxL2Block = (await provider.Eth.Blocks.GetBlockNumber.SendRequestAsync()).Value.ToString();
+                maxL2Block = (await new Web3(provider).Eth.Blocks.GetBlockNumber.SendRequestAsync()).Value.ToString();
             }
 
             var arbProvider = new ArbitrumProvider(provider);
@@ -216,7 +217,7 @@ namespace Arbitrum.Utils
                 return new object[] { startBlock, endBlock - 1 };
             }
 
-            return new object[] { startBlock, maxL2Block };
+            return new object[] { startBlock!, maxL2Block };
         }
 
     }

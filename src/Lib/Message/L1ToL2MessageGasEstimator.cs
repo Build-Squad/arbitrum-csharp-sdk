@@ -15,6 +15,7 @@ using Nethereum.Util;
 using Nethereum.Hex.HexTypes;
 using Org.BouncyCastle.Utilities.Encoders;
 using Nethereum.RPC.Eth.DTOs;
+using Nethereum.Contracts.ContractHandlers;
 
 namespace Arbitrum.Message
 {
@@ -59,11 +60,11 @@ namespace Arbitrum.Message
 
     public class PopulateFunctionParamsResult
     {
-        public L1ToL2MessageGasParams Estimates { get; set; }
-        public RetryableData Retryable { get; set; }
-        public byte[] Data { get; set; }
-        public string To { get; set; }
-        public BigInteger Value { get; set; }
+        public L1ToL2MessageGasParams? Estimates { get; set; }
+        public RetryableData? Retryable { get; set; }
+        public string? Data { get; set; }
+        public string? To { get; set; }
+        public BigInteger? Value { get; set; }
     }
 
     public class L1ToL2MessageGasEstimator
@@ -123,7 +124,7 @@ namespace Arbitrum.Message
             BigInteger callDataSize,
             PercentIncreaseType? options = null)
         {
-            var defaultedOptions = ApplySubmissionPriceDefaults(options);
+            var defaultedOptions = ApplySubmissionPriceDefaults(options!);
             var network = await NetworkUtils.GetL2NetworkAsync(l1Provider);
             var inbox =  await LoadContractUtils.LoadContract(
                                                 contractName: "Inbox",
@@ -134,7 +135,7 @@ namespace Arbitrum.Message
             BigInteger? baseValue = defaultedOptions.Base;
             if (baseValue == null)
             {
-                baseValue = await inbox.CalculateRetryableSubmissionFee(callDataSize, l1BaseFee).CallAsync<BigInteger>();
+                baseValue = await inbox.GetFunction("calculateRetryableSubmissionFee").CallAsync<BigInteger>(callDataSize, l1BaseFee);
             }
 
             return PercentIncrease(baseValue.Value, defaultedOptions.PercentIncrease);
@@ -158,8 +159,11 @@ namespace Arbitrum.Message
                                     isClassic: false);
 
 
-            var estimateGasFunction = nodeInterface.GetFunction("estimateRetryableTicket");     /////
-            return await estimateGasFunction.CallAsync<BigInteger>(
+            //var estimateGasFunction = nodeInterface.GetFunction("estimateRetryableTicket");     /////
+            // First getting FunctionABI from contract and then executing the method EstimateGasAsync
+            var gasEstimate =await new Function(nodeInterface, new FunctionBuilder(
+                nodeInterface.Address,
+                nodeInterface.ContractBuilder.GetFunctionAbi("estimateRetryableTicket"))).EstimateGasAsync(
                             parameters.From,
                             senderDeposit,
                             parameters.To,
@@ -167,12 +171,14 @@ namespace Arbitrum.Message
                             parameters.ExcessFeeRefundAddress,
                             parameters.CallValueRefundAddress,
                             parameters.Data
-                            ).EstimateGas();
+                            );
+
+            return new BigInteger(gasEstimate);
         }
 
         public async Task<BigInteger> EstimateMaxFeePerGas(PercentIncreaseType? options = null)
         {
-            var maxFeePerGasDefaults = ApplyMaxFeePerGasDefaults(options);
+            var maxFeePerGasDefaults = ApplyMaxFeePerGasDefaults(options!);
 
             // Estimate the L2 gas price
             var baseGasPrice = maxFeePerGasDefaults.Base ?? await _l2Provider.Eth.GasPrice.SendRequestAsync();
@@ -198,7 +204,7 @@ namespace Arbitrum.Message
         GasOverrides? options = null)
         {
             var data = retryableEstimateData.Data;
-            var gasLimitDefaults = ApplyGasLimitDefaults(options?.GasLimit);
+            var gasLimitDefaults = ApplyGasLimitDefaults(options?.GasLimit!);
 
             // Estimate the L1 gas price
             var maxFeePerGasTask = EstimateMaxFeePerGas(options?.MaxFeePerGas);
@@ -207,7 +213,7 @@ namespace Arbitrum.Message
             var maxSubmissionFeeTask = EstimateSubmissionFee(
                 l1Provider,
                 l1BaseFee,
-                new BigInteger(L1ToL2MessageUtils.ByteArrayToInt(data)),
+                new BigInteger(data!),
                 options?.MaxSubmissionFee
             );
 
@@ -240,7 +246,7 @@ namespace Arbitrum.Message
         public async Task<PopulateFunctionParamsResult> PopulateFunctionParams(
         Func<L1ToL2MessageGasParams, L1ToL2TransactionRequest> dataFunc,
         Web3 l1Provider,
-        GasOverrides gasOverrides = null)
+        GasOverrides? gasOverrides = null)
         {
             // Get function data that should trigger a retryable data error
             var errorTriggeringParams = RetryableDataTools.ErrorTriggeringParams;
@@ -252,11 +258,11 @@ namespace Arbitrum.Message
             });
 
             var nullData = txRequest.TxRequest?.Data;
-            var to = txRequest.TxRequest.To;
+            var to = txRequest.TxRequest!.To;
             var value = txRequest.TxRequest.Value;
             var from = txRequest.TxRequest.From;
 
-            RetryableData retryable = null;
+            RetryableData? retryable = null;
             try
             {
                 // Get retryable data from the null call
@@ -264,7 +270,7 @@ namespace Arbitrum.Message
                 {
                     To = to,
                     Data = nullData?.ToString(),
-                    Value = value.ToHexBigInteger(),
+                    Value = new HexBigInteger(value.ToString()),   /////////
                     From = from
                 });
 
@@ -312,7 +318,7 @@ namespace Arbitrum.Message
             {
                 Estimates = estimates,
                 Retryable = retryable,
-                Data = realTxRequest.TxRequest.Data,
+                Data = realTxRequest.TxRequest!.Data,
                 To = realTxRequest.TxRequest.To,
                 Value = realTxRequest.TxRequest.Value
             };

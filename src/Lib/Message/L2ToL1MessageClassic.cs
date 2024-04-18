@@ -93,12 +93,12 @@ namespace Arbitrum.Message
                             contractFactory: "ArbSys",
                             eventName: "L2ToL1Transaction",
                             argumentFilters: argumentFilters,
-                            filter: new Dictionary<string, object>
+                            filter: new NewFilterInput
                             {
-                                { "fromBlock", filter.FromBlock },
-                                { "toBlock", filter.ToBlock },
-                                { "address", Constants.ARB_SYS_ADDRESS },
-                                { "**filter", filter }
+                                FromBlock = filter.FromBlock,
+                                ToBlock = filter.ToBlock,
+                                Address = new string[] { Constants.ARB_SYS_ADDRESS },
+                                Topics = filter.Topics,
                             },
                             isClassic: false
                             );

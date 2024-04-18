@@ -2,7 +2,6 @@
 using System.Numerics;
 using System.Threading.Tasks;
 using Serilog;
-
 using Nethereum.RLP;
 using Nethereum.Web3;
 using Nethereum.Util.ByteArrayConvertors;
@@ -26,6 +25,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Text;
 using Org.BouncyCastle.Utilities.Encoders;
 using Arbitrum.Message;
+using Nethereum.Web3.Accounts;
 
 namespace Arbitrum.Message
 
@@ -89,7 +89,7 @@ namespace Arbitrum.Message
             return value.HexToByteArray();
         }
 
-        public static int ByteArrayToInt(byte[] data)
+        public static int? ByteArrayToInt(byte[] data)
         {
             if (data == null)
             {
@@ -261,7 +261,7 @@ namespace Arbitrum.Message
         public string Sender { get; }
         public BigInteger MessageNumber { get; }
         public BigInteger L1BaseFee { get; }
-        public RetryableMessageParams MessageData { get; }
+        public RetryableMessageParams? MessageData { get; }
         public string RetryableCreationId { get; }
 
         public L1ToL2Message(
@@ -281,15 +281,15 @@ namespace Arbitrum.Message
                 Sender,
                 MessageNumber,
                 L1BaseFee,
-                MessageData.DestAddress,
-                MessageData.L2CallValue,
+                MessageData?.DestAddress!,
+                MessageData!.L2CallValue,
                 MessageData.L1Value,
                 MessageData.MaxSubmissionFee,
-                MessageData.ExcessFeeRefundAddress,
-                MessageData.CallValueRefundAddress,
-                MessageData.GasLimit,
+                MessageData?.ExcessFeeRefundAddress!,
+                MessageData?.CallValueRefundAddress!,
+                MessageData!.GasLimit,
                 MessageData.MaxFeePerGas,
-                MessageData.Data);
+                MessageData?.Data!);
         }
 
         /**
@@ -378,7 +378,7 @@ namespace Arbitrum.Message
             else
             {
                 return new L1ToL2MessageReader(
-                    l2SignerOrProvider,
+                    l2SignerOrProvider.Provider,
                     chainId,
                     sender,
                     messageNumber,
@@ -400,19 +400,19 @@ namespace Arbitrum.Message
     public class L1EthDepositTransactionReceiptResults
     {
         public bool Complete { get; set; }
-        public EthDepositMessage Message { get; set; }
-        public TransactionReceipt L2TxReceipt { get; set; }
+        public EthDepositMessage? Message { get; set; }
+        public TransactionReceipt? L2TxReceipt { get; set; }
     }
     public class L1ContractCallTransactionReceiptResults
     {
         public bool Complete { get; set; }
-        public L1ToL2Message Message { get; set; }
-        public L1ToL2MessageWaitResult Result { get; set; }
+        public L1ToL2Message? Message { get; set; }
+        public L1ToL2MessageWaitResult? Result { get; set; }
     }
 
     public class EthDepositMessageWaitResult : TransactionReceipt
     {
-        public TransactionReceipt L2TxReceipt { get; set; }
+        public TransactionReceipt? L2TxReceipt { get; set; }
     }
 
     public class L1ToL2MessageReader : L1ToL2Message
@@ -469,7 +469,7 @@ namespace Arbitrum.Message
 
                 if (redeemEvents.Count() == 1)
                 {
-                    return await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(redeemEvents[0].RetryTxHash);   ///////
+                    return await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(redeemEvents[0].TransactionHash); 
                 }
                 else if (redeemEvents.Count() > 1)
                 {
@@ -559,7 +559,7 @@ namespace Arbitrum.Message
 
                 foreach (var e in redeemEvents)
                 {
-                    var receipt = await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync("retryTxHash");   //////
+                    var receipt = await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(e.TransactionHash); //////
                     if (receipt != null && receipt.Status.Value == 1)
                     {
                         successfulRedeem.Add(receipt);
@@ -594,12 +594,16 @@ namespace Arbitrum.Message
                                                                                Address = new string[] { Constants.ARB_RETRYABLE_TX_ADDRESS }
                                                                             },
                                                                            isClassic: false);
-                        if (keepAliveEvents.Count > 0)
-                        {
-                            var maxTimeout = keepAliveEvents.Select(e => e.Event["newTimeout"]).OrderByDescending(t => t).First();
-                            break;
-                        }
-                        queriedRange.RemoveAt(0);
+                    if (keepAliveEvents.Count > 0)
+                    {
+                        var maxTimeout = keepAliveEvents
+                            .Select(e => (BigInteger)e.Event.GetType().GetProperty("newTimeout")!.GetValue(e.Event, null)!)
+                            .OrderByDescending(t => t)
+                            .First();
+                        break;
+                    }
+
+                    queriedRange.RemoveAt(0);
                     }
 
                     // the retryable no longer exists, but we've searched beyond the timeout
@@ -767,7 +771,7 @@ namespace Arbitrum.Message
 
     public class L1ToL2MessageReaderClassic
     {
-        private TransactionReceipt retryableCreationReceipt;
+        private TransactionReceipt? RetryableCreationReceipt;
         public BigInteger MessageNumber { get; }
         public string RetryableCreationId { get; }
         public string AutoRedeemId { get; }
@@ -837,9 +841,9 @@ namespace Arbitrum.Message
          */
         public async Task<TransactionReceipt> GetRetryableCreationReceipt(int? confirmations = null, int? timeout = null)
         {
-            if (retryableCreationReceipt == null)
+            if (RetryableCreationReceipt == null)
             {
-                retryableCreationReceipt = await Lib.GetTransactionReceiptAsync(
+                RetryableCreationReceipt = await Lib.GetTransactionReceiptAsync(
                     L2Provider,
                     RetryableCreationId,
                     confirmations,
@@ -847,7 +851,7 @@ namespace Arbitrum.Message
                 );
             }
 
-            return retryableCreationReceipt;
+            return RetryableCreationReceipt;
         }
 
         public async Task<L1ToL2MessageStatus> Status()
@@ -878,19 +882,20 @@ namespace Arbitrum.Message
 
     public class L1ToL2MessageWriter : L1ToL2MessageReader
     {
-        public readonly SignerOrProvider _l2Signer;
+        public readonly Account? _l2Signer;
         public L1ToL2MessageWriter(
             SignerOrProvider l2provider,
             BigInteger chainId,
             string sender,
             BigInteger messageNumber,
             BigInteger l1BaseFee,
-            RetryableMessageParams messageData) : base(l2provider, chainId, sender, messageNumber, l1BaseFee, messageData)
+            RetryableMessageParams messageData) : base(l2provider.Provider, chainId, sender, messageNumber, l1BaseFee, messageData)
         {
             if (l2provider?.Provider == null)
             {
                 throw new ArbSdkError("Signer not connected to provider.");
             }
+        _l2Signer = new Account(privateKey: EthECKey.GenerateKey().GetPrivateKeyAsBytes(), chainId: chainId);   ///////
         }
 
         /**
@@ -906,7 +911,7 @@ namespace Arbitrum.Message
                 var arbRetryableTxContract = await LoadContractUtils.LoadContract(
                                                         contractName: "ArbRetryableTx",
                                                         address: Constants.ARB_RETRYABLE_TX_ADDRESS,
-                                                        provider: _l2Signer.Provider,
+                                                        provider: new Web3(account:_l2Signer, _l2Signer!.TransactionManager.Client),
                                                         isClassic: false
                                                     );
                 if(overrides == null)
@@ -915,7 +920,7 @@ namespace Arbitrum.Message
                 }
                 if (!overrides.ContainsKey("from"))
                 {
-                    overrides["from"] = _l2Signer.Account.Address;
+                    overrides["from"] = _l2Signer!.Address;
                 }
                 if(overrides.ContainsKey("gasLimit"))
                 {
@@ -927,11 +932,10 @@ namespace Arbitrum.Message
                 var redeemFunction = arbRetryableTxContract.GetFunction("redeem");
                 var redeemHash = await redeemFunction.SendTransactionAsync(RetryableCreationId, overrides);
 
-                var txReceipt = await _l2Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(redeemHash);
+                var txReceipt = await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(redeemHash);
 
                 return L2TransactionReceipt.ToRedeemTransaction(
                     L2TransactionReceipt.MonkeyPatchWait(txReceipt), _l2Provider);
-
             }
             else
             {
@@ -952,7 +956,7 @@ namespace Arbitrum.Message
                 var arbRetryableTxContract = await LoadContractUtils.LoadContract(
                     contractName: "ArbRetryableTx",
                     address: Constants.ARB_RETRYABLE_TX_ADDRESS,
-                    provider: _l2Signer.Provider,
+                    provider: new Web3(account: _l2Signer, _l2Signer!.TransactionManager.Client),
                     isClassic: false
                 );
 
@@ -963,7 +967,7 @@ namespace Arbitrum.Message
 
                 if (!overrides.ContainsKey("from"))
                 {
-                    overrides["from"] = _l2Signer.Account.Address;
+                    overrides["from"] = _l2Signer!.Address;
                 }
 
                 if (overrides.ContainsKey("gasLimit"))
@@ -976,7 +980,7 @@ namespace Arbitrum.Message
                 var cancelFunction = arbRetryableTxContract.GetFunction("cancel");
                 var txHash = await cancelFunction.SendTransactionAsync(RetryableCreationId, overrides);
 
-                var txReceipt = await _l2Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
+                var txReceipt = await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
 
                 return txReceipt;
             }
@@ -999,7 +1003,7 @@ namespace Arbitrum.Message
                 var arbRetryableTxContract = await LoadContractUtils.LoadContract(
                     contractName: "ArbRetryableTx",
                     address: Constants.ARB_RETRYABLE_TX_ADDRESS,
-                    provider: _l2Signer.Provider,
+                    provider: new Web3(account: _l2Signer, _l2Signer!.TransactionManager.Client),
                     isClassic: false
                 );
 
@@ -1010,7 +1014,7 @@ namespace Arbitrum.Message
 
                 if (!overrides.ContainsKey("from"))
                 {
-                    overrides["from"] = _l2Signer.Account.Address;
+                    overrides["from"] = _l2Signer!.Address;
                 }
 
                 if (overrides.ContainsKey("gasLimit"))
@@ -1023,7 +1027,7 @@ namespace Arbitrum.Message
                 var keepAliveFunction = arbRetryableTxContract.GetFunction("keepAlive");
                 var keepAliveTx = await keepAliveFunction.SendTransactionAsync(RetryableCreationId, overrides);
 
-                var txReceipt = await _l2Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(keepAliveTx);
+                var txReceipt = await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(keepAliveTx);
 
                 return txReceipt;
             }

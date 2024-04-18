@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks;
 using System.Numerics;
 using Nethereum.RPC.Eth.DTOs;
+using Nethereum.JsonRpc.Client;
 
 namespace Arbitrum.DataEntities
 {
@@ -40,13 +41,20 @@ namespace Arbitrum.DataEntities
         public TransactionRequest? TxRequest { get; set; }
         public RetryableData? RetryableData { get; set; }
         public Func<Task<bool>>? IsValid { get; set; }
+        public L1ToL2TransactionRequest()
+        { }
+        public L1ToL2TransactionRequest(TransactionRequest? txRequest, RetryableData? retryableData)
+        {
+            TxRequest = txRequest;
+            RetryableData = retryableData;
+        }
 
     }
 
     public class L2ToL1TransactionRequest
     {
-        public TransactionRequest? TxRequest { get; }
-        public Func<Task<BigInteger>>? EstimateL1GasLimit { get; set; }
+        public TransactionRequest? TxRequest { get; set; }
+        public Func<IClient, Task<BigInteger>>? EstimateL1GasLimit { get; set; }
 
     }
 
