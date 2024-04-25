@@ -18,9 +18,9 @@ using Nethereum.ABI.FunctionEncoding.Attributes;
 
 namespace Arbitrum.Utils
 {
-    public class FetchedEvent<TEvent> where TEvent : Event
+    public class FetchedEvent<TEventArgs>
     {
-        public TEvent Event { get; set; }
+        public TEventArgs Event { get; set; }
         public string Topic { get; set; }
         public string Name { get; set; }
         public int BlockNumber { get; set; }
@@ -31,7 +31,7 @@ namespace Arbitrum.Utils
         public string Data { get; set; }
 
         public FetchedEvent(
-            TEvent eventArgs,
+            TEventArgs eventArgs,
             string topic,
             string name,
             int blockNumber,
@@ -68,7 +68,7 @@ namespace Arbitrum.Utils
             }
             else if (provider is SignerOrProvider signerOrProvider)
             {
-                _provider = signerOrProvider.Provider;
+                _provider = signerOrProvider.Provider!;
             }
             else if (provider is ArbitrumProvider arbitrumProvider)
             {
@@ -80,7 +80,7 @@ namespace Arbitrum.Utils
             }
         }
         //generic FetchedEvent type(to be tested)
-        public async Task<List<FetchedEvent<Event>>> GetEventsAsync(
+        public async Task<List<FetchedEvent<TEventArgs>>> GetEventsAsync<TEventArgs>(
             dynamic contractFactory,
             string eventName,
             Dictionary<string, object>? argumentFilters = null,
@@ -160,13 +160,17 @@ namespace Arbitrum.Utils
 
             var logs = await _provider.Eth.Filters.GetLogs.SendRequestAsync(eventFilter);
 
-            var fetchedEvents = new List<FetchedEvent<Event>>();
+            var fetchedEvents = new List<FetchedEvent<TEventArgs>>();
             int logCount = 0;
 
             foreach (var log in logs)
             {
-                fetchedEvents.Add(new FetchedEvent<Event> (
-                    eventArgs: new Event( contract, new EventABI(eventName)),
+                fetchedEvents.Add(new FetchedEvent<TEventArgs>(
+                    //Since the generic type parameter TEventArgs does not have a new() constraint,
+                    //you cannot create an instance of it using the new keyword.
+                    //We need to ensure that TEventArgs has a parameterless constructor. 
+                    //Activator.CreateInstance<TEventArgs>() is used to create an instance of TEventArgs
+                    eventArgs: Activator.CreateInstance<TEventArgs>(),
                     topic: log.GetTopic(logCount),   ///////
                     name: eventName,
                     blockNumber: (int)log.BlockNumber.Value,

@@ -215,7 +215,7 @@ namespace Arbitrum.DataEntities
             }
             else if (signerOrProviderOrChainId is SignerOrProvider)
             {
-                chainId = await GetChainIdAsync(((SignerOrProvider)signerOrProviderOrChainId).Provider);
+                chainId = await GetChainIdAsync(((SignerOrProvider)signerOrProviderOrChainId)?.Provider!);
             }
             else
             {

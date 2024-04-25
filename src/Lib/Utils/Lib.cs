@@ -16,7 +16,7 @@ namespace Arbitrum.Utils
     public class Lib
     {
 
-        public static async Task<bool> IsArbitrumChain(IClient provider)
+        public static async Task<bool> IsArbitrumChain(Web3 provider)
         {
             try
             {
@@ -102,7 +102,7 @@ namespace Arbitrum.Utils
         string maxL2Block = "latest"
         )
         {
-            if (!await IsArbitrumChain(provider))
+            if (!await IsArbitrumChain(new Web3(provider)))
             {
                 return forL1Block;
             }

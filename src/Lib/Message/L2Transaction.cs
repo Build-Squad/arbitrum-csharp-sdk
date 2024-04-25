@@ -12,6 +12,7 @@ using Nethereum.Web3;
 
 using Arbitrum.DataEntities;
 using Arbitrum.Utils;
+using Nethereum.ABI.FunctionEncoding.Attributes;
 
 namespace Arbitrum.Message
 {
@@ -24,6 +25,11 @@ namespace Arbitrum.Message
         public string? GasDonor { get; set; }
         public HexBigInteger? MaxRefund { get; set; }
         public HexBigInteger? SubmissionFeeRefund { get; set; }
+    }
+    public class LifetimeExtendedEvent
+    {
+        public string? TicketId { get; set; }
+        public BigInteger? NewTimeout { get; set; }
     }
     public class L2ContractTransaction : ContractTransactionVO
     {
@@ -56,9 +62,9 @@ namespace Arbitrum.Message
         public async Task<TransactionReceipt> WaitForRedeem()
         {
             var l2Receipt = new L2TransactionReceipt(_transaction);
-            var redeemScheduledEvents = l2Receipt.GetRedeemScheduledEvents(_l2Provider);
+            var redeemScheduledEvents = await l2Receipt.GetRedeemScheduledEvents(_l2Provider);
 
-            if (redeemScheduledEvents.Count != 1)
+            if (redeemScheduledEvents.Count() != 1)
             {
                 throw new ArbSdkError($"Transaction is not a redeem transaction: {_transaction.TransactionHash}");
             }

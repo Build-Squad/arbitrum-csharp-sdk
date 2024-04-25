@@ -32,49 +32,49 @@ namespace Arbitrum.DataEntities
         public int NumBlocks { get; set; }
     }
 
-    public class NodeCreatedEvent: FetchedEvent<Event>
+    public class NodeCreatedEvent: L2ToL1TransactionEvent
     {
-        public int NodeNum { get; set; }
-        public string ParentNodeHash { get; set; }
-        public string NodeHash { get; set; }
-        public string ExecutionHash { get; set; }
-        public AssertionStructOutput Assertion { get; set; }
-        public string AfterInboxBatchAcc { get; set; }
-        public string WasmModuleRoot { get; set; }
-        public int InboxMaxCount { get; set; }
+        public int? NodeNum { get; set; }
+        public string? ParentNodeHash { get; set; }
+        public string? NodeHash { get; set; }
+        public string? ExecutionHash { get; set; }
+        public AssertionStructOutput? Assertion { get; set; }
+        public string? AfterInboxBatchAcc { get; set; }
+        public string? WasmModuleRoot { get; set; }
+        public int? InboxMaxCount { get; set; }
 
         public FilterLog Log => throw new System.NotImplementedException();
 
-        public NodeCreatedEvent(
-            Event eventArgs, // Update the argument type here
-            string topic,
-            string name,
-            int blockNumber,
-            string blockHash,
-            string transactionHash,
-            string address,
-            List<string> topics,
-            string data,
+        //public NodeCreatedEvent(
+        //    L2ToL1TransactionEvent eventArgs, // Update the argument type here
+        //    string topic,
+        //    string name,
+        //    int blockNumber,
+        //    string blockHash,
+        //    string transactionHash,
+        //    string address,
+        //    List<string> topics,
+        //    string data,
 
-            int nodeNum,
-            string parentNodeHash,
-            string nodeHash,
-            string executionHash,
-            AssertionStructOutput assertion,
-            string afterInboxBatchAcc,
-            string wasmModuleRoot,
-            int inboxMaxCount
-            ) : base(eventArgs, topic, name, blockNumber, blockHash, transactionHash, address, topics, data) // Explicit cast to object to resolve dynamic dispatch issue
-        {
-            NodeNum = nodeNum;
-            ParentNodeHash = parentNodeHash;
-            NodeHash = nodeHash;
-            ExecutionHash = executionHash;
-            Assertion = assertion;
-            AfterInboxBatchAcc = afterInboxBatchAcc;
-            WasmModuleRoot = wasmModuleRoot;
-            InboxMaxCount = inboxMaxCount;
-        }
+        //    int nodeNum,
+        //    string parentNodeHash,
+        //    string nodeHash,
+        //    string executionHash,
+        //    AssertionStructOutput assertion,
+        //    string afterInboxBatchAcc,
+        //    string wasmModuleRoot,
+        //    int inboxMaxCount
+        //    ) : base(eventArgs, topic, name, blockNumber, blockHash, transactionHash, address, topics, data) // Explicit cast to object to resolve dynamic dispatch issue
+        //{
+        //    NodeNum = nodeNum;
+        //    ParentNodeHash = parentNodeHash;
+        //    NodeHash = nodeHash;
+        //    ExecutionHash = executionHash;
+        //    Assertion = assertion;
+        //    AfterInboxBatchAcc = afterInboxBatchAcc;
+        //    WasmModuleRoot = wasmModuleRoot;
+        //    InboxMaxCount = inboxMaxCount;
+        //}
     }
 
 

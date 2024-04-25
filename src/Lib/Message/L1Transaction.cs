@@ -311,51 +311,51 @@ namespace Arbitrum.Message
                 L2TxReceipt = result
             };
         }
+    }
 
-        public class L1ContractCallTransactionReceipt : L1TransactionReceipt
+    public class L1ContractCallTransactionReceipt : L1TransactionReceipt
+    {
+        public L1ContractCallTransactionReceipt(TransactionReceipt tx) : base(tx)
         {
-            public L1ContractCallTransactionReceipt(TransactionReceipt tx) : base(tx)
-            {
-                To = tx.To;
-                From = tx.From;
-                ContractAddress = tx.ContractAddress;
-                TransactionIndex = tx.TransactionIndex;
-                Root = tx.Root;
-                GasUsed = tx.GasUsed;
-                LogsBloom = tx.LogsBloom;
-                BlockHash = tx.BlockHash;
-                TransactionHash = tx.TransactionHash;
-                Logs = tx.Logs;
-                BlockNumber = tx.BlockNumber;
-                //Confirmations = tx.Confirmations;
-                CumulativeGasUsed = tx.CumulativeGasUsed;
-                EffectiveGasPrice = tx.EffectiveGasPrice;
-                //Byzantium = tx.Byzantium;
-                Type = tx.Type;
-                Status = tx.Status;
-            }
-
-            public async Task<L1ContractCallTransactionReceiptResults> WaitForL2<T>(
-            T l2SignerOrProvider,
-            int? confirmations = null,
-            int? timeout = null) where T : SignerOrProvider
-            {
-                var messages = await GetL1ToL2Messages(l2SignerOrProvider);
-                var message = messages.FirstOrDefault() as L1ToL2MessageReader;
-                if (message == null)
-                {
-                    throw new ArbSdkError("Unexpected missing L1ToL2 message.");
-                }
-                var res = await message.WaitForStatus(confirmations, timeout);
-
-                return new L1ContractCallTransactionReceiptResults
-                {
-                    Complete = res.Status == L1ToL2MessageStatus.REDEEMED,
-                    Message = message,
-                    Result = res
-                };
-            }
-
+            To = tx.To;
+            From = tx.From;
+            ContractAddress = tx.ContractAddress;
+            TransactionIndex = tx.TransactionIndex;
+            Root = tx.Root;
+            GasUsed = tx.GasUsed;
+            LogsBloom = tx.LogsBloom;
+            BlockHash = tx.BlockHash;
+            TransactionHash = tx.TransactionHash;
+            Logs = tx.Logs;
+            BlockNumber = tx.BlockNumber;
+            //Confirmations = tx.Confirmations;
+            CumulativeGasUsed = tx.CumulativeGasUsed;
+            EffectiveGasPrice = tx.EffectiveGasPrice;
+            //Byzantium = tx.Byzantium;
+            Type = tx.Type;
+            Status = tx.Status;
         }
+
+        public async Task<L1ContractCallTransactionReceiptResults> WaitForL2<T>(
+        T l2SignerOrProvider,
+        int? confirmations = null,
+        int? timeout = null) where T : SignerOrProvider
+        {
+            var messages = await GetL1ToL2Messages(l2SignerOrProvider);
+            var message = messages.FirstOrDefault() as L1ToL2MessageReader;
+            if (message == null)
+            {
+                throw new ArbSdkError("Unexpected missing L1ToL2 message.");
+            }
+            var res = await message.WaitForStatus(confirmations, timeout);
+
+            return new L1ContractCallTransactionReceiptResults
+            {
+                Complete = res.Status == L1ToL2MessageStatus.REDEEMED,
+                Message = message,
+                Result = res
+            };
+        }
+
     }
 }

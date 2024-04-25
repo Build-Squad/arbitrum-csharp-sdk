@@ -46,11 +46,9 @@ namespace Arbitrum.AssetBridgerModule
 
         protected bool NativeTokenIsEth => string.IsNullOrEmpty(NativeToken) || NativeToken == Constants.ADDRESS_ZERO;
 
-        public abstract Task<L1TransactionReceipt> Deposit(DepositParams parameters);
-        public abstract Task<L1TransactionReceipt> Deposit(L1ToL2TxReqAndSigner parameters);
+        public abstract Task<L1TransactionReceipt> Deposit(dynamic parameters);
 
-        public abstract Task<L2ContractTransaction> Withdraw(WithdrawParams parameters);
+        public abstract Task<L2ContractTransaction> Withdraw(dynamic parameters);
 
-        public abstract Task<L2ContractTransaction> Withdraw(L2ToL1TxReqAndSigner parameters);
     }
 }

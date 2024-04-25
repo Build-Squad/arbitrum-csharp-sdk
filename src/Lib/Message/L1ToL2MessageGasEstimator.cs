@@ -244,7 +244,7 @@ namespace Arbitrum.Message
         }
 
         public async Task<PopulateFunctionParamsResult> PopulateFunctionParams(
-        Func<L1ToL2MessageGasParams, L1ToL2TransactionRequest> dataFunc,
+        Func<L1ToL2MessageGasParams, TransactionRequest> dataFunc,
         Web3 l1Provider,
         GasOverrides? gasOverrides = null)
         {
@@ -257,10 +257,10 @@ namespace Arbitrum.Message
                 MaxSubmissionCost = BigInteger.One
             });
 
-            var nullData = txRequest.TxRequest?.Data;
-            var to = txRequest.TxRequest!.To;
-            var value = txRequest.TxRequest.Value;
-            var from = txRequest.TxRequest.From;
+            var nullData = txRequest.Data;
+            var to = txRequest.To;
+            var value = txRequest.Value;
+            var from = txRequest.From;
 
             RetryableData? retryable = null;
             try
@@ -318,9 +318,9 @@ namespace Arbitrum.Message
             {
                 Estimates = estimates,
                 Retryable = retryable,
-                Data = realTxRequest.TxRequest!.Data,
-                To = realTxRequest.TxRequest.To,
-                Value = realTxRequest.TxRequest.Value
+                Data = realTxRequest.Data,
+                To = realTxRequest.To,
+                Value = realTxRequest.Value
             };
         }
     }

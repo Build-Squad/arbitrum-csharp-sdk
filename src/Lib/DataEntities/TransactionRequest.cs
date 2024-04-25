@@ -36,7 +36,7 @@ namespace Arbitrum.DataEntities
         public new string? From { get; set; }
     }
 
-    public class L1ToL2TransactionRequest
+    public class L1ToL2TransactionRequest 
     {
         public TransactionRequest? TxRequest { get; set; }
         public RetryableData? RetryableData { get; set; }
@@ -60,14 +60,14 @@ namespace Arbitrum.DataEntities
 
     public static class TransactionUtils
     {
-        public static bool IsL1ToL2TransactionRequest<T>(T possibleRequest)
+        public static bool IsL1ToL2TransactionRequest(dynamic possibleRequest)
         {
-            return possibleRequest is L1ToL2TransactionRequest;
+            return possibleRequest?.TxRequest != null;
         }
 
-        public static bool IsL2ToL1TransactionRequest<T>(T possibleRequest)
+        public static bool IsL2ToL1TransactionRequest(dynamic possibleRequest)
         {
-            return possibleRequest is L2ToL1TransactionRequest;
+            return possibleRequest?.TxRequest != null;
         }
 
         public static bool IsDefined<T>(T val)

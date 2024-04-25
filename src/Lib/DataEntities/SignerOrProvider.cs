@@ -12,7 +12,7 @@ namespace Arbitrum.DataEntities
 
         public SignerOrProvider(Web3 provider)
         {
-            if (provider != null)
+            if (provider == null)
             {
                 throw new ArgumentException("Provider is not provided");
             }
@@ -20,7 +20,7 @@ namespace Arbitrum.DataEntities
         }
         public SignerOrProvider(Account account)
         {
-            if (account != null)
+            if (account == null)
             {
                 throw new ArgumentException("Signer is not provided");
             }
@@ -29,7 +29,7 @@ namespace Arbitrum.DataEntities
 
         public SignerOrProvider(Account account, Web3 provider)
         {
-            if (account != null && provider != null)
+            if (account == null && provider == null)
             {
                 throw new ArgumentException("Either account or provider should be set, but not both.");
             }

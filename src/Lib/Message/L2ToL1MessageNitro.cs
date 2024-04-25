@@ -21,6 +21,7 @@ using Nethereum.Merkle.Patricia;
 using ADRaffy.ENSNormalize;
 using Nethereum.Hex.HexConvertors.Extensions;
 using Org.BouncyCastle.Crypto.Tls;
+using Nethereum.Web3.Accounts;
 
 namespace Arbitrum.Message
 {
@@ -46,9 +47,9 @@ namespace Arbitrum.Message
             }
         }
 
-        public static async Task<object> GetBlockRangesForL1BlockWithCache(Web3 l1Provider, Web3 l2Provider, int forL1Block)
+        public static async Task<object> GetBlockRangesForL1BlockWithCache(IClient l1Provider, IClient l2Provider, int forL1Block)
         {
-            string l2ChainId = (await l2Provider.Eth.ChainId.SendRequestAsync()).ToString();
+            string l2ChainId = (await new Web3(l2Provider).Eth.ChainId.SendRequestAsync()).ToString();
             string key = GetL2BlockRangeCacheKey(l2ChainId, forL1Block);
 
             lock (_lock)
@@ -68,7 +69,7 @@ namespace Arbitrum.Message
                 _l2BlockRangeCache[key] = l2BlockRange;
             }
 
-            return l2BlockRange;
+            return l2BlockRange!;
         }
     }
 
@@ -108,43 +109,65 @@ namespace Arbitrum.Message
             }
         }
     }
-    public class L2ToL1TxEvent
+
+    public class NodeStructOutput
     {
-        public string Caller { get; set; }
-        public string Destination { get; set; }
-        public BigInteger Hash { get; set; }
-        public BigInteger Position { get; set; }
-        public BigInteger ArbBlockNum { get; set; }
-        public BigInteger EthBlockNum { get; set; }
-        public BigInteger Timestamp { get; set; }
-        public BigInteger CallValue { get; set; }
-        public string Data { get; set; }
+        public string? StateHash { get; set; }
+        public string? ChallengeHash { get; set; }
+        public string? ConfirmData { get; set; }
+        public BigInteger? PrevNum { get; set; }
+        public BigInteger? DeadlineBlock { get; set; }
+        public BigInteger? NoChildConfirmedBeforeBlock { get; set; }
+        public BigInteger? StakerCount { get; set; }
+        public BigInteger? ChildStakerCount { get; set; }
+        public BigInteger? FirstChildBlock { get; set; }
+        public BigInteger? LatestChildNumber { get; set; }
+        public BigInteger? CreatedAtBlock { get; set; }
+        public string? NodeHash { get; set; }
     }
 
-    public class L2ToL1MessageNitro
+    public class L2ToL1TxEvent
     {
-        public L2ToL1TransactionEvent Event { get; set; }
-        protected L2ToL1MessageNitro(L2ToL1TransactionEvent l2ToL1TransactionEvent)
+        public string? Caller { get; set; }
+        public string? Destination { get; set; }
+        public BigInteger? Hash { get; set; }
+        public BigInteger? Position { get; set; }
+        public BigInteger? ArbBlockNum { get; set; }
+        public BigInteger? EthBlockNum { get; set; }
+        public BigInteger? Timestamp { get; set; }
+        public BigInteger? CallValue { get; set; }
+        public string? Data { get; set; }
+    }
+
+    public abstract class L2ToL1MessageNitro
+    {
+        protected readonly L2ToL1TxEvent _event;
+
+        protected L2ToL1MessageNitro(L2ToL1TxEvent @event)
         {
-            Event = l2ToL1TransactionEvent;
+            _event = @event;
         }
 
         public static L2ToL1MessageNitro FromEvent<T>(
             T l1SignerOrProvider,
-            L2ToL1TransactionEvent l2ToL1TransactionEvent,
-            Web3 l1Provider = null) where T : SignerOrProvider
+            L2ToL1TxEvent l2ToL1TransactionEvent,
+            Web3? l1Provider = null) where T : SignerOrProvider
         {
             if (SignerProviderUtils.IsSigner(l1SignerOrProvider))
             {
-                return new L2ToL1MessageWriterNitro(l1SignerOrProvider, l2ToL1TransactionEvent, l1Provider);
+                return new L2ToL1MessageWriterNitro(l1SignerOrProvider.Account!, l2ToL1TransactionEvent, l1Provider!);
+            }
+            else if (l1SignerOrProvider is Web3)
+            {
+                return new L2ToL1MessageReaderNitro(l1SignerOrProvider.Provider!, l2ToL1TransactionEvent);
             }
             else
             {
-                return new L2ToL1MessageReaderNitro(l1SignerOrProvider.Provider, l2ToL1TransactionEvent);
+                throw new ArgumentException("Invalid type for l1SignerOrProvider");
             }
         }
 
-        public static async Task<List<L2ToL1TransactionEvent[]>> GetL2ToL1Events(
+        public static async Task<List<(L2ToL1TxEvent EventArgs, string TransactionHash)>> GetL2ToL1Events(
             Web3 l2Provider,
             NewFilterInput filter,
             BigInteger? position = null,
@@ -157,7 +180,7 @@ namespace Arbitrum.Message
 
             if (position != default)
             {
-                argumentFilters["position"] = position;
+                argumentFilters["position"] = position!;
             }
             if (destination != null)
             {
@@ -165,12 +188,10 @@ namespace Arbitrum.Message
             }
             if (hash != default)
             {
-                argumentFilters["hash"] = hash;
+                argumentFilters["hash"] = hash!;
             }
 
-            var events = new List<L2ToL1TransactionEvent[]>();
-
-            var eventList = await eventFetcher.GetEventsAsync(
+            var eventList = await eventFetcher.GetEventsAsync<L2ToL1TxEvent>(
                 contractFactory: "ArbSys",
                 eventName: "L2ToL1Tx",
                 argumentFilters: argumentFilters,
@@ -178,19 +199,20 @@ namespace Arbitrum.Message
                 {
                     FromBlock = filter.FromBlock,
                     ToBlock = filter.ToBlock,
-                    Address = new string[] { Constants.ARB_SYS_ADDRESS }
+                    Address = new string[] { Constants.ARB_SYS_ADDRESS },
+                    Topics = filter.Topics
                 },
                 isClassic: false
                 );
 
-            foreach (var ev in eventList)
-            {
-                var item = ev.Event;
-                events.Add(item);
-            }
-
-            return events;
+            return eventList.Select(e => (e.Event, e.TransactionHash)).ToList();
         }
+    }
+    public class L2ToL1MessageReaderNitroResults
+    {
+        public string? SendRootHash { get; set; }
+        public BigInteger SendRootSize { get; set; }
+        public bool SendRootConfirmed { get; set; }
     }
 
     public class L2ToL1MessageReaderNitro : L2ToL1MessageNitro
@@ -203,7 +225,7 @@ namespace Arbitrum.Message
 
         protected readonly Web3 l1Provider;
 
-        public L2ToL1MessageReaderNitro(Web3 l1Provider, L2ToL1TransactionEvent l2ToL1TransactionEvent) : base(l2ToL1TransactionEvent)
+        public L2ToL1MessageReaderNitro(Web3 l1Provider, L2ToL1TxEvent l2ToL1TransactionEvent) : base(l2ToL1TransactionEvent)
         {
             this.l1Provider = l1Provider;
         }
@@ -224,9 +246,11 @@ namespace Arbitrum.Message
                                     isClassic: false);
 
             var outboxProofParams = await nodeInterface.GetFunction("constructOutboxProof").CallAsync<byte[]>(
-                                        sendProps.sendRootSize, Event.Position);
+                                        sendProps.SendRootSize, _event.Position);
 
-            return outboxProofParams.proof;
+            var result = LoadContractUtils.FormatContractOutput(nodeInterface, "constructOutboxProof", outboxProofParams);
+
+            return result.proof;
         }
 
         protected async Task<bool> HasExecuted(Web3 l2Provider)
@@ -242,13 +266,13 @@ namespace Arbitrum.Message
 
             var outboxContractFunction = outboxContract.GetFunction("isSpent");
 
-            return await outboxContractFunction.CallAsync<bool>(Event.Position);
+            return await outboxContractFunction.CallAsync<bool>(_event.Position);
         }
 
         public async Task<L2ToL1MessageStatus> GetStatus(Web3 l2Provider)
         {
             var sendProps = await GetSendProps(l2Provider);
-            if (!sendProps.sendRootConfirmed)
+            if (!sendProps.SendRootConfirmed)
             {
                 return L2ToL1MessageStatus.UNCONFIRMED;
             }
@@ -259,14 +283,14 @@ namespace Arbitrum.Message
         public Dictionary<string, string> ParseNodeCreatedAssertion(FetchedEvent<NodeCreatedEvent> nodeCreatedEvent)
         {
             var assertion = nodeCreatedEvent.Event.Assertion;
-            var afterState = assertion.AfterState.GlobalState;
-            var blockHash = afterState.Bytes32Vals[0];
-            var sendRoot = afterState.Bytes32Vals[1];
+            var afterState = assertion!.AfterState!.GlobalState;
+            var blockHash = afterState?.Bytes32Vals![0];
+            var sendRoot = afterState?.Bytes32Vals![1];
 
             return new Dictionary<string, string>
             {
-                { "blockHash", blockHash },
-                { "sendRoot", sendRoot }
+                { "blockHash", blockHash! },
+                { "sendRoot", sendRoot! }
             };
         }
 
@@ -313,7 +337,7 @@ namespace Arbitrum.Message
                 try
                 {
                     // Get L2 block range for the given L1 block
-                    var l2BlockRange = await CacheUtils.GetBlockRangesForL1BlockWithCache(l1Provider, l2Provider, createdAtBlock);
+                    var l2BlockRange = await CacheUtils.GetBlockRangesForL1BlockWithCache(l1Provider.Client, l2Provider.Client, createdAtBlock);
 
                     BigInteger? startBlock = l2BlockRange.startBlock;
                     BigInteger? endBlock = l2BlockRange.endBlock;
@@ -336,7 +360,7 @@ namespace Arbitrum.Message
             var eventFetcher = new EventFetcher(rollup.Provider);
             var argumentFilters = new Dictionary<string, object> { { "nodeNum", nodeNum } };
 
-            var logs = await eventFetcher.GetEventsAsync(
+            List<FetchedEvent<NodeCreatedEvent>> logs = await eventFetcher.GetEventsAsync<NodeCreatedEvent>(
             contractFactory: rollup,
             eventName: "NodeCreated",
             argumentFilters: argumentFilters,
@@ -348,12 +372,12 @@ namespace Arbitrum.Message
             }
         );
 
-            if (logs.Count() > 1)
+            if (logs.Count > 1)
             {
-                throw new ArbSdkError($"Unexpected number of NodeCreated events. Expected 0 or 1, got {logs.Count()}.");
+                throw new ArbSdkError($"Unexpected number of NodeCreated events. Expected 0 or 1, got {logs.Count}.");
             }
 
-            return await GetBlockFromNodeLog(l2Provider, logs.FirstOrDefault());
+            return await GetBlockFromNodeLog(l2Provider.Client, logs.FirstOrDefault()!);
         }
 
         public async Task<BigInteger?> GetBatchNumber(Web3 l2Provider)
@@ -370,7 +394,7 @@ namespace Arbitrum.Message
                         isClassic: false
                     );
 
-                    res = await nodeInterfaceContract.GetFunction("findBatchContainingBlock").CallAsync<BigInteger>(Event.ArbBlockNum);
+                    res = await nodeInterfaceContract.GetFunction("findBatchContainingBlock").CallAsync<BigInteger>(_event.ArbBlockNum);
                     L1BatchNumber = (int)res;
                 }
                 catch (Exception)
@@ -381,7 +405,7 @@ namespace Arbitrum.Message
             return L1BatchNumber;
         }
 
-        protected async Task<object> GetSendProps(Web3 l2Provider)
+        protected async Task<L2ToL1MessageReaderNitroResults> GetSendProps(Web3 l2Provider)
         {
             if (!SendRootConfirmed)
             {
@@ -394,12 +418,11 @@ namespace Arbitrum.Message
                     isClassic: false
                     );
 
-
                 var latestConfirmedNodeNum = await rollupContract.GetFunction("latestConfirmed").CallAsync<BigInteger>();
                 var l2BlockConfirmed = await GetBlockFromNodeNum(rollupContract, latestConfirmedNodeNum, l2Provider);
 
                 var sendRootSizeConfirmed = l2BlockConfirmed.SendCount;
-                if (sendRootSizeConfirmed > Event.Position)
+                if (sendRootSizeConfirmed > _event.Position)
                 {
                     SendRootSize = sendRootSizeConfirmed;
                     SendRootHash = l2BlockConfirmed.SendRoot;
@@ -414,7 +437,7 @@ namespace Arbitrum.Message
                         var l2Block = await GetBlockFromNodeNum(rollupContract, latestNodeNum, l2Provider);
 
                         var sendRootSize = l2Block.SendCount;
-                        if (sendRootSize > Event.Position)
+                        if (sendRootSize > _event.Position)
                         {
                             SendRootSize = sendRootSize;
                             SendRootHash = l2Block.SendRoot;
@@ -422,11 +445,11 @@ namespace Arbitrum.Message
                     }
                 }
             }
-            return new
+            return new L2ToL1MessageReaderNitroResults
             {
-                sendRootSize = SendRootSize,
-                sendRootHash = SendRootHash,
-                sendRootConfirmed = SendRootConfirmed
+                SendRootSize = SendRootSize,
+                SendRootHash = SendRootHash,
+                SendRootConfirmed = SendRootConfirmed
             };
         }
 
@@ -480,13 +503,13 @@ namespace Arbitrum.Message
             var argumentFilters = new Dictionary<string, object>();
 
 
-            var logs = await eventFetcher.GetEventsAsync(
+            var logs = await eventFetcher.GetEventsAsync<NodeCreatedEvent>(
                                                     contractFactory: rollupContract,
                                                     eventName: "NodeCreated",
                                                     argumentFilters: argumentFilters,
                                                     filter: new NewFilterInput
                                                     {
-                                                        FromBlock = new BlockParameter((int.Max(latestBlockNumber - l2Network.ConfirmPeriodBlocks - CacheUtils.ASSERTION_CONFIRMED_PADDING, 0)).ToHexBigInteger()),
+                                                        FromBlock = new BlockParameter((int.Max(latestBlockNumber - l2Network!.ConfirmPeriodBlocks - CacheUtils.ASSERTION_CONFIRMED_PADDING, 0)).ToHexBigInteger()),
                                                         ToBlock = BlockParameter.CreateLatest(), // Set to latest block
                                                         Address = new string[] { rollupContract.Address }
                                                     },
@@ -495,11 +518,11 @@ namespace Arbitrum.Message
 
             logs.OrderBy(log => log.Event.NodeNum);
 
-            ArbBlock lastL2Block = await this.GetBlockFromNodeLog(l2Provider, logs.LastOrDefault());
+            ArbBlock lastL2Block = await this.GetBlockFromNodeLog(l2Provider.Client, logs.LastOrDefault()!);
 
             var lastSendCount = lastL2Block != null ? lastL2Block.SendCount : BigInteger.Zero;
 
-            if (lastSendCount <= Event.Position)
+            if (lastSendCount <= _event.Position)
             {
                 return l2Network?.ConfirmPeriodBlocks + CacheUtils.ASSERTION_CREATED_PADDING + CacheUtils.ASSERTION_CONFIRMED_PADDING + latestBlockNumber;
             }
@@ -513,9 +536,9 @@ namespace Arbitrum.Message
             {
                 int mid = (left + right) / 2;
                 var log = logs[mid];
-                var l2Block = await GetBlockFromNodeLog(l2Provider, log);
-                var sendCount = BigInteger.Parse(l2Block.SendCount);
-                if (sendCount > Event.Position)
+                var l2Block = await GetBlockFromNodeLog(l2Provider.Client, log);
+                var sendCount = l2Block.SendCount;
+                if (sendCount > _event.Position)
                 {
                     foundLog = log;
                     right = mid - 1;
@@ -526,24 +549,24 @@ namespace Arbitrum.Message
                 }
             }
 
-            var earliestNodeWithExit = foundLog.Event.NodeNum;
-            var node = await rollupContract.GetFunction("getNode").CallAsync<BigInteger>(earliestNodeWithExit);
+            var earliestNodeWithExit = foundLog!.Event.NodeNum;
+            var node = await rollupContract.GetFunction("getNode").CallAsync<NodeStructOutput>(earliestNodeWithExit);
 
-            return (node.DeadlineBlock + CacheUtils.ASSERTION_CONFIRMED_PADDING);
+            return node.DeadlineBlock + CacheUtils.ASSERTION_CONFIRMED_PADDING;
         }
     }
 
     public class L2ToL1MessageWriterNitro : L2ToL1MessageReaderNitro
     {
-        private readonly SignerOrProvider l1Signer;
+        private readonly Account l1Signer;
 
-        public L2ToL1MessageWriterNitro(SignerOrProvider l1Signer, L2ToL1TransactionEvent eventArgs, Web3 l1Provider = null)
-            : base(l1Provider ?? l1Signer.Provider, eventArgs)
+        public L2ToL1MessageWriterNitro(Account l1Signer, L2ToL1TxEvent eventArgs, Web3? l1Provider = null)
+            : base(l1Provider ?? new Web3(l1Signer), eventArgs)
         {
             this.l1Signer = l1Signer ?? throw new ArgumentNullException(nameof(l1Signer));
         }
 
-        public async Task<TransactionReceipt> Execute(Web3 l2Provider, Dictionary<string, object>? overrides = null)
+        public async Task<TransactionReceipt> Execute(Web3 l2Provider, Overrides? overrides = null)
         {
             var status = await GetStatus(l2Provider);
             if (status != L2ToL1MessageStatus.CONFIRMED)
@@ -557,36 +580,27 @@ namespace Arbitrum.Message
 
             var outboxContract = await LoadContractUtils.LoadContract(
                                                         contractName: "Outbox",
-                                                        provider: l1Signer.Provider,
+                                                        provider: new Web3(l1Signer),
                                                         address: l2Network?.EthBridge?.Outbox,
                                                         isClassic: false
                                                     );
-            if (overrides == null)
-            {
-                overrides = new Dictionary<string, object>();
-            }
-
-            if (!overrides.ContainsKey("from"))
-            {
-                overrides["from"] = l1Signer.Account.Address;
-            }
 
             var txReceipt = await outboxContract.GetFunction("executeTransaction").SendTransactionAndWaitForReceiptAsync(
-                from: proof.L2Sender,
+                from: l1Signer.Address,
                 receiptRequestCancellationToken: null,
                 L1BatchNumber.ToString(),
                 proof,
-                Event.Position
-                Event.Caller,
-                Event.Destination,
-                Event.ArbBlockNum,
-                Event.EthBlockNum,
-                Event.Timestamp,
-                Event.CallValue,
-                Event.Data,
-                overrides ?? new Dictionary<string, object>()
+                _event.Position,
+                _event.Caller,
+                _event.Destination,
+                _event.ArbBlockNum,
+                _event.EthBlockNum,
+                _event.Timestamp,
+                _event.CallValue,
+                _event.Data,
+                overrides ?? new Overrides()
                 );
-            return txReceipt;
+            return txReceipt!;
         }
     }
 }

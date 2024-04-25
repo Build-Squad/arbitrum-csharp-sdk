@@ -10,20 +10,21 @@ using Arbitrum.Utils;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Contracts.ContractHandlers;
 using System.Transactions;
+using Nethereum.ABI.FunctionEncoding.Attributes;
 
 namespace Arbitrum.Message
 {
     public class MessageBatchProofInfo
     {
-        public string[] Proof { get; set; }
-        public BigInteger Path { get; set; }
-        public string L2Sender { get; set; }
-        public string L1Dest { get; set; }
-        public BigInteger L2Block { get; set; }
-        public BigInteger L1Block { get; set; }
-        public BigInteger Timestamp { get; set; }
-        public BigInteger Amount { get; set; }
-        public string CalldataForL1 { get; set; }
+        public string[]? Proof { get; set; }
+        public BigInteger? Path { get; set; }
+        public string? L2Sender { get; set; }
+        public string? L1Dest { get; set; }
+        public BigInteger? L2Block { get; set; }
+        public BigInteger? L1Block { get; set; }
+        public BigInteger? Timestamp { get; set; }
+        public BigInteger? Amount { get; set; }
+        public string? CalldataForL1 { get; set; }
     }
 
     public class L2ToL1MessageClassic
@@ -41,7 +42,7 @@ namespace Arbitrum.Message
             T l1SignerOrProvider,
             BigInteger batchNumber,
             BigInteger indexInBatch,
-            Web3 l1Provider = null)
+            Web3? l1Provider = null)
             where T : SignerOrProvider
         {
             if (SignerProviderUtils.IsSigner(l1SignerOrProvider))
@@ -56,18 +57,18 @@ namespace Arbitrum.Message
             else
             {
                 return Task.FromResult<L2ToL1MessageClassic>(new L2ToL1MessageReaderClassic(
-                    l1SignerOrProvider.Provider,
+                    l1SignerOrProvider.Provider!,
                     batchNumber,
                     indexInBatch
                 ));
             }
         }
 
-        public static async Task<List<L2ToL1TransactionEvent[]>> GetL2ToL1Events(
+        public static async Task<List<(L2ToL1TransactionEvent EventArgs, string TransactionHash)>> GetL2ToL1Events(
             Web3 l2Provider,
             NewFilterInput filter,
             BigInteger? batchNumber = null,
-            string destination = null,
+            string? destination = null,
             BigInteger? uniqueId = null,
             BigInteger? indexInBatch = null)
         {
@@ -88,8 +89,7 @@ namespace Arbitrum.Message
                 argumentFilters["uniqueId"] = uniqueId;
             }
 
-            var events = new List<L2ToL1TransactionEvent[]>();
-            var eventList = await eventFetcher.GetEventsAsync(
+            var eventList = await eventFetcher.GetEventsAsync<L2ToL1TransactionEvent>(
                             contractFactory: "ArbSys",
                             eventName: "L2ToL1Transaction",
                             argumentFilters: argumentFilters,
@@ -99,31 +99,28 @@ namespace Arbitrum.Message
                                 ToBlock = filter.ToBlock,
                                 Address = new string[] { Constants.ARB_SYS_ADDRESS },
                                 Topics = filter.Topics,
+
                             },
                             isClassic: false
                             );
 
-            foreach (var ev in eventList)
-            {
-                var item = ev.Event;
-                events.Add(item);
-            }
+            var formattedEvents = eventList.Select(e => (e.Event, e.TransactionHash)).ToList();
 
             if (indexInBatch != null)
             {
-                var indexItems = events.FindAll(b => b[0].IndexInBatch == indexInBatch);
+                var indexItems = formattedEvents.Where(b => b.Event.IndexInBatch == indexInBatch.Value).ToList();
                 if (indexItems.Count > 1)
                 {
                     throw new ArbSdkError("More than one indexed item found in batch.");
                 }
                 else
                 {
-                    return new List<L2ToL1TransactionEvent[]>();
+                    return new List<(L2ToL1TransactionEvent, string)>();
                 }
             }
             else
             {
-                return events;
+                return formattedEvents;
             }
         }
     }
@@ -172,7 +169,7 @@ namespace Arbitrum.Message
                 isClassic: false
                 );
 
-            var getOutboxEntryExistsFunction = outboxContract.GetFunction("outboxEntryExists");   ////////
+            var getOutboxEntryExistsFunction = outboxContract.GetFunction("outboxEntryExists"); 
 
             return await getOutboxEntryExistsFunction.CallAsync<BigInteger>();
         }
@@ -190,14 +187,14 @@ namespace Arbitrum.Message
                 );
             try
             {
-                var getLegacyLookupMessageBatchProofFunction = nodeInterfaceContract.GetFunction("LegacyLookupMessageBatchProof(batchNumber, indexInBatch)");    //////
-                return await getLegacyLookupMessageBatchProofFunction.CallAsync<MessageBatchProofInfo>();
+                var getLegacyLookupMessageBatchProofFunction = nodeInterfaceContract.GetFunction("legacyLookupMessageBatchProof"); 
+                return await getLegacyLookupMessageBatchProofFunction.CallAsync<MessageBatchProofInfo>((batchNumber, indexInBatch));
             }
             catch (Exception e)
             {
                 var expectedError = "batch doesn't exist";
                 if (e.Message.Contains(expectedError))
-                    return null;
+                    return null!;
                 else
                     throw;
             }
@@ -299,7 +296,7 @@ namespace Arbitrum.Message
             SignerOrProvider l1Signer,
             BigInteger batchNumber,
             BigInteger indexInBatch,
-            Web3? l1Provider = null) : base(l1Provider ?? l1Signer.Provider, batchNumber, indexInBatch)
+            Web3? l1Provider = null) : base(l1Provider ?? l1Signer.Provider!, batchNumber, indexInBatch)
         {
             _l1Signer = l1Signer;
         }
@@ -334,7 +331,7 @@ namespace Arbitrum.Message
 
             if (!overrides.ContainsKey("from"))
             {
-                overrides["from"] = _l1Signer.Account.Address;
+                overrides["from"] = _l1Signer.Account!.Address;
             }
             var txReceipt = await outboxContract.GetFunction("executeTransaction").SendTransactionAndWaitForReceiptAsync(
                                     from: proofInfo.L2Sender,

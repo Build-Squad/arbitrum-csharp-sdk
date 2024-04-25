@@ -542,7 +542,7 @@ namespace Arbitrum.Message
 
                 queriedRange.Add(outerBlockRange);
 
-            var redeemEvents = await eventFetcher.GetEventsAsync(
+            var redeemEvents = await eventFetcher.GetEventsAsync<RedeemScheduledEvent>(
                                                         contractFactory: "ArbRetryableTx",
                                                         eventName: "RedeemScheduled",
                                                         argumentFilters: new Dictionary<string, object> { { "ticketId", this.RetryableCreationId } },
@@ -583,7 +583,7 @@ namespace Arbitrum.Message
                     while (queriedRange.Count > 0)
                     {
                         var blockRange = queriedRange.First();
-                        var keepAliveEvents = await eventFetcher.GetEventsAsync(   
+                        var keepAliveEvents = await eventFetcher.GetEventsAsync<LifetimeExtendedEvent>(   
                                                                            contractFactory: "ArbRetryableTx",
                                                                            eventName: "LifetimeExtended",
                                                                            argumentFilters: new Dictionary<string, object> { { "ticketId", this.RetryableCreationId } },
@@ -594,12 +594,14 @@ namespace Arbitrum.Message
                                                                                Address = new string[] { Constants.ARB_RETRYABLE_TX_ADDRESS }
                                                                             },
                                                                            isClassic: false);
+
                     if (keepAliveEvents.Count > 0)
                     {
-                        var maxTimeout = keepAliveEvents
-                            .Select(e => (BigInteger)e.Event.GetType().GetProperty("newTimeout")!.GetValue(e.Event, null)!)
+                        timeout = keepAliveEvents
+                            .Select(e => e.Event.NewTimeout)
+                            .Select(t => (int)t!)
                             .OrderByDescending(t => t)
-                            .First();
+                            .FirstOrDefault();
                         break;
                     }
 
@@ -1161,5 +1163,3 @@ namespace Arbitrum.Message
             return L2DepositTxReceipt;
         }
     }
-
-}

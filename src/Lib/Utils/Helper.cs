@@ -80,13 +80,13 @@ namespace Arbitrum.Utils
             foreach (var sourceProp in sourceProperties)
             {
                 // Check if the property exists in the destination object
-                if (destinationPropertyDictionary.TryGetValue(sourceProp.Name, out PropertyInfo matchingDestProp))
+                if (destinationPropertyDictionary.TryGetValue(sourceProp.Name, out PropertyInfo? matchingDestProp))
                 {
                     // Check if the property types match and the destination property is writable
                     if (matchingDestProp.PropertyType == sourceProp.PropertyType && matchingDestProp.CanWrite)
                     {
                         // Copy the value from the source to the destination
-                        object value = sourceProp.GetValue(source);
+                        object value = sourceProp.GetValue(source)!;
                         matchingDestProp.SetValue(destination, value);
                     }
                 }
@@ -116,6 +116,7 @@ namespace Arbitrum.Utils
         public BigInteger IndexInBatch { get; set; }
         public BigInteger Hash { get; set; }
         public BigInteger Position { get; set; }
+        public string? TransactionHash { get; set; }
 
     }
     public class ClassicL2ToL1TransactionEvent : L2ToL1TransactionEvent
@@ -258,7 +259,7 @@ namespace Arbitrum.Utils
 
     public class LoadContractUtils
     {
-        public static object FormatContractOutput(Contract contract, string functionName, object output)
+        public static dynamic FormatContractOutput(Contract contract, string functionName, object output)
         {
             // Get the FunctionABI object for the specified function name
             var funcAbi = contract.ContractBuilder.GetFunctionAbi(functionName);
@@ -312,6 +313,12 @@ namespace Arbitrum.Utils
             }
 
             return formattedOutput;
+        }
+        public static async Task<bool> IsContractDeployed(Web3 web3, string address)
+        {
+
+            var bytecode = await web3.Eth.GetCode.SendRequestAsync(Web3.ToChecksumAddress(address));
+            return bytecode != "0x" && bytecode.Length > 2;
         }
         public class ContractData
         {
