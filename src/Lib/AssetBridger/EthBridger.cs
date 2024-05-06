@@ -135,21 +135,21 @@ namespace Arbitrum.AssetBridgerModule
         public async Task<L1ToL2TransactionRequest> GetDepositRequest(EthDepositRequestParams parameters)
         {
             var inbox = await LoadContractUtils.LoadContract(
-                                            provider: new Web3(parameters.L1Signer, parameters.L1Signer!.TransactionManager.Client),
+                                            provider: new Web3(parameters?.L1Signer, parameters?.L1Signer?.TransactionManager?.Client),
                                             contractName: "Inbox",
                                             address: _l2Network?.EthBridge?.Inbox,
                                             isClassic: false
                                             );
 
-            var functionData = inbox.ContractBuilder.GetFunctionAbi("depositEth");
+            var functionData = inbox?.ContractBuilder.GetFunctionAbi("depositEth");
             return new L1ToL2TransactionRequest()
             {
                 TxRequest = new TransactionRequest
                 {
                     To = _l2Network?.EthBridge?.Inbox,
-                    Value = parameters.Amount,
-                    Data = functionData.ToString(),
-                    From = parameters.From
+                    Value = parameters?.Amount,
+                    Data = functionData?.ToString(),
+                    From = parameters?.From
                 },
                 IsValid = new Func<Task<bool>>(() => Task.FromResult(true))
             };
@@ -157,7 +157,7 @@ namespace Arbitrum.AssetBridgerModule
 
         public override async Task<L1TransactionReceipt> Deposit(dynamic parameters)
         {
-            await CheckL1Network(new SignerOrProvider(parameters.L1Signer!));
+            await CheckL1Network(new SignerOrProvider(parameters?.L1Signer));
 
             dynamic ethDeposit;
             if (TransactionUtils.IsL1ToL2TransactionRequest(parameters))
@@ -210,7 +210,7 @@ namespace Arbitrum.AssetBridgerModule
                 tx.From = parameters?.L1Signer?.Address;
             }
 
-            var txReceipt = await parameters?.L1Signer?.TransactionManager.SendTransactionAndWaitForReceiptAsync(tx)!;
+            var txReceipt = await parameters?.L1Signer?.TransactionManager.SendTransactionAndWaitForReceiptAsync(tx);
 
             return L1TransactionReceipt.MonkeyPatchEthDepositWait(txReceipt);
         }
@@ -219,19 +219,19 @@ namespace Arbitrum.AssetBridgerModule
         {
             var requestParams = new L1ToL2MessageParams()
             {
-                To = parameters.DestinationAddress,
-                From = parameters.From,
-                L2CallValue = parameters.Amount,
-                CallValueRefundAddress = parameters.DestinationAddress,
+                To = parameters?.DestinationAddress,
+                From = parameters?.From,
+                L2CallValue = parameters?.Amount,
+                CallValueRefundAddress = parameters?.DestinationAddress,
                 Data = "0x".HexToByteArray()
             };
 
-            var gasOverrides = parameters.RetryableGasOverrides ?? null;
+            var gasOverrides = parameters?.RetryableGasOverrides ?? null;
 
             return await L1ToL2MessageCreator.GetTicketCreationRequest(
                 requestParams,
-                parameters.L1Provider!,
-                parameters.L2Provider!,
+                parameters?.L1Provider,
+                parameters?.L2Provider,
                 gasOverrides
                 );
         }
@@ -302,7 +302,7 @@ namespace Arbitrum.AssetBridgerModule
                 tx.From = parameters?.L1Signer?.Address;
             }
 
-            var txReceipt = await parameters?.L1Signer?.TransactionManager.SendTransactionAndWaitForReceiptAsync(tx)!;
+            var txReceipt = await parameters?.L1Signer?.TransactionManager.SendTransactionAndWaitForReceiptAsync(tx);
 
 
             return L1TransactionReceipt.MonkeyPatchContractCallWait(txReceipt);
@@ -311,21 +311,21 @@ namespace Arbitrum.AssetBridgerModule
         public async Task<L2ToL1TransactionRequest> GetWithdrawalRequest(EthWithdrawParams parameters)
         {
             var arbSysContract = await LoadContractUtils.LoadContract(
-                                                            provider: new Web3(parameters.L2Signer!.TransactionManager.Client),
+                                                            provider: new Web3(parameters?.L2Signer?.TransactionManager?.Client),
                                                             contractName: "ArbSys",
                                                             address: Constants.ARB_SYS_ADDRESS,
                                                             isClassic: false
                                                             );
-            var functionData = arbSysContract.ContractBuilder.GetFunctionAbi("withdrawEth");
+            var functionData = arbSysContract?.ContractBuilder.GetFunctionAbi("withdrawEth");
 
             return new L2ToL1TransactionRequest()
             {
                 TxRequest = new TransactionRequest
                 {
                     To = Constants.ARB_SYS_ADDRESS,
-                    Value = parameters.Amount,
-                    Data = functionData.ToString(),
-                    From = parameters.From
+                    Value = parameters?.Amount,
+                    Data = functionData?.ToString(),
+                    From = parameters?.From
                 },
                 EstimateL1GasLimit = async (IClient l1provider) =>
                 {
@@ -344,7 +344,7 @@ namespace Arbitrum.AssetBridgerModule
             };
         }
 
-        public override async Task<L2ContractTransaction> Withdraw(dynamic ethParams)
+        public override async Task<L2TransactionReceipt> Withdraw(dynamic ethParams)
         {
 
             dynamic request;
@@ -356,7 +356,7 @@ namespace Arbitrum.AssetBridgerModule
 
             if (TransactionUtils.IsL2ToL1TransactionRequest(ethParams))
             {
-                request = ethParams!;
+                request = ethParams;
             }
 
             else if (ethParams is EthWithdrawParams)

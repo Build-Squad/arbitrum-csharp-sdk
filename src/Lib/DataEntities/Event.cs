@@ -8,6 +8,11 @@ using Nethereum.Util;
 using System.Text.Json;
 using Arbitrum.Utils;
 using System.Text;
+using Nethereum.ABI.Model;
+using Nethereum.ABI.FunctionEncoding.Attributes;
+using Newtonsoft.Json;
+using static Arbitrum.Utils.LoadContractUtils;
+using Nethereum.ABI.CompilationMetadata;
 
 namespace Arbitrum.DataEntities
 {
@@ -32,7 +37,7 @@ namespace Arbitrum.DataEntities
         public int NumBlocks { get; set; }
     }
 
-    public class NodeCreatedEvent: L2ToL1TransactionEvent
+    public class NodeCreatedEvent : L2ToL1TransactionEvent
     {
         public int? NodeNum { get; set; }
         public string? ParentNodeHash { get; set; }
@@ -77,6 +82,42 @@ namespace Arbitrum.DataEntities
         //}
     }
 
+    public class Input
+    {
+        public string internalType { get; set; }
+        public string name { get; set; }
+        public string type { get; set; }
+        public bool? indexed { get; set; } // Nullable boolean to handle absence of the key
+    }
+    public class Output
+    {
+        public string internalType { get; set; }
+        public string name { get; set; }
+        public string type { get; set; }
+    }
+
+    public class AbiItem
+    {
+        public List<Input> inputs { get; set; }
+        public List<Output> outputs { get; set; } // Add outputs property
+        public string name { get; set; }
+        public string type { get; set; }
+        public string stateMutability { get; set; } // Add stateMutability property
+        public bool? anonymous { get; set; } // Nullable boolean to handle absence of the key
+    }
+
+    public class RootObject
+    {
+        public string _format { get; set; }
+        public string contractName { get; set; }
+        public string sourceName { get; set; }
+        public List<AbiItem> abi { get; set; }
+        public string bytecode { get; set; }
+        public string deployedBytecode { get; set; }
+        public object linkReferences { get; set; }
+        public object deployedLinkReferences { get; set; }
+    }
+
 
 
     public static class LogParser
@@ -88,41 +129,84 @@ namespace Arbitrum.DataEntities
             return BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
         }
 
-        public static async Task<FilterLog[]> ParseTypedLogs(   //////
-            Web3 web3,
-            string contractName,
-            JArray logs,
-            string eventName,
-            bool isClassic = false)
+        public static async Task<IEnumerable<EventLog<T>>> ParseTypedLogs<T, TContract>(
+        Web3 web3,
+        string contractName,
+        JArray logs,
+        string eventName,
+        bool isClassic = false)
+        where TContract : Contract
+        where T : new()
         {
-            var (abi, contractAddress) = await LoadAbi(contractName, isClassic);
+            try
+            {
+                var (abi, contractAddress) = await LoadAbi(contractName, isClassic);
 
-            var contract = new ContractBuilder(abi, contractAddress);
+                var contracta = new ContractBuilder(abi, contractAddress);
 
-            var eventABI = contract.GetEventAbi(contractName);
+                var contract = web3.Eth.GetContract(abi, contractAddress);
 
-            var parsedLogs = EventExtensions.GetLogsForEvent(eventABI, logs);
+                var _event = contract.GetEvent(eventName);
+                var eventABI = _event.EventABI;
 
-            return parsedLogs;
+                //var eventABI = contract.ContractBuilder.GetEventAbi(contractName);
+
+                //FilterLog[] parsedLogs = EventExtensions.GetLogsForEvent(eventABI, logs);
+
+                var parsedLogs = logs.Select(l => new FilterLog
+                {
+                    Address = l["address"].ToString(),
+                    Topics = l["topics"].Select(t => t.ToString()).ToArray(),
+                    Data = l["data"].ToString()
+                }).ToArray();
+
+                var decodedLogs = new List<EventLog<T>>();
+
+                foreach (var log in parsedLogs)
+                {
+                    var logTopic = log.Topics[0];
+                    if (logTopic.ToString() == eventABI.Sha3Signature)
+                    {
+                        var decodedLog = contract.GetEvent(eventName).DecodeAllEventsForEvent<T>(parsedLogs);
+                        decodedLogs.AddRange(decodedLog);
+                    }
+                }
+                return decodedLogs;
+            }
+            catch(Exception ex)
+            {
+                throw new Exception(ex.ToString());
+            }
         }
 
         public static async Task<(string, string)> LoadAbi(string contractName, bool isClassic = false)
         {
-            string abi, bytecode;
+            string abi;
+            string bytecode;
             string filePath = isClassic ? $"src/abi/classic/{contractName}.json" : $"src/abi/{contractName}.json";
 
+            string a = isClassic ? $"../../src/abi/classic/{contractName}.json" : $"src/abi/{contractName}.json";
+
+            string b = "";
             try
             {
                 using (StreamReader reader = new StreamReader(filePath))
                 {
                     string json = await reader.ReadToEndAsync();
-                    var contractData = JsonSerializer.Deserialize<ContractData>(json);
 
-                    if (contractData == null || string.IsNullOrEmpty(contractData.Abi))
+                    string json2 = File.ReadAllText(filePath);
+
+                    var contractData2 = System.Text.Json.JsonSerializer.Deserialize<RootObject>(json);
+
+                    var contractData = System.Text.Json.JsonSerializer.Deserialize<RootObject>(json);
+
+                    if (contractData == null || string.IsNullOrEmpty(contractData.abi.ToString()))
                         throw new Exception($"No ABI found for contract: {contractName}");
+                    RootObject contractData3 = JsonConvert.DeserializeObject<RootObject>(json);
 
-                    abi = contractData.Abi;
-                    bytecode = contractData.Bytecode!;
+
+                    abi = JsonConvert.SerializeObject(contractData3.abi);
+                    bytecode = contractData3.bytecode!;
                 }
             }
             catch (Exception ex)
@@ -131,12 +215,12 @@ namespace Arbitrum.DataEntities
                 throw new Exception($"Error loading ABI for contract {contractName}: {ex.Message}");
             }
 
-            return (abi!, bytecode!);
+            return (abi, bytecode);
         }
 
         private class ContractData
         {
-            public string? Abi { get; set; }
+            public string[]? Abi { get; set; }
             public string? Bytecode { get; set; }
         }
     }

@@ -39,13 +39,13 @@ namespace Arbitrum.DataEntities
         public string? To { get; set; }
 
         [Parameter("uint256", "l2CallValue", 3)]
-        public BigInteger L2CallValue { get; set; }
+        public BigInteger? L2CallValue { get; set; }
 
         [Parameter("uint256", "deposit", 4)]
-        public BigInteger Deposit { get; set; }
+        public BigInteger? Deposit { get; set; }
 
         [Parameter("uint256", "maxSubmissionCost", 5)]
-        public BigInteger MaxSubmissionCost { get; set; }
+        public BigInteger? MaxSubmissionCost { get; set; }
 
         [Parameter("address", "excessFeeRefundAddress", 6)]
         public string? ExcessFeeRefundAddress { get; set; }
@@ -54,10 +54,10 @@ namespace Arbitrum.DataEntities
         public string? CallValueRefundAddress { get; set; }
 
         [Parameter("uint256", "gasLimit", 8)]
-        public BigInteger GasLimit { get; set; }
+        public BigInteger? GasLimit { get; set; }
 
         [Parameter("uint256", "maxFeePerGas", 9)]
-        public BigInteger MaxFeePerGas { get; set; }
+        public BigInteger? MaxFeePerGas { get; set; }
 
         [Parameter("bytes", "data", 10)]
         public byte[]? Data { get; set; }

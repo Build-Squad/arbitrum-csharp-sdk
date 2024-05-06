@@ -102,33 +102,33 @@ namespace Arbitrum.Utils
         {
         }
     }
-    public class L2ToL1TransactionEvent
+    public class L2ToL1TransactionEvent : IEventDTO
     {
         public string? Caller { get; set; }
         public string? Destination { get; set; }
-        public BigInteger ArbBlockNum { get; set; }
-        public BigInteger EthBlockNum { get; set; }
-        public BigInteger Timestamp { get; set; }
-        public BigInteger CallValue { get; set; }
+        public BigInteger? ArbBlockNum { get; set; }
+        public BigInteger? EthBlockNum { get; set; }
+        public BigInteger? Timestamp { get; set; }
+        public BigInteger? CallValue { get; set; }
         public string? Data { get; set; }
-        public BigInteger UniqueId { get; set; }
+        public BigInteger? UniqueId { get; set; }
         public BigInteger BatchNumber { get; set; }
         public BigInteger IndexInBatch { get; set; }
-        public BigInteger Hash { get; set; }
-        public BigInteger Position { get; set; }
+        public BigInteger? Hash { get; set; }
+        public BigInteger? Position { get; set; }
         public string? TransactionHash { get; set; }
 
     }
     public class ClassicL2ToL1TransactionEvent : L2ToL1TransactionEvent
     {
-        public new BigInteger UniqueId { get; set; }
-        public new BigInteger BatchNumber { get; set; }
-        public new BigInteger IndexInBatch { get; set; }
+        public new BigInteger? UniqueId { get; set; }
+        public new BigInteger? BatchNumber { get; set; }
+        public new BigInteger? IndexInBatch { get; set; }
     }
     public class NitroL2ToL1TransactionEvent : L2ToL1TransactionEvent
     {
-        public new BigInteger Hash { get; set; }
-        public new BigInteger Position { get; set; }
+        public new BigInteger? Hash { get; set; }
+        public new BigInteger? Position { get; set; }
     }
     public class BlockTag
     {
@@ -328,11 +328,25 @@ namespace Arbitrum.Utils
 
         public static async Task<Contract> LoadContract(string contractName, object provider, string? address = null, bool isClassic = false)
         {
-            var web3Provider = GetWeb3Provider(provider);
+            Contract contract;
+            try
+            {
 
-            var (abi, contractAddress) =await LogParser.LoadAbi(contractName, isClassic);
+                var web3Provider = GetWeb3Provider(provider);
 
-            var contract = web3Provider.Eth.GetContract(abi, contractAddress);
+                var (abi, contractAddress) = await LogParser.LoadAbi(contractName, isClassic);
+                // Ensure the address is exactly 42 characters long, including '0x' prefix
+                if (contractAddress.Length < 42)
+                {
+                    contractAddress = contractAddress.PadRight(42, '0');
+                }
+
+                contract = web3Provider.Eth.GetContract(abi, contractAddress);
+            }
+            catch (Exception ex) 
+            {
+                throw new Exception(ex.Message, ex.InnerException);
+            }
 
             return contract;
         }

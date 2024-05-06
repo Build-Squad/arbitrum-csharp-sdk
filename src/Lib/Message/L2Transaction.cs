@@ -13,6 +13,7 @@ using Nethereum.Web3;
 using Arbitrum.DataEntities;
 using Arbitrum.Utils;
 using Nethereum.ABI.FunctionEncoding.Attributes;
+using System.Linq;
 
 namespace Arbitrum.Message
 {
@@ -45,16 +46,16 @@ namespace Arbitrum.Message
 
     public class RedeemTransaction
     {
-        private readonly L2ContractTransaction _transaction;
+        private readonly L2TransactionReceipt _transaction;
         private readonly Web3 _l2Provider;
 
-        public RedeemTransaction(L2ContractTransaction transaction, Web3 l2Provider)
+        public RedeemTransaction(L2TransactionReceipt transaction, Web3 l2Provider)
         {
             _transaction = transaction;
             _l2Provider = l2Provider;
         }
 
-        public L2ContractTransaction Wait()
+        public L2TransactionReceipt Wait()
         {
             return _transaction;
         }
@@ -69,7 +70,7 @@ namespace Arbitrum.Message
                 throw new ArbSdkError($"Transaction is not a redeem transaction: {_transaction.TransactionHash}");
             }
 
-            return await Lib.GetTransactionReceiptAsync(redeemScheduledEvents[0]["retryTxHash"]);
+            return await Lib.GetTransactionReceiptAsync(web3: _l2Provider, txHash: redeemScheduledEvents?.FirstOrDefault()?.Event?.RetryTxHash);
         }
     }
 
@@ -114,17 +115,28 @@ namespace Arbitrum.Message
             Status = tx.Status;
         }
 
-        public async Task<FilterLog[]> GetL2ToL1Events(Web3 provider)
+        public async Task<IEnumerable<EventLog<L2ToL1TransactionEvent>>> GetL2ToL1Events(Web3 provider)
         {
-            var classicLogs = await LogParser.ParseTypedLogs(provider, "ArbSys", Logs, "L2ToL1Transaction", isClassic: false);
-            var nitroLogs = await LogParser.ParseTypedLogs(provider, "ArbSys", Logs, "L2ToL1Tx", isClassic: false);
+            var classicLogs = await LogParser.ParseTypedLogs<ClassicL2ToL1TransactionEvent, Contract>(provider, "ArbSys", Logs, "L2ToL1Transaction", isClassic: false);
+            var nitroLogs = await LogParser.ParseTypedLogs<NitroL2ToL1TransactionEvent, Contract>(provider, "ArbSys", Logs, "L2ToL1Tx", isClassic: false);
 
-            return classicLogs.Concat(nitroLogs).ToArray();
+
+            // Convert classicLogs to a list of EventLog<L2ToL1TransactionEvent>
+            var classicList = classicLogs.Select(log => new EventLog<L2ToL1TransactionEvent>(log.Event, log.Log)).ToList();
+
+            // Convert nitroLogs to a list of EventLog<L2ToL1TransactionEvent>
+            var nitroList = nitroLogs.Select(log => new EventLog<L2ToL1TransactionEvent>(log.Event, log.Log)).ToList();
+
+            // Concatenate the two lists
+            var allLogs = classicList.Concat(nitroList);
+
+            return allLogs;
+
         }
 
-        public async Task<FilterLog[]> GetRedeemScheduledEvents(Web3 provider)
+        public async Task<IEnumerable<EventLog<RedeemScheduledEvent>>> GetRedeemScheduledEvents(Web3 provider)
         {
-            var redeemScheduledEvents = await LogParser.ParseTypedLogs(provider, "ArbRetryableTx", Logs, "RedeemScheduled");
+            var redeemScheduledEvents = await LogParser.ParseTypedLogs<RedeemScheduledEvent, Contract>(provider, "ArbRetryableTx", Logs, "RedeemScheduled");
             return redeemScheduledEvents.ToArray();
         }
 
@@ -144,7 +156,7 @@ namespace Arbitrum.Message
 
             foreach (var log in events)
             {
-                messages.Add(await L2ToL1Message.FromEvent<T>(l1SignerOrProvider, log));
+                messages.Add(await L2ToL1Message.FromEvent<T>(l1SignerOrProvider, log.Event));
             }
 
             return messages;
@@ -188,13 +200,13 @@ namespace Arbitrum.Message
             return (int)batchConfirmations > confirmations;
         }
 
-        public static L2ContractTransaction MonkeyPatchWait(TransactionReceipt contractTransaction)   /////
+        public static L2TransactionReceipt MonkeyPatchWait(TransactionReceipt contractTransaction)   /////
         {
 
             return new L2TransactionReceipt(contractTransaction);
         }
 
-        public static RedeemTransaction ToRedeemTransaction(L2ContractTransaction redeemTx, Web3 l2Provider)
+        public static RedeemTransaction ToRedeemTransaction(L2TransactionReceipt redeemTx, Web3 l2Provider)
         {
             return new RedeemTransaction(redeemTx, l2Provider);
 

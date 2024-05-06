@@ -18,19 +18,19 @@ namespace Arbitrum.AssetBridgerModule
         public AssetBridger(L2Network l2Network)
         {
             L2Network = l2Network;
-            NativeToken = l2Network.NativeToken;
+            NativeToken = l2Network?.NativeToken;
             if (L1Network == null)
             {
-                throw new ArbSdkError($"Unknown l1 network chain id: {l2Network.PartnerChainID}");
+                throw new ArbSdkError($"Unknown l1 network chain id: {l2Network?.PartnerChainID}");
             }
         }
 
         public async Task InitializeAsync()
         {
-            L1Network = await NetworkUtils.GetL1NetworkAsync(L2Network.PartnerChainID);
+            L1Network = await NetworkUtils.GetL1NetworkAsync(L2Network?.PartnerChainID);
             if (L1Network == null)
             {
-                throw new ArbSdkError($"Unknown l1 network chain id: {L2Network.PartnerChainID}");
+                throw new ArbSdkError($"Unknown l1 network chain id: {L2Network?.PartnerChainID}");
             }
         }
 
@@ -48,7 +48,7 @@ namespace Arbitrum.AssetBridgerModule
 
         public abstract Task<L1TransactionReceipt> Deposit(dynamic parameters);
 
-        public abstract Task<L2ContractTransaction> Withdraw(dynamic parameters);
+        public abstract Task<L2TransactionReceipt> Withdraw(dynamic parameters);
 
     }
 }

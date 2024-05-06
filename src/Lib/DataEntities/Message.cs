@@ -1,44 +1,59 @@
-﻿using System.Numerics;
+﻿using Nethereum.ABI.FunctionEncoding.Attributes;
+using Nethereum.Hex.HexTypes;
+using System.Numerics;
 
 namespace Arbitrum.DataEntities
 {
     /* The components of a submit retryable message. 
      * Can be parsed from the events emitted from the Inbox.
      */
-    public class RetryableMessageParams
+    [FunctionOutput]
+    public class RetryableMessageParams : FunctionOutputDTO
     {
-        /* Destination address for L2 message */
-        public string? DestAddress { get; set; }
+        [Parameter("address", 1)]
+        public string? DestAddress { get; set; } // Destination address for L2 message
 
-        /* Call value in L2 message */
-        public BigInteger L2CallValue { get; set; }
+        [Parameter("uint256", 2)]
+        public BigInteger L2CallValue { get; set; } // Call value in L2 message
 
-        /* Value sent at L1 */
-        public BigInteger L1Value { get; set; }
+        [Parameter("uint256", 3)]
+        public BigInteger L1Value { get; set; } // Value sent at L1
 
-        /* Max gas deducted from L2 balance to cover base submission fee */
-        public BigInteger MaxSubmissionFee { get; set; }
+        [Parameter("uint256", 4)]
+        public BigInteger MaxSubmissionFee { get; set; } // Max gas deducted from L2 balance to cover base submission fee
 
-        /* L2 address to credit (gaslimit x gasprice - execution cost) */
-        public string? ExcessFeeRefundAddress { get; set; }
+        [Parameter("address", 5)]
+        public string ExcessFeeRefundAddress { get; set; } // L2 address to credit (gaslimit x gasprice - execution cost)
 
-        /* Address to credit l2Callvalue on L2 if retryable txn times out or gets cancelled */
-        public string? CallValueRefundAddress { get; set; }
+        [Parameter("address", 6)]
+        public string CallValueRefundAddress { get; set; } // Address to credit l2Callvalue on L2 if retryable txn times out or gets cancelled
 
-        /* Max gas deducted from user's L2 balance to cover L2 execution */
-        public BigInteger GasLimit { get; set; }
+        [Parameter("uint256", 7)]
+        public BigInteger GasLimit { get; set; } // Max gas deducted from user's L2 balance to cover L2 execution
 
-        /* Gas price for L2 execution */
-        public BigInteger MaxFeePerGas { get; set; }
+        [Parameter("uint256", 8)]
+        public BigInteger MaxFeePerGas { get; set; } // Gas price for L2 execution
 
-        /* Calldata for of the L2 message */
-        public string? Data { get; set; }
+        [Parameter("bytes", 9)]
+        public byte[] Data { get; set; } // Calldata for of the L2 message
     }
 
-    /* The inbox message kind as defined in:
-     * https://github.com/OffchainLabs/nitro/blob/c7f3429e2456bf5ca296a49cec3bb437420bc2bb/contracts/src/libraries/MessageTypes.sol
-     */
-    public enum InboxMessageKind
+
+    [FunctionOutput]
+    public class RetryableMessageParamsTest : FunctionOutputDTO
+    {
+
+        [Parameter("address", 1)]
+        public string? destAddr { get; set; } // Destination address for L2 message
+
+        [Parameter("uint256", 2)]
+        public BigInteger l2CallValue { get; set; } // Call value in L2 message
+
+
+    }
+
+
+        public enum InboxMessageKind
     {
         L1MessageType_submitRetryableTx = 9,
         L1MessageType_ethDeposit = 12,

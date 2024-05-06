@@ -281,15 +281,15 @@ namespace Arbitrum.Message
                 Sender,
                 MessageNumber,
                 L1BaseFee,
-                MessageData?.DestAddress!,
-                MessageData!.L2CallValue,
+                MessageData?.DestAddress.ToString(),
+                MessageData.L2CallValue,
                 MessageData.L1Value,
                 MessageData.MaxSubmissionFee,
-                MessageData?.ExcessFeeRefundAddress!,
-                MessageData?.CallValueRefundAddress!,
+                MessageData?.ExcessFeeRefundAddress.ToString(),
+                MessageData?.CallValueRefundAddress.ToString(),
                 MessageData!.GasLimit,
                 MessageData.MaxFeePerGas,
-                MessageData?.Data!);
+                MessageData?.Data.ToString());
         }
 
         /**
@@ -469,7 +469,7 @@ namespace Arbitrum.Message
 
                 if (redeemEvents.Count() == 1)
                 {
-                    return await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(redeemEvents[0].TransactionHash); 
+                    return await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(redeemEvents?.FirstOrDefault()?.Event?.RetryTxHash); 
                 }
                 else if (redeemEvents.Count() > 1)
                 {

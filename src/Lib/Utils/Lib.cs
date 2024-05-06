@@ -27,10 +27,11 @@ namespace Arbitrum.Utils
                     isClassic: false
                     );
                 var arbSysContractFunction = arbSysContract.GetFunction("arbOSVersion");
+
                 await arbSysContractFunction.CallAsync<bool>();
                 return true;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return false;
             }
@@ -71,7 +72,7 @@ namespace Arbitrum.Utils
                 {
                     return null!;
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     throw;
                 }
@@ -87,21 +88,29 @@ namespace Arbitrum.Utils
                 {
                     return null!;
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     throw;
                 }
             }
         }
 
-        public static async Task<BigInteger?> GetFirstBlockForL1Block(
+        public static async Task<dynamic?> GetFirstBlockForL1Block(
         IClient provider,
-        BigInteger forL1Block,
+        int forL1Block,
         bool allowGreater = false,
-        BigInteger? minL2Block = null,
-        string maxL2Block = "latest"
+        int? minL2Block = null,
+        dynamic maxL2Block = null
         )
         {
+            // Check if maxL2Block is null or a string
+            if (maxL2Block == null || maxL2Block is string)
+            {
+                // Handle if maxL2Block is null or a string value
+                // You can convert it to string if necessary
+                maxL2Block = maxL2Block?.ToString() ?? "latest";
+                // Proceed with your logic
+            }
             if (!await IsArbitrumChain(new Web3(provider)))
             {
                 return forL1Block;
@@ -113,10 +122,10 @@ namespace Arbitrum.Utils
             var arbitrumChainId = await arbProvider.Eth.ChainId.SendRequestAsync();
             var nitroGenesisBlock = NetworkUtils.l2Networks[(int)arbitrumChainId.Value].NitroGenesisBlock;
              
-            async Task<BigInteger> GetL1Block(BigInteger forL2Block)
+            async Task<int> GetL1Block(int forL2Block)
             {
                 var block = await arbProvider.GetBlock(forL2Block.ToHexBigInteger());
-                return BigInteger.Parse(block.L1BlockNumber.ToString(), System.Globalization.NumberStyles.HexNumber);
+                return block.L1BlockNumber;
             }
 
             if (!minL2Block.HasValue)
@@ -124,12 +133,12 @@ namespace Arbitrum.Utils
                 minL2Block = nitroGenesisBlock;
             }
 
-            if (maxL2Block == "latest")
+            if (maxL2Block.ToString() == "latest")
             {
                 maxL2Block = currentArbBlock.ToString();
             }
 
-            if (minL2Block >= BigInteger.Parse(maxL2Block))
+            if (minL2Block >= maxL2Block)
             {
                 throw new ArgumentException($"'minL2Block' ({minL2Block}) must be lower than 'maxL2Block' ({maxL2Block}).");
             }
@@ -140,10 +149,10 @@ namespace Arbitrum.Utils
             }
 
             var start = minL2Block.Value;
-            var end = BigInteger.Parse(maxL2Block);
+            var end = maxL2Block;
 
-            BigInteger? resultForTargetBlock = null;
-            BigInteger? resultForGreaterBlock = null;
+            dynamic? resultForTargetBlock = null;
+            dynamic? resultForGreaterBlock = null;
 
             while (start <= end)
             {
@@ -173,16 +182,23 @@ namespace Arbitrum.Utils
         }
 
 
-        public static async Task<object[]> GetBlockRangesForL1Block(
+        public static async Task<int[]> GetBlockRangesForL1Block(
         IClient provider,
         int forL1Block,
         bool allowGreater = false,
         int? minL2Block = null,
-        string maxL2Block = "latest"
+        dynamic maxL2Block = null
         )
         {
+            // Check if maxL2Block is null or a string
+            if (maxL2Block == null || maxL2Block is string)
+            {
+                // Handle if maxL2Block is null or a string value
+                // You can convert it to string if necessary
+                maxL2Block = maxL2Block?.ToString() ?? "latest";
+            }
             // Convert maxL2Block to current block number if needed
-            if (maxL2Block == "latest")
+            if (maxL2Block.ToString() == "latest")
             {
                 maxL2Block = (await new Web3(provider).Eth.Blocks.GetBlockNumber.SendRequestAsync()).Value.ToString();
             }
@@ -209,15 +225,15 @@ namespace Arbitrum.Utils
 
             if (startBlock == null)
             {
-                return new object[] { null, null };
+                return new int[] { 0, 0 };
             }
 
             if (startBlock != null && endBlock != null)
             {
-                return new object[] { startBlock, endBlock - 1 };
+                return new int[] { startBlock, endBlock - 1 };
             }
 
-            return new object[] { startBlock!, maxL2Block };
+            return new int[] { startBlock!, maxL2Block };
         }
 
     }

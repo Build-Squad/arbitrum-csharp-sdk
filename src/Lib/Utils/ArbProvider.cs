@@ -92,7 +92,7 @@ namespace Arbitrum.Utils
             };
         }
 
-        public ArbBlock Block(dynamic block)
+        public ArbBlock Block(BlockWithTransactions block)
         {
             if (block == null)
             {
@@ -102,33 +102,34 @@ namespace Arbitrum.Utils
             var formattedBlock = new ArbBlock
             {
                 // Assign values from `block` to the properties of `Block` using null-coalescing
-                SendRoot = block.SendRoot ?? null,
-                SendCount = block.SendCount ?? null,
-                L1BlockNumber = block.L1BlockNumber ?? null,
-                Number = block.Number ?? null,
-                BlockHash = block.BlockHash ?? null,
-                Author = block.Author ?? null,
-                SealFields = block.SealFields ?? null,
-                ParentHash = block.ParentHash ?? null,
-                Nonce = block.Nonce ?? null,
-                Sha3Uncles = block.Sha3Uncles ?? null,
-                LogsBloom = block.LogsBloom ?? null,
-                TransactionsRoot = block.TransactionsRoot ?? null,
-                StateRoot = block.StateRoot ?? null,
-                ReceiptsRoot = block.ReceiptsRoot ?? null,
-                Miner = block.Miner ?? null,
-                Difficulty = block.Difficulty ?? null,
-                TotalDifficulty = block.TotalDifficulty ?? null,
-                MixHash = block.MixHash ?? null,
-                ExtraData = block.ExtraData ?? null,
-                Size = block.Size ?? null,
-                GasLimit = block.GasLimit ?? null,
-                GasUsed = block.GasUsed ?? null,
-                Timestamp = block.Timestamp ?? null,
-                Uncles = block.Uncles ?? null,
-                BaseFeePerGas = block.BaseFeePerGas ?? null,
-                WithdrawalsRoot = block.WithdrawalsRoot ?? null,
-                Withdrawals = block.Withdrawals ?? null,
+                //SendRoot = block?.SendRoot ?? null,
+                //SendCount = block?.SendCount ?? null,
+                //L1BlockNumber = block?.L1BlockNumber ?? null,
+                L1BlockNumber = (int)block?.Number?.Value,
+                Number = block?.Number,
+                BlockHash = block?.BlockHash,
+                Author = block?.Author,
+                SealFields = block?.SealFields,
+                ParentHash = block?.ParentHash,
+                Nonce = block?.Nonce,
+                Sha3Uncles = block?.Sha3Uncles,
+                LogsBloom = block?.LogsBloom,
+                TransactionsRoot = block?.TransactionsRoot,
+                StateRoot = block?.StateRoot,
+                ReceiptsRoot = block?.ReceiptsRoot,
+                Miner = block?.Miner,
+                Difficulty = block?.Difficulty,
+                TotalDifficulty = block?.TotalDifficulty,
+                MixHash = block?.MixHash,
+                ExtraData = block?.ExtraData,
+                Size = block?.Size,
+                GasLimit = block?.GasLimit,
+                GasUsed = block?.GasUsed,
+                Timestamp = block?.Timestamp,
+                Uncles = block?.Uncles,
+                BaseFeePerGas = block?.BaseFeePerGas,
+                WithdrawalsRoot = block?.WithdrawalsRoot,
+                Withdrawals = block?.Withdrawals
             };
 
             return formattedBlock;
@@ -144,34 +145,34 @@ namespace Arbitrum.Utils
             var formattedBlock = new ArbBlockWithTransactions
             {
                 // Assign values from `block` to the properties of `Block` using null-coalescing
-                SendRoot = block.SendRoot ?? null,
-                SendCount = block.SendCount ?? null,
-                L1BlockNumber = block.L1BlockNumber ?? null,
-                Transactions = block.Transactions ?? null,
-                Number = block.Number ?? null,
-                BlockHash = block.BlockHash ?? null,
-                Author = block.Author ?? null,
-                SealFields = block.SealFields ?? null,
-                ParentHash = block.ParentHash ?? null,
-                Nonce = block.Nonce ?? null,
-                Sha3Uncles = block.Sha3Uncles ?? null,
-                LogsBloom = block.LogsBloom ?? null,
-                TransactionsRoot = block.TransactionsRoot ?? null,
-                StateRoot = block.StateRoot ?? null,
-                ReceiptsRoot = block.ReceiptsRoot ?? null,
-                Miner = block.Miner ?? null,
-                Difficulty = block.Difficulty ?? null,
-                TotalDifficulty = block.TotalDifficulty ?? null,
-                MixHash = block.MixHash ?? null,
-                ExtraData = block.ExtraData ?? null,
-                Size = block.Size ?? null,
-                GasLimit = block.GasLimit ?? null,
-                GasUsed = block.GasUsed ?? null,
-                Timestamp = block.Timestamp ?? null,
-                Uncles = block.Uncles ?? null,
-                BaseFeePerGas = block.BaseFeePerGas ?? null,
-                WithdrawalsRoot = block.WithdrawalsRoot ?? null,
-                Withdrawals = block.Withdrawals ?? null,
+                //SendRoot = block?.SendRoot ?? null,
+                //SendCount = block?.SendCount ?? null,
+                //L1BlockNumber = block?.L1BlockNumber ?? null,
+                Transactions = block?.Transactions ?? null,
+                Number = block?.Number ?? null,
+                BlockHash = block?.BlockHash ?? null,
+                Author = block?.Author ?? null,
+                SealFields = block?.SealFields ?? null,
+                ParentHash = block?.ParentHash ?? null,
+                Nonce = block?.Nonce ?? null,
+                Sha3Uncles = block?.Sha3Uncles ?? null,
+                LogsBloom = block?.LogsBloom ?? null,
+                TransactionsRoot = block?.TransactionsRoot ?? null,
+                StateRoot = block?.StateRoot ?? null,
+                ReceiptsRoot = block?.ReceiptsRoot ?? null,
+                Miner = block?.Miner ?? null,
+                Difficulty = block?.Difficulty ?? null,
+                TotalDifficulty = block?.TotalDifficulty ?? null,
+                MixHash = block?.MixHash ?? null,
+                ExtraData = block?.ExtraData ?? null,
+                Size = block?.Size ?? null,
+                GasLimit = block?.GasLimit ?? null,
+                GasUsed = block?.GasUsed ?? null,
+                Timestamp = block?.Timestamp ?? null,
+                Uncles = block?.Uncles ?? null,
+                BaseFeePerGas = block?.BaseFeePerGas ?? null,
+                WithdrawalsRoot = block?.WithdrawalsRoot ?? null,
+                Withdrawals = block?.Withdrawals ?? null,
             };
 
             return formattedBlock;
@@ -198,9 +199,18 @@ namespace Arbitrum.Utils
             return ArbFormatter.BlockWithTransactions(block);
         }
 
-        public async Task<ArbBlock> GetBlock(HexBigInteger blockIdentifier)
+        public async Task<ArbBlock> GetBlock(dynamic blockIdentifier)
         {
-            var block =  await Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(blockIdentifier);  
+            BlockWithTransactions block;
+            try
+            {
+                //Console.WriteLine(typeof(blockIdentifier));
+                block = await Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(new HexBigInteger(blockIdentifier));
+            }
+            catch(Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
             return ArbFormatter.Block(block);
         }
     }

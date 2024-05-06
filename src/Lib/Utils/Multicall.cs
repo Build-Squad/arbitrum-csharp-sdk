@@ -6,6 +6,12 @@
 //using System.Numerics;
 //using Nethereum.Web3;
 //using Nethereum.RLP;
+//using Nethereum.Contracts.Standards.ENS.ETHRegistrarController.ContractDefinition;
+//using Nethereum.ABI.FunctionEncoding.Attributes;
+//using System.Text.Unicode;
+//using Nethereum.ABI;
+//using System.Text;
+//using static System.Runtime.InteropServices.JavaScript.JSType;
 
 //namespace Arbitrum.Utils
 //{
@@ -24,18 +30,67 @@
 //        /// <summary>
 //        /// Function to decode the result of the call.
 //        /// </summary>
-//        public Func<byte[], T>? Decoder { get; set; }
+//        public Func<string, T>? Decoder { get; set; }
+//    }
+//    public class DecoderReturnType<T, TRequireSuccess>
+//    {
+//        public Dictionary<string, Type> Types { get; private set; }
+
+//        public DecoderReturnType()
+//        {
+//            Types = new Dictionary<string, Type>();
+//        }
+
+//        public void AddDecoderType<K>(string key)
+//        {
+//            var type = typeof(K);
+//            Types[key] = type;
+//        }
+//    }
+//    public class AllowanceInputOutput<T>
+//    {
+//        public BigInteger Allowance { get; set; }
 //    }
 
+//    public class BalanceInputOutput<T>
+//    {
+//        public BigInteger Balance { get; set; }
+//    }
 
+//    public class DecimalsInputOutput<T>
+//    {
+//        public int Decimals { get; set; }
+//    }
+
+//    public class NameInputOutput<T>
+//    {
+//        public string? Name { get; set; }
+//    }
+
+//    public class SymbolInputOutput<T>
+//    {
+//        public string? Symbol { get; set; }
+//    }
+
+//    public class AllowanceType
+//    {
+//        public string? Owner { get; set; }
+//        public string? Spender { get; set; }
+//    }
+
+//    public class BalanceOfType
+//    {
+//        public string? Account { get; set; }
+//    }
 //    public class TokenMultiInput
 //    {
 //        //All types here taken from Nethereum.Contracts.Standards.ERC20.ContractDefinition
-//        public BalanceOfFunction? BalanceOf { get; set; }
-//        public AllowanceFunction? Allowance { get; set; }
-//        public SymbolFunction? Symbol { get; set; }
-//        public DecimalsFunction? Decimals { get; set; }
-//        public NameFunction? Name { get; set; }
+//        public BalanceOfType? BalanceOf { get; set; }
+         
+//        public AllowanceType? Allowance { get; set; }
+//        public bool? Symbol { get; set; } = true;
+//        public bool? Decimals { get; set; } = true;
+//        public bool? Name { get; set; } = true;
 //    }
 
 //    class MultiCaller
@@ -63,7 +118,15 @@
 //            var l2Network = NetworkUtils.l2Networks.ContainsKey(chainId) ? NetworkUtils.l2Networks[chainId] : null;
 //            var l1Network = NetworkUtils.l1Networks.ContainsKey(chainId) ? NetworkUtils.l1Networks[chainId] : null;
 
-//            var network = l2Network != null ? l2Network : l1Network;
+//            dynamic network;
+//            if(l2Network != null)
+//            {
+//                network = l2Network;
+//            }
+//            else
+//            {
+//                network = l1Network;
+//            }
 
 //            if (network == null)
 //            {
@@ -74,17 +137,17 @@
 
 //            if (NetworkUtils.IsL1Network(network))
 //            {
-//                var firstL2 = NetworkUtils.l2Networks[network.PartnerChainIDs![0]];
+//                var firstL2 = NetworkUtils.l2Networks[network?.PartnerChainIDs[0]];
 //                if (firstL2 == null)
 //                {
-//                    throw new Exception($"No partner chain found for L1 network: {network.ChainID}. Partner chain IDs: {l1Network?.PartnerChainIDs}");
+//                    throw new Exception($"No partner chain found for L1 network: {network?.ChainID}. Partner chain IDs: {l1Network?.PartnerChainIDs}");
 //                }
 
-//                multiCallAddr = firstL2.TokenBridge.L1MultiCall;
+//                multiCallAddr = firstL2?.TokenBridge?.L1MultiCall;
 //            }
 //            else
 //            {
-//                multiCallAddr = network.TokenBridge.L2MultiCall;
+//                multiCallAddr = network?.TokenBridge?.L2MultiCall;
 //            }
 
 //            return new MultiCaller(provider, multiCallAddr);
@@ -96,7 +159,7 @@
 //            return contract.GetFunction(functionName);
 //        }
 
-//        public async Task<NewCallInput<ParameterOutput>> getBlockNumberInput()
+//        public async Task<NewCallInput<ParameterOutput>> GetBlockNumberInput()
 //        {
 //            var iFace = await LoadContractUtils.LoadContract(
 //                                            provider: provider,
@@ -105,6 +168,8 @@
 //                                            isClassic: true
 //                                            );
 
+//            ABIEncode encoder = new ABIEncode();
+
 //            return new NewCallInput<ParameterOutput>
 //            {
 //                TargetAddr = address,
@@ -112,15 +177,11 @@
 //                Encoder = () =>
 //                {
 //                    var functionAbi = iFace.ContractBuilder.GetFunctionAbi("getBlockNumber");
-
-//                    var function = iFace.GetFunction(functionAbi.Name);
-
-//                    return function.GetData();
+//                    //var function = iFace.GetFunction(functionAbi.Name);
+//                    return encoder.GetABIEncoded(functionAbi);
 //                },
 //                Decoder = (returnData) =>
-
 //                {
-
 //                    // Use the interface (iFace) to decode the return data of 'getBlockNumber'
 //                    var decodedData = iFace.GetFunction("getBlockNumber").DecodeInput(returnData);
 
@@ -137,6 +198,7 @@
 //                                address: address,
 //                                isClassic: true
 //                                );
+//            ABIEncode encoder = new ABIEncode();
 
 //            return new NewCallInput<ParameterOutput>
 //            {
@@ -145,72 +207,136 @@
 //                Encoder = () =>
 //                {
 //                    var functionAbi = iFace.ContractBuilder.GetFunctionAbi("getCurrentBlockTimestamp");
-//                    var function = iFace.GetFunction(functionAbi.Name);
-//                    return function.GetData();
+//                    //var function = iFace.GetFunction(functionAbi.Name);
+//                    return encoder.GetABIEncoded(functionAbi);
 //                },
 
 //                Decoder = (returnData) =>
 //                {
-
 //                    // Use the interface (iFace) to decode the return data of 'getCurrentBlockTimestamp'
-
 //                    var decodedData = iFace.GetFunction("getCurrentBlockTimestamp").DecodeInput(returnData);
 
-//                    return decodedData.FirstOrDefault()!; // Return the first result
+//                    return decodedData.FirstOrDefault(); // Return the first result
 //                }
 //            };
 //        }
 
-//        public async Task<List<ParameterOutput>> MultiCall(
-//            List<NewCallInput<ParameterOutput>> parameters,
-//            bool requireSuccess = default
-//        )
-//        {
-//            // Load the Multicall2 contract
-//            var multiCallContract = await LoadContractUtils.LoadContract(
-//                                                                provider: provider,
-//                                                                contractName: "Multicall2",
-//                                                                address: address,
-//                                                                isClassic: true
-//                                                                );
 
-//            // Prepare the arguments for the tryAggregate function
-//            var args = parameters.Select(p => new Call3
+
+//        public async Task<List<T>> MultiCall<T, TRequireSuccess>
+//            (List<T> parameters, TRequireSuccess requireSuccess = default)
+//            where T : NewCallInput<ParameterOutput>
+//            where TRequireSuccess : struct, IConvertible
+//        {
+//            var multiCallContract = await LoadContractUtils.LoadContract(
+//                provider: provider,
+//                contractName: "Multicall2",
+//                address: address,
+//                isClassic: true
+//            );
+
+//            //await new MultiQueryHandler(provider.Client).MultiCallAsync();
+
+//            var callInput = multiCallContract.GetFunction("tryAggregate").(parameters, requireSuccess);
+
+
+//            var args = parameters.Select(p => new
 //            {
-//                Target = p.TargetAddr,
-//                CallData = p.Encoder()
+//                target = p.TargetAddr,
+//                callData = p.Encoder()
 //            }).ToList();
 
-//            var multiCallContractFunction = multiCallContract.GetFunction("tryAggregate");
+//            var outputs = await multiCallContract.GetFunction("tryAggregate").CallAsync<List<Result>>(requireSuccess, args);
 
-//            var outputs = await multiCallContractFunction.CallAsync<List<Result>>(requireSuccess, args);
-
-//            var a = outputs
-//            // Create a list to store the results
-//            var resultsList = new List<ParameterOutput>();
-
-//            // Process the outputs
-//            for (int i = 0; i < outputs.Count(); i++)
+//            return outputs.Select((output, index) =>
 //            {
-//                var output = outputs[i];
-//                var parameter = parameters[i];
-
-//                // Check if the output is successful
-//                if (output.Success)
+//                if (output.Success && output.ReturnData != null && output.ReturnData.ToString() != "0x")
 //                {
-//                    // Decode the return data using the decoder from the parameter
-//                    var decodedResult = parameter.Decoder?.Invoke(output.ReturnData);
-//                    resultsList.Add(decodedResult!);
+//                    return parameters[index].Decoder(output.ReturnData);
 //                }
-//                else
-//                {
-//                    // If the output is not successful, add null to the list
-//                    resultsList.Add(null!);
-//                }
-//            }
-
-//            return resultsList;
+//                return default;
+//            }).ToList() as DecoderReturnType<NewCallInput<ParameterOutput>, TRequireSuccess>;
 //        }
+
+//        //public async Task<DecoderReturnType<NewCallInput<dynamic>, TRequireSuccess>> MultiCall<T, TRequireSuccess>(dynamic[] parameters, bool requireSuccess = false)
+//        //{
+//        //    var defaultedRequireSuccess = requireSuccess;
+//        //    var multiCall = await LoadContractUtils.LoadContract(
+//        //                                                        provider: provider,
+//        //                                                        contractName: "Multicall2",
+//        //                                                        address: address,
+//        //                                                        isClassic: true
+//        //                                                        );
+//        //    var args = parameters.Select(p => new
+//        //    {
+//        //        target = p.targetAddr,
+//        //        callData = p.encoder()
+//        //    }).ToList();
+
+//        //    var multiCallContractFunction = multiCall.GetFunction("tryAggregate");
+
+//        //    var outputs = await multiCallContractFunction.CallAsync<List<Result>>(requireSuccess, args);
+
+
+//        //    return outputs.Select((output, index) =>
+//        //    {
+//        //        if (output.Success && output.ReturnData != null && output.ReturnData.ToString() != "0x")
+//        //        {
+//        //            return parameters[index].decoder(output.ReturnData);
+//        //        }
+//        //        return default;
+//        //    }).ToList() as DecoderReturnType<NewCallInput<dynamic>, TRequireSuccess>;
+//        //}
+
+////    public async Task<List<ParameterOutput>> MultiCall(
+////            List<NewCallInput<ParameterOutput>> parameters,
+////            bool requireSuccess = default
+////        )
+////        {
+////            // Load the Multicall2 contract
+////            var multiCallContract = await LoadContractUtils.LoadContract(
+////                                                                provider: provider,
+////                                                                contractName: "Multicall2",
+////                                                                address: address,
+////                                                                isClassic: true
+////                                                                );
+
+////            // Prepare the arguments for the tryAggregate function
+////            var args = parameters.Select(p => new Call3
+////            {
+////                Target = p.TargetAddr,
+////                CallData = p.Encoder()
+////=            }).ToList();
+
+////            var multiCallContractFunction = multiCallContract.GetFunction("tryAggregate");
+
+////            var outputs = await multiCallContractFunction.CallAsync<List<Result>>(requireSuccess, args);
+
+////            // Create a list to store the results
+////            var resultsList = new List<ParameterOutput>();
+
+////            // Process the outputs
+////            for (int i = 0; i < outputs.Count(); i++)
+////            {
+////                var output = outputs[i];
+////                var parameter = parameters[i];
+
+////                // Check if the output is successful
+////                if (output.Success)
+////                {
+////                    // Decode the return data using the decoder from the parameter
+////                    var decodedResult = parameter.Decoder?.Invoke(output.ReturnData);
+////                    resultsList.Add(decodedResult);
+////                }
+////                else
+////                {
+////                    // If the output is not successful, add null to the list
+////                    resultsList.Add(null);
+////                }
+////            }
+
+////            return resultsList;
+////        }
 
 //        public async Task<List<TokenMultiInput>> GetTokenData<T>(string[] erc20Addresses, T? options = default)
 //            where T : TokenMultiInput
@@ -233,14 +359,14 @@
 //                if (defaultedOptions?.BalanceOf != null)
 //                {
 //                    var account = defaultedOptions?.BalanceOf?.Account;
-//                    inputs.Add(CreateCallInput(address, erc20Iface, "balanceOf", new object[] { account! }));
+//                    inputs.Add(CreateCallInput(address, erc20Iface, "balanceOf", new object[] { account }));
 //                }
 
 //                if (defaultedOptions?.Allowance != null)
 //                {
 //                    var owner = defaultedOptions.Allowance.Owner;
 //                    var spender = defaultedOptions.Allowance.Spender;
-//                    inputs.Add(CreateCallInput(address, erc20Iface, "allowance", new object[] { owner!, spender! }));
+//                    inputs.Add(CreateCallInput(address, erc20Iface, "allowance", new object[] { owner, spender }));
 //                }
 
 //                if (defaultedOptions?.Symbol != null)
@@ -259,7 +385,7 @@
 //                }
 
 //                // Perform multi-call and process results
-//                var results = await MultiCall(inputs);
+//                var results = await MultiCall(inputs, true);
 
 //                var tokens = new List<TokenMultiInput>();
 //                int i = 0;
@@ -271,17 +397,17 @@
 
 //                    if (defaultedOptions?.BalanceOf != null)
 //                    {
-//                        tokenInfo.BalanceOf = (BalanceOfFunction)results[i++];
+//                        tokenInfo.BalanceOf = results[i++];
 //                    }
 
 //                    if (defaultedOptions?.Allowance != null)
 //                    {
-//                        tokenInfo.Allowance = (AllowanceFunction)results[i++];
+//                        tokenInfo.Allowance = results[i++];
 //                    }
 
 //                    if (defaultedOptions?.Symbol != null)
 //                    {
-//                        tokenInfo.Symbol = (SymbolFunction)results[i++];
+//                        tokenInfo.Symbol = results[i++];
 //                    }
 
 //                    var token = new TokenMultiInput

@@ -2,6 +2,7 @@
 using Arbitrum.DataEntities;
 using Nethereum.Web3.Accounts;
 using Nethereum.Web3;
+using Nethereum.JsonRpc.Client;
 
 namespace Arbitrum.DataEntities
 {
@@ -52,7 +53,7 @@ namespace Arbitrum.DataEntities
             }
         }
 
-        public static Web3 GetProvider(object signerOrProvider)
+        public static Web3 GetProvider(dynamic signerOrProvider)
         {
             if (signerOrProvider is Web3)
             {
@@ -61,6 +62,14 @@ namespace Arbitrum.DataEntities
             else if (signerOrProvider is SignerOrProvider)
             {
                 return (signerOrProvider as SignerOrProvider)?.Provider!;
+            }
+            else if(signerOrProvider is IClient)
+            {
+                return new Web3(signerOrProvider);
+            }
+            else if(signerOrProvider is Account)
+            {
+                return new Web3(signerOrProvider?.TransactionManager?.Client);
             }
             else
             {

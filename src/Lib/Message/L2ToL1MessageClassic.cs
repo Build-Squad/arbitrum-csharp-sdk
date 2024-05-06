@@ -16,7 +16,7 @@ namespace Arbitrum.Message
 {
     public class MessageBatchProofInfo
     {
-        public string[]? Proof { get; set; }
+        public byte[]? Proof { get; set; }
         public BigInteger? Path { get; set; }
         public string? L2Sender { get; set; }
         public string? L1Dest { get; set; }
@@ -65,7 +65,7 @@ namespace Arbitrum.Message
         }
 
         public static async Task<List<(L2ToL1TransactionEvent EventArgs, string TransactionHash)>> GetL2ToL1Events(
-            Web3 l2Provider,
+            IWeb3 l2Provider,
             NewFilterInput filter,
             BigInteger? batchNumber = null,
             string? destination = null,
@@ -296,7 +296,7 @@ namespace Arbitrum.Message
             SignerOrProvider l1Signer,
             BigInteger batchNumber,
             BigInteger indexInBatch,
-            Web3? l1Provider = null) : base(l1Provider ?? l1Signer.Provider!, batchNumber, indexInBatch)
+            Web3? l1Provider = null) : base(l1Provider ?? l1Signer.Provider, batchNumber, indexInBatch)
         {
             _l1Signer = l1Signer;
         }
