@@ -1,5 +1,9 @@
 ﻿using Arbitrum.DataEntities;
+using Arbitrum.Utils;
+using Nethereum.ABI.Model;
+using Nethereum.Contracts;
 using Nethereum.Hex.HexTypes;
+using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Web3;
 using Nethereum.Web3.Accounts;
 using Nethereum.Web3.Accounts.Managed;
@@ -8,126 +12,200 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading.Tasks;
 
-namespace YourNamespace
+namespace Arbitrum.Scripts
 {
-    public class ContractDeploymentHelper
+    public class ERC20DeploymentResult
     {
-        private readonly Web3 ethProvider;
-        private readonly Web3 arbProvider;
-
-        public ContractDeploymentHelper(string ethUrl, string arbUrl)
+        public Contract? ProxyAdmin { get; set; }
+        public Contract? Router { get; set; }
+        public Contract? StandardGateway { get; set; }
+        public Contract? CustomGateway { get; set; }
+        public Contract? WethGateway { get; set; }
+        public Contract? Beacon { get; set; }
+        public Contract? BeaconProxyFactory { get; set; }
+        public Contract? Weth { get; set; }
+        public Contract? Multicall { get; set; }
+    }
+    public static class DeploymentUtils
+    {
+        public static async Task<Contract> DeployBehindProxy(
+            Account deployer,
+            string contractName,
+            Contract admin,
+            string dataToCallProxy = "0x",
+            bool isClassic = false)
         {
-            ethProvider = new Web3(ethUrl);
-            arbProvider = new Web3(arbUrl);
+            var instance = await LoadContractUtils.DeployAbiContract(
+                                    new Web3(deployer.TransactionManager.Client),
+                                    deployer,
+                                    contractName,
+                                    isClassic:isClassic);
+
+            var (contractAbi, contractAddress) = await LogParser.LoadAbi(contractName, isClassic);
+
+            var proxy = await LoadContractUtils.DeployAbiContract(
+                                new Web3(deployer.TransactionManager.Client),
+                                deployer,
+                                "TransparentUpgradeableProxy",
+                                new object[] { instance.Address, admin.Address, dataToCallProxy },
+                                isClassic);
+
+            return new Web3(deployer.TransactionManager.Client).Eth.GetContract(contractAddress: proxy.Address,abi: contractAbi);
         }
 
-        public async Task DeployERC20AndInit(SignerOrProvider l1Signer, SignerOrProvider l2Signer, string inboxAddress)
+        public static async Task<ERC20DeploymentResult> DeployERC20L1(Account deployer)
+        {
+            var provider = new Web3(deployer.TransactionManager.Client);
+
+            var proxyAdmin = await LoadContractUtils.DeployAbiContract(provider, deployer, "ProxyAdmin", isClassic: false);
+            Console.WriteLine("Proxy admin address: " + proxyAdmin.Address);
+
+            var router = await DeployBehindProxy(deployer, "L1GatewayRouter", proxyAdmin, isClassic: true);
+            Console.WriteLine("Router address: " + router.Address);
+
+            var standardGateway = await DeployBehindProxy(deployer, "L1ERC20Gateway", proxyAdmin, isClassic: true);
+            Console.WriteLine("Standard gateway address: " + standardGateway.Address);
+
+            var customGateway = await DeployBehindProxy(deployer, "L1CustomGateway", proxyAdmin, isClassic: true);
+            Console.WriteLine("Custom gateway address: " + customGateway.Address);
+
+            var wethGateway = await DeployBehindProxy(deployer, "L1WethGateway", proxyAdmin, isClassic: true);
+            Console.WriteLine("WETH gateway address: " + wethGateway.Address);
+
+            var weth = await LoadContractUtils.DeployAbiContract(provider, deployer, "TestWETH9", new[] { "WETH", "WETH" }, isClassic: true);
+            Console.WriteLine("WETH address: " + weth.Address);
+
+            var multicall = await LoadContractUtils.DeployAbiContract(provider, deployer, "Multicall2", isClassic: true);
+            Console.WriteLine("Multicall address: " + multicall.Address);
+
+            return new ERC20DeploymentResult
+            {
+                ProxyAdmin = proxyAdmin,
+                Router = router,
+                StandardGateway = standardGateway,
+                CustomGateway = customGateway,
+                WethGateway = wethGateway,
+                Weth = weth,
+                Multicall = multicall
+            };
+        }
+
+        public static async Task<ERC20DeploymentResult> DeployERC20L2(Account deployer)
+        {
+            var provider = new Web3(deployer.TransactionManager.Client);
+
+            var proxyAdmin = await LoadContractUtils.DeployAbiContract(provider, deployer, "ProxyAdmin", isClassic: false);
+            Console.WriteLine("Proxy admin address: " + proxyAdmin.Address);
+
+            var router = await DeployBehindProxy(deployer, "L2GatewayRouter", proxyAdmin, isClassic: true);
+            Console.WriteLine("Router address: " + router.Address);
+
+            var standardGateway = await DeployBehindProxy(deployer, "L2ERC20Gateway", proxyAdmin, isClassic: true);
+            Console.WriteLine("Standard gateway address: " + standardGateway.Address);
+
+            var customGateway = await DeployBehindProxy(deployer, "L2CustomGateway", proxyAdmin, isClassic: true);
+            Console.WriteLine("Custom gateway address: " + customGateway.Address);
+
+            var wethGateway = await DeployBehindProxy(deployer, "L2WethGateway", proxyAdmin, isClassic: true);
+            Console.WriteLine("WETH gateway address: " + wethGateway.Address);
+
+            var standardArbERC20 = await LoadContractUtils.DeployAbiContract(provider, deployer, "StandardArbERC20", isClassic: true);
+            Console.WriteLine("Standard ArbERC20 address: " + standardArbERC20.Address);
+
+            var beacon = await LoadContractUtils.DeployAbiContract(provider, deployer, "UpgradeableBeacon", new[] { standardArbERC20.Address }, isClassic: false);
+            Console.WriteLine("Beacon address: " + beacon.Address);
+
+            var beaconProxyFactory = await LoadContractUtils.DeployAbiContract(provider, deployer, "BeaconProxyFactory", isClassic: true);
+            Console.WriteLine("Beacon proxy address: " + beaconProxyFactory.Address);
+
+            var weth = await DeployBehindProxy(deployer, "AeWETH", proxyAdmin, isClassic: true);
+            Console.WriteLine("WETH address: " + weth.Address);
+
+            var multicall = await LoadContractUtils.DeployAbiContract(provider, deployer, "ArbMulticall2", isClassic: true);
+            Console.WriteLine("Multicall address: " + multicall.Address);
+
+            return new ERC20DeploymentResult
+            {
+                ProxyAdmin = proxyAdmin,
+                Router = router,
+                StandardGateway = standardGateway,
+                CustomGateway = customGateway,
+                WethGateway = wethGateway,
+                Beacon = beacon,
+                BeaconProxyFactory = beaconProxyFactory,
+                Weth = weth,
+                Multicall = multicall
+            };
+        }
+        public static async Task<TransactionReceipt> SendTransactionWrapper(Account signer, Function contractFunction, params object[] functionInput)
+        {
+            var txHash = await contractFunction.SendTransactionAsync(signer.Address);
+            var txReceipt = await new Web3(signer.TransactionManager.Client).Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
+            return txReceipt;
+        }
+
+        public static async Task<Tuple<ERC20DeploymentResult, ERC20DeploymentResult>> DeployERC20AndInit(Account l1Signer, Account l2Signer, string inboxAddress)
         {
             Console.WriteLine("Deploying L1 contracts...");
-            var l1Contracts = DeployERC20L1(l1Signer);
+            var l1Contracts = await DeployERC20L1(l1Signer);
 
             Console.WriteLine("Deploying L2 contracts...");
-            var l2Contracts = DeployERC20L2(l2Signer);
+            var l2Contracts = await DeployERC20L2(l2Signer);
 
             Console.WriteLine("Initializing L2 contracts...");
-            await SendTransactionWrapper(l2Signer, l2Contracts["router"].Initialize(l1Contracts["router"].Address, l2Contracts["standardGateway"].Address));
-            await SendTransactionWrapper(l2Signer, l2Contracts["beaconProxyFactory"].Initialize(l2Contracts["beacon"].Address));
-            await SendTransactionWrapper(l2Signer, l2Contracts["standardGateway"].Initialize(l1Contracts["standardGateway"].Address, l2Contracts["router"].Address, l2Contracts["beaconProxyFactory"].Address));
-            await SendTransactionWrapper(l2Signer, l2Contracts["customGateway"].Initialize(l1Contracts["customGateway"].Address, l2Contracts["router"].Address));
-            await SendTransactionWrapper(l2Signer, l2Contracts["weth"].Initialize("WETH", "WETH", 18, l2Contracts["wethGateway"].Address, l1Contracts["weth"].Address));
-            await SendTransactionWrapper(l2Signer, l2Contracts["wethGateway"].Initialize(l1Contracts["wethGateway"].Address, l2Contracts["router"].Address, l1Contracts["weth"].Address, l2Contracts["weth"].Address));
+            await SendTransactionWrapper(
+                l2Signer,
+                l2Contracts.Router.GetFunction("initialize"),
+                new object[] { l1Contracts.Router.Address, l2Contracts.StandardGateway.Address });
+
+            await SendTransactionWrapper(
+                l2Signer,
+                l2Contracts.StandardGateway.GetFunction("initialize"),
+                new object[] { l1Contracts.StandardGateway.Address, l2Contracts.Router.Address, l2Contracts.BeaconProxyFactory.Address });
+
+            await SendTransactionWrapper(
+                l2Signer,
+                l2Contracts.CustomGateway.GetFunction("initialize"),
+                new object[] { l1Contracts.CustomGateway.Address, l2Contracts.Router.Address });
+
+            await SendTransactionWrapper(
+                l2Signer,
+                l2Contracts.Weth.GetFunction("initialize"),
+                new object[] { "WETH", "WETH", 18, l2Contracts.WethGateway.Address, l1Contracts.Weth.Address });
+
+            await SendTransactionWrapper(
+                l2Signer,
+                l2Contracts.WethGateway.GetFunction("initialize"),
+                new object[] { l1Contracts.WethGateway.Address, l2Contracts.Router.Address, l1Contracts.Weth.Address, l2Contracts.Weth.Address });
+
 
             Console.WriteLine("Initializing L1 contracts...");
-            await SendTransactionWrapper(l1Signer, l1Contracts["router"].Initialize(l1Signer.Account.Address, l1Contracts["standardGateway"].Address, ADDRESS_ZERO, l2Contracts["router"].Address, inboxAddress));
-            var cloneableProxyHash = await l2Signer.Provider.Eth.GetContractQueryHandler<string>(l2Contracts["beaconProxyFactory"].Address).QueryAsync<string>("cloneableProxyHash");
-            await SendTransactionWrapper(l1Signer, l1Contracts["standardGateway"].Initialize(l2Contracts["standardGateway"].Address, l1Contracts["router"].Address, inboxAddress, cloneableProxyHash, l2Contracts["beaconProxyFactory"].Address));
-            await SendTransactionWrapper(l1Signer, l1Contracts["customGateway"].Initialize(l2Contracts["customGateway"].Address, l1Contracts["router"].Address, inboxAddress, l1Signer.Account.Address));
-            await SendTransactionWrapper(l1Signer, l1Contracts["wethGateway"].Initialize(l2Contracts["wethGateway"].Address, l1Contracts["router"].Address, inboxAddress, l1Contracts["weth"].Address, l2Contracts["weth"].Address));
-        }
 
-        private Dictionary<string, object> DeployERC20L1(SignerOrProvider deployer)
-        {
-            var proxyAdmin = DeployAbiContract(deployer, "ProxyAdmin", false);
-            Console.WriteLine("proxy admin address " + proxyAdmin.Address);
-            var router = DeployBehindProxy(deployer, "L1GatewayRouter", proxyAdmin, true);
-            Console.WriteLine("router address " + router.Address);
-            var standardGateway = DeployBehindProxy(deployer, "L1ERC20Gateway", proxyAdmin, true);
-            Console.WriteLine("standard gateway address " + standardGateway.Address);
-            var customGateway = DeployBehindProxy(deployer, "L1CustomGateway", proxyAdmin, true);
-            Console.WriteLine("custom gateway address " + customGateway.Address);
-            var wethGateway = DeployBehindProxy(deployer, "L1WethGateway", proxyAdmin, true);
-            Console.WriteLine("weth gateway address " + wethGateway.Address);
-            var weth = DeployAbiContract(deployer, "TestWETH9", new object[] { "WETH", "WETH" }, true);
-            Console.WriteLine("weth address " + weth.Address);
-            var multicall = DeployAbiContract(deployer, "Multicall2", true);
-            Console.WriteLine("multicall address " + multicall.Address);
+            await SendTransactionWrapper(
+                l1Signer,
+                l1Contracts.Router.GetFunction("initialize"),
+                new object[] { l1Signer.Address, l1Contracts.StandardGateway.Address, Constants.ADDRESS_ZERO, l2Contracts.Router.Address, inboxAddress });
 
-            return new Dictionary<string, object>
-            {
-                { "proxyAdmin", proxyAdmin },
-                { "router", router },
-                { "standardGateway", standardGateway },
-                { "customGateway", customGateway },
-                { "wethGateway", wethGateway },
-                { "weth", weth },
-                { "multicall", multicall }
-            };
-        }
+            var cloneableProxyHash = await new Web3(l2Signer).Eth.GetContract(l2Contracts.BeaconProxyFactory.Address, (await LogParser.LoadAbi("BeaconProxyFactory")).Item1)
+                .GetFunction("cloneableProxyHash").CallAsync<string>();
 
-        private Dictionary<string, object> DeployERC20L2(SignerOrProvider deployer)
-        {
-            var proxyAdmin = DeployAbiContract(deployer, "ProxyAdmin", false);
-            Console.WriteLine("proxy admin address " + proxyAdmin.Address);
-            var router = DeployBehindProxy(deployer, "L2GatewayRouter", proxyAdmin, true);
-            Console.WriteLine("router address " + router.Address);
-            var standardGateway = DeployBehindProxy(deployer, "L2ERC20Gateway", proxyAdmin, true);
-            Console.WriteLine("standard gateway address " + standardGateway.Address);
-            var customGateway = DeployBehindProxy(deployer, "L2CustomGateway", proxyAdmin, true);
-            Console.WriteLine("custom gateway address " + customGateway.Address);
-            var wethGateway = DeployBehindProxy(deployer, "L2WethGateway", proxyAdmin, true);
-            Console.WriteLine("weth gateway address " + wethGateway.Address);
-            var standardArbERC20 = DeployAbiContract(deployer, "StandardArbERC20", true);
-            Console.WriteLine("standard arb erc20 address " + standardArbERC20.Address);
-            var beacon = DeployAbiContract(deployer, "UpgradeableBeacon", new object[] { standardArbERC20.Address }, false);
-            Console.WriteLine("beacon address " + beacon.Address);
-            var beaconProxy = DeployBehindProxy(deployer, "BeaconProxyFactory", proxyAdmin, true);
-            Console.WriteLine("beacon proxy address " + beaconProxy.Address);
-            var weth = DeployBehindProxy(deployer, "AeWETH", proxyAdmin, true);
-            Console.WriteLine("weth address " + weth.Address);
-            var multicall = DeployAbiContract(deployer, "ArbMulticall2", true);
-            Console.WriteLine("multicall address " + multicall.Address);
+            await SendTransactionWrapper(
+                l1Signer,
+                l1Contracts.StandardGateway.GetFunction("initialize"),
+                new object[] { l2Contracts.StandardGateway.Address, l1Contracts.Router.Address, inboxAddress, cloneableProxyHash, l2Contracts.BeaconProxyFactory.Address });
 
-            return new Dictionary<string, object>
-            {
-                { "proxyAdmin", proxyAdmin },
-                { "router", router },
-                { "standardGateway", standardGateway },
-                { "customGateway", customGateway },
-                { "wethGateway", wethGateway },
-                { "beacon", beacon },
-                { "beaconProxyFactory", beaconProxy },
-                { "weth", weth },
-                { "multicall", multicall }
-            };
-        }
+            await SendTransactionWrapper(
+                l1Signer,
+                l1Contracts.CustomGateway.GetFunction("initialize"),
+                new object[] { l2Contracts.CustomGateway.Address, l1Contracts.Router.Address, inboxAddress, l1Signer.Address });
 
-        private async Task SendTransactionWrapper(SignerOrProvider signer, object contractFunction)
-        {
-            var txHash = await ((Nethereum.Contracts.ContractHandler)contractFunction).SendTransactionAsync(signer.Account.Address);
-            var txReceipt = await signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
-            // Handle transaction receipt
-        }
+            await SendTransactionWrapper(
+                l1Signer,
+                l1Contracts.WethGateway.GetFunction("initialize"),
+                new object[] { l2Contracts.WethGateway.Address, l1Contracts.Router.Address, inboxAddress, l1Contracts.Weth.Address, l2Contracts.Weth.Address });
 
-        private object DeployBehindProxy(SignerOrProvider deployer, string contractName, object admin, bool isClassic = false)
-        {
-            // Your deploy_behind_proxy logic here
-            return null;
-        }
 
-        private object DeployAbiContract(SignerOrProvider deployer, string contractName, object[] constructorArgs, bool isClassic = false)
-        {
-            // Your deploy_abi_contract logic here
-            return null;
+            return new Tuple<ERC20DeploymentResult, ERC20DeploymentResult>(l1Contracts, l2Contracts);
         }
     }
 }
