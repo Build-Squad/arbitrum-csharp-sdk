@@ -1,112 +1,132 @@
 ﻿using System;
+using System.Numerics;
 using System.Threading.Tasks;
 using Arbitrum.DataEntities;
 using Arbitrum.Message;
+using Arbitrum.Scripts;
+using Arbitrum.Tests.Integration;
+using Arbitrum.Utils;
+using Moq;
+using Nethereum.Contracts.Standards.ENS.ETHRegistrarController.ContractDefinition;
+using Nethereum.Web3;
 using NUnit.Framework;
-using YourNamespace.Lib.DataEntities.Constants;
-using YourNamespace.Lib.DataEntities.Errors;
-using YourNamespace.Lib.DataEntities.Message;
-using YourNamespace.Lib.DataEntities.Types;
-using YourNamespace.Lib.Message;
-using YourNamespace.Lib.Utils.Helper;
-using YourNamespace.Lib.Utils.Lib;
-using YourNamespace.Scripts;
-using YourNamespace.Tests.Integration.TestHelpers;
 using static Arbitrum.Message.L1ToL2MessageUtils;
 
-namespace YourNamespace.Tests.Integration
+namespace Arbitrum.AssetBridger.Tests.Integration
 {
     [TestFixture]
-    public class TransactionTests
+    public class StandardERC20Tests
     {
-        private static readonly decimal DEPOSIT_AMOUNT = 100;
-        private static readonly decimal WITHDRAWAL_AMOUNT = 10;
+        private static readonly BigInteger DEPOSIT_AMOUNT = 100;
+        private static readonly BigInteger WITHDRAWAL_AMOUNT = 10;
+
+        [OneTimeSetUp]
+        public async Task<TestState> SetupState()
+        {
+            TestState setupState = await TestSetupUtils.TestSetup();
+
+            await TestHelpers.FundL1(setupState.L1Signer);
+            await TestHelpers.FundL2(setupState.L2Signer);
+
+            var testToken = await LoadContractUtils.DeployAbiContract(
+                provider: new Web3(setupState.L1Signer.TransactionManager.Client),
+                deployer: setupState.L1Signer,
+                contractName: "TestERC20",
+                isClassic: true
+                );
+
+            var txHash = await testToken.GetFunction("mint").SendTransactionAsync(from: setupState?.L1Signer?.Address);
+            await new Web3(setupState.L1Signer.TransactionManager.Client).Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
+
+            setupState.L1Token = testToken;
+
+            return setupState;
+        }
+
+        [SetUp]
+        public async Task SkipIfMainnet(TestState setupState)
+        {
+            int chainId = setupState.L1Network.ChainID;
+            await TestSetupUtils.SkipIfMainnet(chainId);
+        }
 
         [Test]
-        public async Task DepositErc20()
+        public async Task TestDepositErc20(TestState setupState)
         {
-            var setupState = await SetupState();
-
-            await DepositToken(
-                DEPOSIT_AMOUNT,
-                setupState.l1Token.Address,
-                setupState.erc20Bridger,
-                setupState.l1Signer,
-                setupState.l2Signer,
-                L1ToL2MessageStatus.REDEEMED,
-                GatewayType.STANDARD
+            await TestHelpers.DepositToken(
+                depositAmount: DEPOSIT_AMOUNT,
+                l1TokenAddress: setupState.L1Token.Address,
+                erc20Bridger: setupState.Erc20Bridger,
+                l1Signer: setupState.L1Signer,
+                l2Signer: setupState.L2Signer,
+                expectedStatus: L1ToL2MessageStatus.REDEEMED,
+                expectedGatewayType: GatewayType.STANDARD
             );
         }
 
         [Test]
-        public async Task DepositWithNoFundsManualRedeem()
+        public async Task DepositWithNoFundsManualRedeem(TestState setupState)
         {
-            var setupState = await SetupState();
-
-            var depositTokenParams = await DepositToken(
-                DEPOSIT_AMOUNT,
-                setupState.l1Token.Address,
-                setupState.erc20Bridger,
-                setupState.l1Signer,
-                setupState.l2Signer,
-                L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2,
-                GatewayType.STANDARD,
-                new RetryableOverrides
+            var depositTokenParams = await TestHelpers.DepositToken(
+                depositAmount: DEPOSIT_AMOUNT,
+                l1TokenAddress: setupState.L1Token.Address,
+                erc20Bridger: setupState.Erc20Bridger,
+                l1Signer: setupState.L1Signer,
+                l2Signer: setupState.L2Signer,
+                expectedStatus: L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2,
+                expectedGatewayType: GatewayType.STANDARD,
+                retryableOverrides: new GasOverrides
                 {
-                    GasLimit = new GasLimit { Base = 0 },
-                    MaxFeePerGas = new MaxFeePerGas { Base = 0 }
+                    GasLimit = new PercentIncreaseWithMin() { Base = new BigInteger(0) },
+                    MaxFeePerGas = new PercentIncreaseType() { Base = new BigInteger(0) }
                 }
             );
 
-            var waitRes = depositTokenParams["waitRes"];
-            await RedeemAndTest(setupState, waitRes.message, 1);
+            var waitRes = depositTokenParams.WaitRes;
+            await RedeemAndTest(setupState, waitRes.Message, 1);
         }
 
         [Test]
-        public async Task DepositWithLowFundsManualRedeem()
+        public async Task DepositWithLowFundsManualRedeem( TestState setupState)
         {
-            var setupState = await SetupState();
-
-            var depositTokenParams = await DepositToken(
-                DEPOSIT_AMOUNT,
-                setupState.l1Token.Address,
-                setupState.erc20Bridger,
-                setupState.l1Signer,
-                setupState.l2Signer,
-                L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2,
-                GatewayType.STANDARD,
-                new RetryableOverrides
+            var depositTokenParams = await TestHelpers.DepositToken(
+                depositAmount: DEPOSIT_AMOUNT,
+                l1TokenAddress: setupState.L1Token.Address,
+                erc20Bridger: setupState.Erc20Bridger,
+                l1Signer: setupState.L1Signer,
+                l2Signer: setupState.L2Signer,
+                expectedStatus: L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2,
+                expectedGatewayType: GatewayType.STANDARD,
+                retryableOverrides: new GasOverrides
                 {
-                    GasLimit = new GasLimit { Base = 5 },
-                    MaxFeePerGas = new MaxFeePerGas { Base = 5 }
+                    GasLimit = new PercentIncreaseWithMin() { Base = new BigInteger(5) },
+                    MaxFeePerGas = new PercentIncreaseType() { Base = new BigInteger(5) }
                 }
             );
 
-            var waitRes = depositTokenParams["waitRes"];
-            await RedeemAndTest(setupState, waitRes.message, 1);
+            var waitRes = depositTokenParams.WaitRes;
+            await RedeemAndTest(setupState, waitRes.Message, 1);
         }
 
         [Test]
-        public async Task DepositWithOnlyLowGasLimitManualRedeemSuccess()
+        public async Task DepositWithOnlyLowGasLimitManualRedeemSuccess(TestState setupState)
         {
-            var setupState = await SetupState();
-
-            var depositTokenParams = await DepositToken(
-                DEPOSIT_AMOUNT,
-                setupState.l1Token.Address,
-                setupState.erc20Bridger,
-                setupState.l1Signer,
-                setupState.l2Signer,
-                L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2,
-                GatewayType.STANDARD,
-                new RetryableOverrides
+            var depositTokenParams = await TestHelpers.DepositToken(
+                depositAmount: DEPOSIT_AMOUNT,
+                l1TokenAddress: setupState.L1Token.Address,
+                erc20Bridger: setupState.Erc20Bridger,
+                l1Signer: setupState.L1Signer,
+                l2Signer: setupState.L2Signer,
+                expectedStatus: L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2,
+                expectedGatewayType: GatewayType.STANDARD,
+                retryableOverrides: new GasOverrides
                 {
-                    GasLimit = new GasLimit { Base = 21000 }
-                }
+                    GasLimit = new PercentIncreaseWithMin() { Base = new BigInteger(21000) }
+                }   
             );
 
-            var waitRes = depositTokenParams["waitRes"];
-            var retryableCreation = await waitRes.message.GetRetryableCreationReceipt();
+            var waitRes = depositTokenParams.WaitRes;
+            var retryableCreation = await waitRes.Message.GetRetryableCreationReceipt();
             if (retryableCreation == null)
             {
                 throw new ArbSdkError("Missing retryable creation.");
@@ -198,27 +218,6 @@ namespace YourNamespace.Tests.Integration
 
             setup.l1Token = testToken;
             return setup;
-        }
-
-        private async Task<dynamic> DepositToken(decimal depositAmount, string l1TokenAddress, dynamic erc20Bridger,
-            dynamic l1Signer, dynamic l2Signer, int expectedStatus, string expectedGatewayType, RetryableOverrides retryableOverrides = null)
-        {
-            // Implement deposit token logic
-        }
-
-        private async Task RedeemAndTest(dynamic setupState, dynamic message, int expectedStatus, int? gasLimit = null)
-        {
-            // Implement redeem and test logic
-        }
-
-        private async Task<dynamic> GetTransactionReceipt(string txHash, dynamic provider)
-        {
-            // Implement get transaction receipt logic
-        }
-
-        private async Task WithdrawToken(dynamic parameters)
-        {
-            // Implement withdraw token logic
         }
     }
 }

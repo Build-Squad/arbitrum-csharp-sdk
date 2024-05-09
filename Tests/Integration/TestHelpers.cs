@@ -17,24 +17,27 @@ using Arbitrum.Message;
 using Nethereum.Contracts;
 using Nethereum.HdWallet;
 using NBitcoin;
+using static Arbitrum.Message.L1ToL2MessageUtils;
+using Nethereum.Signer;
 
 namespace Arbitrum.Tests.Integration
 {
-    public class Config
+    public static class Config
     {
-        public Dictionary<string, string> Values { get; private set; }
-
-        public Config()
-        {
-            Values = new Dictionary<string, string>
+        private static readonly Dictionary<string, string> Values = new Dictionary<string, string>
         {
             { "ARB_URL", Environment.GetEnvironmentVariable("ARB_URL") },
             { "ETH_URL", Environment.GetEnvironmentVariable("ETH_URL") },
             { "ARB_KEY", Environment.GetEnvironmentVariable("ARB_KEY") },
             { "ETH_KEY", Environment.GetEnvironmentVariable("ETH_KEY") }
         };
-        }
+
+        public static string ARB_URL => Values["ARB_URL"];
+        public static string ETH_URL => Values["ETH_URL"];
+        public static string ARB_KEY => Values["ARB_KEY"];
+        public static string ETH_KEY => Values["ETH_KEY"];
     }
+
     public enum GatewayType
     {
         STANDARD = 1,
@@ -52,264 +55,334 @@ namespace Arbitrum.Tests.Integration
         public Account? L1Signer { get; set; }
         public GatewayType? GatewayType { get; set; }
     }
-
-    [TestFixture]
-    public class AssetBridgerTests
+    public class DepositTokenResults
     {
+        public Contract? L1Token { get; set; }
+        public L1ContractCallTransactionReceiptResults? WaitRes { get; set; }
+        public Contract? L2Token { get; set; }
+    }
 
-        private static readonly BigInteger PRE_FUND_AMOUNT = Web3.Convert.ToWei(0.1, UnitConversion.EthUnit.Ether);
-
-        public async Task MineUntilStop(Account miner, Dictionary<string, object> state)
+        [TestFixture]
+        public static class TestHelpers
         {
-            while ((bool)state["mining"])
+
+            private static readonly BigInteger PRE_FUND_AMOUNT = Web3.Convert.ToWei(0.1, UnitConversion.EthUnit.Ether);
+
+            public static async Task MineUntilStop(Account miner, Dictionary<string, object> state)
             {
-                var tx = new TransactionRequest
+                var provider = new Web3(miner.TransactionManager.Client);
+                while ((bool)state["mining"])
                 {
-                    From = miner.Address,
-                   To = miner.Address,
-                   Value = 0,
-                    ChainId = await new Web3(miner.TransactionManager.Client).Eth.ChainId.SendRequestAsync(), // Assuming Provider has an eth property
-                    GasPrice = await new Web3(miner.TransactionManager.Client).Eth.GasPrice.SendRequestAsync(), // Assuming Provider has an eth property
-                    Nonce = await new Web3(miner.TransactionManager.Client).Eth.Transactions.GetTransactionCount.SendRequestAsync(miner.Address) // Assuming Provider has an eth property
+                    var tx = new TransactionRequest
+                    {
+                        From = miner.Address,
+                        To = miner.Address,
+                        Value = 0,
+                        ChainId = await provider.Eth.ChainId.SendRequestAsync(), // Assuming Provider has an eth property
+                        GasPrice = await provider.Eth.GasPrice.SendRequestAsync(), // Assuming Provider has an eth property
+                        Nonce = await provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(miner.Address) // Assuming Provider has an eth property
+                    };
+
+                    // Estimate gas asynchronously
+                    var gasEstimate = await provider.TransactionManager.EstimateGasAsync(tx);
+
+                    tx.Gas = gasEstimate;
+
+                    // Sign transaction asynchronously
+                    var signedTx = await provider.TransactionManager.SignTransactionAsync(tx); // Assuming Account has a method for signing transactions
+
+                    // Send raw transaction asynchronously
+                    var txHash = await provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);  // Assuming Provider has a method for sending raw transactions
+
+                    // Wait for transaction receipt asynchronously
+                    await provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
+
+                    await Task.Delay(15000); // Delay for 15 seconds
+                }
+            }
+
+            [Test]
+            public static async Task WithdrawToken(WithdrawalParams parameters)
+            {
+
+                var l1Provider = new Web3(parameters.L1Signer.TransactionManager.Client);
+                var l2Provider = new Web3(parameters.L2Signer.TransactionManager.Client);
+
+                var withdrawalParams = await parameters.Erc20Bridger.GetWithdrawalRequest(
+                    new Erc20WithdrawParams()
+                    {
+                        Amount = parameters.Amount,
+                        Erc20L1Address = parameters.L1Token.Address,
+                        DestinationAddress = parameters.L2Signer.Address,
+                        From = parameters.L2Signer.Address,
+                    }
+                    );
+
+                var l1GasEstimate = withdrawalParams.EstimateL1GasLimit = async (IClient l1provider) =>
+                {
+                    return await l1Provider.TransactionManager.EstimateGasAsync(withdrawalParams.TxRequest);
                 };
 
-                // Estimate gas asynchronously
-                var gasEstimate = await new Web3(miner.TransactionManager.Client).TransactionManager.EstimateGasAsync(tx);
-
-                tx.Gas = gasEstimate;
-
-                // Sign transaction asynchronously
-                var signedTx = await new Web3(miner.TransactionManager.Client).TransactionManager.SignTransactionAsync(tx); // Assuming Account has a method for signing transactions
-
-                // Send raw transaction asynchronously
-                var txHash = await new Web3(miner.TransactionManager.Client).Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);  // Assuming Provider has a method for sending raw transactions
-
-                // Wait for transaction receipt asynchronously
-                await new Web3(miner.TransactionManager.Client).Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
-
-                await Task.Delay(15000); // Delay for 15 seconds
-            }
-        }
-
-        [Test]
-        public async Task WithdrawToken(WithdrawalParams parameters)
-        {
-
-            var withdrawalParams = await parameters.Erc20Bridger.GetWithdrawalRequest(
-                new Erc20WithdrawParams()
+                var withdrawRec = await parameters.Erc20Bridger.Withdraw(new Erc20WithdrawParams()
                 {
+                    DestinationAddress = parameters.L2Signer.Address,
                     Amount = parameters.Amount,
                     Erc20L1Address = parameters.L1Token.Address,
-                    DestinationAddress = parameters.L2Signer.Address,
-                    From = parameters.L2Signer.Address,
-                }
+                    L2Signer = parameters.L2Signer
+                });
+
+                Assert.That(withdrawRec.Status, Is.EqualTo(1), "initiate token withdraw txn failed");
+
+                var message = (await withdrawRec.GetL2ToL1Messages(new SignerOrProvider(parameters.L1Signer))).FirstOrDefault();
+
+                Assert.That(message, Is.Not.Null, "withdraw message not found");
+
+                var messageStatus = message.StatusBase(new SignerOrProvider(l2Provider));
+
+                Assert.That(messageStatus, Is.EqualTo(L2ToL1MessageStatus.UNCONFIRMED), "invalid withdraw status");
+
+                var l2TokenAddr = await parameters.Erc20Bridger.GetL2ERC20Address(parameters.L1Token.Address, l1Provider);
+
+                var l2Token = await parameters.Erc20Bridger.GetL2TokenContract(l2Provider, l2TokenAddr);
+
+                var testWalletL2Balance = await l2Token.GetFunction("balanceOf").CallAsync<BigInteger>(parameters.L2Signer.Address);
+
+                Assert.That(testWalletL2Balance, Is.EqualTo(parameters.StartBalance - parameters.Amount), "token withdraw balance not deducted");
+
+                var walletAddress = parameters.L1Signer.Address;
+
+                var gatewayAddress = await parameters.Erc20Bridger.GetL2GatewayAddress(parameters.L1Token.Address, l2Provider);
+
+                var expectedGateways = GetGateways(parameters.GatewayType, parameters.Erc20Bridger.L2Network);
+
+                Assert.That(gatewayAddress, Is.EqualTo(expectedGateways.expectedL2Gateway), "Gateway is not custom gateway");
+
+                var gatewayWithdrawEvents = await parameters.Erc20Bridger.GetL2WithdrawalEvents(
+                    l2Provider,
+                    gatewayAddress,
+                    new NewFilterInput()
+                    {
+                        FromBlock = new BlockParameter(withdrawRec.BlockNumber),
+                        ToBlock = BlockParameter.CreateLatest()
+                    },
+                    parameters.L1Token.Address,
+                    walletAddress);
+
+                Assert.That(gatewayWithdrawEvents.Count, Is.EqualTo(1), "token query failed");
+
+                var balBefore = await parameters.L1Token.GetFunction("balanceOf").CallAsync<BigInteger>(parameters.L1Signer.Address);
+
+                //creating a random wallet
+                string mnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve).ToString();
+
+                // Connect the wallet to the provider
+                var miner1Seed = new Wallet(mnemonic, "");
+                var miner2Seed = new Wallet(mnemonic, "");
+
+                //private keys of miners
+                var miner1PrivateKey = miner1Seed.GetPrivateKey(0);
+                var miner2PrivateKey = miner2Seed.GetPrivateKey(0);
+
+                //accounts of miners
+                var miner1Account = new Account(miner1PrivateKey);
+                var miner2Account = new Account(miner2PrivateKey);
+
+                var miner1 = new SignerOrProvider(miner1Account, l1Provider);
+                var miner2 = new SignerOrProvider(miner2Account, l2Provider);
+
+                await FundL1(miner1.Account, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
+                await FundL2(miner2.Account, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
+                var state = new Dictionary<string, object> { { "mining", true } };
+
+                await Task.WhenAny(
+                    MineUntilStop(miner1?.Account, state),
+                    MineUntilStop(miner2?.Account, state),
+                    message.WaitUntilReadyToExecuteBase(new SignerOrProvider(new Web3(parameters.L2Signer.TransactionManager.Client)))
                 );
+                state["mining"] = false;
 
-            var l1GasEstimate = withdrawalParams.EstimateL1GasLimit = await new Web3(parameters.L1Signer.TransactionManager.Client).TransactionManager.EstimateGasAsync();
+                Assert.That(await message.StatusBase(new SignerOrProvider(l2Provider)), Is.EqualTo(L2ToL1MessageStatus.CONFIRMED), "confirmed status");
 
-            var withdrawRec = await parameters.Erc20Bridger.Withdraw(new Erc20WithdrawParams()
+                var execTx = await message.WaitUntilReadyToExecuteBase(new SignerOrProvider(l2Provider));
+
+                //var execTx = await message.Execute(parameters.L2Signer.Provider);    //////////////
+                //var execRec = await execTx.Wait();
+
+                //Assert.That(execRec.GasUsed.ToBigInteger(), Is.LessThan(l1GasEstimate), "Gas used greater than estimate");
+
+                Assert.That(await message.StatusBase(new SignerOrProvider(l2Provider)), Is.EqualTo(L2ToL1MessageStatus.EXECUTED), "executed status");
+
+                var balAfter = await parameters.L1Token.GetFunction("balanceOf").CallAsync<BigInteger>(parameters.L1Signer.Address);
+                Assert.That(balBefore + parameters.Amount, Is.EqualTo(balAfter), "Not withdrawn");
+            }
+            public static (string? expectedL1Gateway, string? expectedL2Gateway) GetGateways(GatewayType? gatewayType, L2Network l2Network)
             {
-                DestinationAddress = parameters.L2Signer.Address,
-                Amount = parameters.Amount,
-                Erc20L1Address = parameters.L1Token.Address,
-                L2Signer = parameters.L2Signer
-            });
+                switch (gatewayType)
+                {
+                    case GatewayType.CUSTOM:
+                        return (
+                            expectedL1Gateway: l2Network.TokenBridge.L1CustomGateway,
+                            expectedL2Gateway: l2Network.TokenBridge.L2CustomGateway
+                        );
+                    case GatewayType.STANDARD:
+                        return (
+                            expectedL1Gateway: l2Network.TokenBridge.L1ERC20Gateway,
+                            expectedL2Gateway: l2Network.TokenBridge.L2ERC20Gateway
+                        );
+                    case GatewayType.WETH:
+                        return (
+                            expectedL1Gateway: l2Network.TokenBridge.L1WethGateway,
+                            expectedL2Gateway: l2Network.TokenBridge.L2WethGateway
+                        );
+                    default:
+                        throw new ArbSdkError($"Unexpected gateway type: {gatewayType}");
+                }
+            }
 
-            Assert.That(withdrawRec.Status, Is.EqualTo(1), "initiate token withdraw txn failed");
-
-            var message = (await withdrawRec.GetL2ToL1Messages(new SignerOrProvider(parameters.L1Signer))).FirstOrDefault();
-
-            Assert.That(message, Is.Not.Null, "withdraw message not found");
-
-            var messageStatus = message.StatusBase(new SignerOrProvider(new Web3(parameters.L2Signer.TransactionManager.Client)));
-
-            Assert.That(messageStatus, Is.EqualTo(L2ToL1MessageStatus.UNCONFIRMED), "invalid withdraw status");
-
-            var l2TokenAddr = await parameters.Erc20Bridger.GetL2ERC20Address(parameters.L1Token.Address, new Web3(parameters.L1Signer.TransactionManager.Client));
-
-            var l2Token = await parameters.Erc20Bridger.GetL2TokenContract(new Web3(parameters.L2Signer.TransactionManager.Client), l2TokenAddr);
-
-            var testWalletL2Balance = await l2Token.GetFunction("balanceOf").CallAsync<BigInteger>(parameters.L2Signer.Address);
-
-            Assert.That(testWalletL2Balance, Is.EqualTo(parameters.StartBalance - parameters.Amount), "token withdraw balance not deducted");
-
-            var walletAddress = parameters.L1Signer.Address;
-
-            var gatewayAddress = await parameters.Erc20Bridger.GetL2GatewayAddress(parameters.L1Token.Address, new Web3(parameters.L2Signer.TransactionManager.Client));
-
-            var expectedGateways = GetGateways(parameters.GatewayType, parameters.Erc20Bridger.L2Network);
-
-            Assert.That(gatewayAddress, Is.EqualTo(expectedGateways.ExpectedL2Gateway), "Gateway is not custom gateway");
-
-            var gatewayWithdrawEvents = await parameters.Erc20Bridger.GetL2WithdrawalEvents(
-                new Web3(parameters.L2Signer.TransactionManager.Client),
-                gatewayAddress,
-                new NewFilterInput() 
-                { 
-                    FromBlock = new BlockParameter(withdrawRec.BlockNumber),
-                    ToBlock = BlockParameter.CreateLatest()
-                },
-                parameters.L1Token.Address,
-                walletAddress);
-
-            Assert.That(gatewayWithdrawEvents.Count, Is.EqualTo(1), "token query failed");
-
-            var balBefore = await parameters.L1Token.GetFunction("balanceOf").CallAsync<BigInteger>(parameters.L1Signer.Address);
-
-            //creating a random wallet
-            string mnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve).ToString();
-
-            // Connect the wallet to the provider
-            var miner1Seed = new Wallet(mnemonic, "");
-            var miner2Seed = new Wallet(mnemonic, "");
-
-            //private keys of miners
-            var miner1PrivateKey = miner1Seed.GetPrivateKey(0);
-            var miner2PrivateKey = miner2Seed.GetPrivateKey(0);
-
-            //accounts of miners
-            var miner1Account = new Account(miner1PrivateKey);
-            var miner2Account = new Account(miner2PrivateKey);
-
-            var miner1 = new SignerOrProvider(miner1Account, new Web3(parameters.L1Signer.TransactionManager.Client));
-            var miner2 = new SignerOrProvider(miner2Account, new Web3(parameters.L2Signer.TransactionManager.Client));
-
-            await FundL1(miner1, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
-            await FundL2(miner2, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
-            var state = new Dictionary<string, object> { { "mining", true } };
-
-            await Task.WhenAny(
-                MineUntilStop(miner1?.Account, state),
-                MineUntilStop(miner2?.Account, state),
-                message.WaitUntilReadyToExecuteBase(new SignerOrProvider(new Web3(parameters.L2Signer.TransactionManager.Client)))
-            );
-
-
-            Assert.That(await message.StatusBase(new SignerOrProvider(new Web3(parameters.L2Signer.TransactionManager.Client))), Is.EqualTo(L2ToL1MessageStatus.CONFIRMED), "confirmed status");
-
-            var execTx = await message.WaitUntilReadyToExecuteBase(new SignerOrProvider(new Web3(parameters.L2Signer.TransactionManager.Client)));
-
-            var execRec = await execTx.Wait();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            var setupState = await TestSetup();
-            //var parameters = new Dictionary<string, dynamic>
-            //{
-            //    {"amount", Web3.Convert.ToWei(10)},
-            //    {"l1Token", setupState.L1Token},
-            //    {"l1Signer", setupState.L1Signer},
-            //    {"l2Signer", setupState.L2Signer},
-            //    {"erc20Bridger", setupState.Erc20Bridger},
-            //    {"startBalance", Web3.Convert.ToWei(50)},
-            //    {"gatewayType", GatewayType.STANDARD}
-            //};
-
-            await WithdrawToken(parameters);
-        }
-
-        [Test]
-        public async Task DepositToken()
-        {
-            var setupState = await TestSetup();
-            var depositAmount = Web3.Convert.ToWei(100);
-            var parameters = new Dictionary<string, dynamic>
+            public static async Task<DepositTokenResults> DepositToken(
+                BigInteger depositAmount,
+                string l1TokenAddress,
+                Erc20Bridger erc20Bridger,
+                Account l1Signer,
+                Account l2Signer,
+                L1ToL2MessageStatus expectedStatus,
+                GatewayType expectedGatewayType,
+                BigInteger? ethDepositAmount = null,
+                string? destinationAddress = null,
+                GasOverrides? retryableOverrides = null)
             {
-                {"depositAmount", depositAmount},
-                {"l1TokenAddress", setupState.L1Token.Address},
-                {"erc20Bridger", setupState.Erc20Bridger},
-                {"l1Signer", setupState.L1Signer},
-                {"l2Signer", setupState.L2Signer},
-                {"expectedStatus", L2ToL1MessageStatus.UNCONFIRMED},
-                {"expectedGatewayType", GatewayType.STANDARD},
-                {"retryableOverrides", null}
-            };
+                var l1Provider = new Web3(l1Signer.TransactionManager.Client);
+                var l2Provider = new Web3(l2Signer.TransactionManager.Client);
 
-            await DepositToken(parameters);
-        }
+                var approveResult = await erc20Bridger.ApproveToken(
+                    new ApproveParamsOrTxRequest()
+                    {
+                        L1Signer = l1Signer,
+                        Erc20L1Address = l1TokenAddress
+                    });
 
-        private async Task<TestSetup> TestSetup()
-        {
-            var config = TestSetup.Config;
-            var arbSys = "0x0000000000000000000000000000000000000064";
+                var expectedL1GatewayAddress = await erc20Bridger.GetL1GatewayAddress(l1TokenAddress, l1Provider);
 
-            var l1Signer = new SignerOrProvider(
-                new Account(config["ETH_KEY"]),
-                new Web3(config["L1_PROVIDER_URL"])
-            );
+                var l1Token = await erc20Bridger.GetL1TokenContract(l1Provider, l1TokenAddress);
 
-            var l2Signer = new SignerOrProvider(
-                new Account(config["ARB_KEY"]),
-                new Web3(config["L2_PROVIDER_URL"])
-            );
+                var allowance = l1Token.GetFunction("allowance").CallAsync<BigInteger>(l1Signer.Address, expectedL1GatewayAddress);
 
-            var erc20Bridger = new Erc20Bridger(arbSys, l1Signer.Provider, l2Signer.Provider);
+                Assert.That(allowance, Is.EqualTo(Erc20Bridger.MAX_APPROVAL), "set token allowance failed");
 
-            var testSetup = new TestSetup
+                var initialBridgeTokenBalance = await l1Token.GetFunction("balanceOf").CallAsync<BigInteger>(expectedL1GatewayAddress);
+
+                var userBalBefore = await l1Token.GetFunction("balanceOf").CallAsync<BigInteger>(l1Signer.Address);
+
+                var depositRec = await erc20Bridger.Deposit(new Erc20DepositParams()
+                {
+                    L1Signer = l1Signer,
+                    L2Provider = l2Provider,
+                    Erc20L1Address = l1TokenAddress,
+                    Amount = depositAmount,
+                    RetryableGasOverrides = retryableOverrides,
+                    MaxSubmissionCost = ethDepositAmount,
+                    ExcessFeeRefundAddress = destinationAddress,
+                    DestinationAddress = destinationAddress
+                });
+
+                var finalBridgeTokenBalance = await l1Token.GetFunction("balanceOf").CallAsync<BigInteger>(expectedL1GatewayAddress);
+
+                BigInteger expectedBalance = expectedGatewayType == GatewayType.WETH ? 0 : initialBridgeTokenBalance + depositAmount;
+
+                Assert.That(finalBridgeTokenBalance, Is.EqualTo(expectedBalance), "bridge balance not updated after L1 token deposit txn");
+
+                var userBalAfter = await l1Token.GetFunction("balanceOf").CallAsync<BigInteger>(l1Signer.Address);
+
+                Assert.That(userBalAfter, Is.EqualTo(userBalBefore - depositAmount), "user bal after");
+
+                var waitRes = await depositRec.WaitForL2(new SignerOrProvider(l2Signer));
+
+                Assert.That(waitRes.Result.Status, Is.EqualTo(expectedStatus), "Unexpected status");
+
+                if (retryableOverrides != null)
+                {
+                    return new DepositTokenResults
+                    {
+                        L1Token = l1Token,
+                        WaitRes = waitRes
+                    };
+                }
+                var gateways = GetGateways(expectedGatewayType, erc20Bridger.L2Network);
+
+                var l1Gateway = await erc20Bridger.GetL1GatewayAddress(l1TokenAddress, l1Provider);
+
+                Assert.That(l1Gateway, Is.EqualTo(gateways.expectedL1Gateway), "incorrect l1 gateway address");
+
+                var l2Gateway = await erc20Bridger.GetL2GatewayAddress(l1TokenAddress, l2Provider);
+
+                Assert.That(l2Gateway, Is.EqualTo(gateways.expectedL2Gateway), "incorrect l2 gateway address");
+
+                var l2Erc20Addr = await erc20Bridger.GetL2ERC20Address(l1TokenAddress, l1Provider);
+
+                var l2Token = await erc20Bridger.GetL2TokenContract(l2Provider, l2Erc20Addr);
+
+                var l1Erc20Addr = await erc20Bridger.GetL1ERC20Address(l2Erc20Addr, l2Provider);
+
+                Assert.That(l1Erc20Addr, Is.EqualTo(l1TokenAddress), "getERC20L1Address/getERC20L2Address failed with proper token address");
+
+                var testWalletL2Balance = l2Token.GetFunction("balanceOf").CallAsync<BigInteger>(l2Signer.Address);
+
+                Assert.That(testWalletL2Balance, Is.EqualTo(depositAmount), "l2 wallet not updated after deposit");
+
+                return new DepositTokenResults
+                {
+                    L1Token = l1Token,
+                    WaitRes = waitRes,
+                    L2Token = l2Token
+                };
+            }
+
+            public static async Task<TransactionReceipt> Fund(Account signer, BigInteger? amount = null, string? fundingKey = null)
             {
-                Erc20Bridger = erc20Bridger,
-                L1Signer = l1Signer,
-                L2Signer = l2Signer
-            };
+                var provider = new Web3(signer.TransactionManager.Client);
 
-            await FundL1(testSetup.L1Signer, Web3.Convert.ToWei(1));
-            await FundL2(testSetup.L2Signer, Web3.Convert.ToWei(1));
+                Account wallet = await TestSetupUtils.GetSigner(provider, fundingKey);
 
-            var testToken = await DeployAbiContract(
-                l1Signer.Provider,
-                l1Signer.Account,
-                "TestERC20",
-                true
-            );
+                var tx = new TransactionRequest()
+                {
+                    From = wallet.Address,
+                    To = wallet.Address,
+                    Value = amount,
+                    Nonce = await provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(signer.Address),
+                    GasPrice = await provider.Eth.GasPrice.SendRequestAsync(),
+                    ChainId = await provider.Eth.ChainId.SendRequestAsync()
+                };
 
-            var txHash = await testToken.Mint(l1Signer.Account.Address);
-            await l1Signer.Provider.Eth.GetTransactionReceipt.SendRequestAsync(txHash);
+                var estimatedGas = await provider.TransactionManager.EstimateGasAsync(tx);
 
-            testSetup.L1Token = testToken;
+                tx.Gas = estimatedGas;
 
-            return testSetup;
-        }
+                // Sign transaction asynchronously
+                var signedTx = await provider.TransactionManager.SignTransactionAsync(tx); // Assuming Account has a method for signing transactions
 
-        private async Task DepositToken(Dictionary<string, dynamic> parameters)
-        {
-            // Implement deposit token logic
-        }
+                // Send raw transaction asynchronously
+                var txHash = await provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);  // Assuming Provider has a method for sending raw transactions
 
-        private async Task WithdrawToken(Dictionary<string, dynamic> parameters)
-        {
-            // Implement withdraw token logic
-        }
+                // Wait for transaction receipt asynchronously
+                var txReceipt = await provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
 
-        private async Task<dynamic> DeployAbiContract(Web3 provider, Account account, string contractName, bool isClassic)
-        {
-            // Implement contract deployment logic
-        }
+                return txReceipt;
+            }
 
-        private async Task FundL1(SignerOrProvider signer, BigInteger? amount = null)
-        {
-            // Implement L1 funding logic
-        }
 
-        private async Task FundL2(SignerOrProvider signer, BigInteger? amount = null)
-        {
-            // Implement L2 funding logic
+            public static async Task FundL1(Account l1Signer, BigInteger? amount = null)
+            {
+                await Fund(l1Signer, amount, Config.ETH_KEY);
+            }
+
+            public static async Task FundL2(Account l2Signer, BigInteger? amount = null)
+            {
+                await Fund(l2Signer, amount, Config.ARB_KEY);
+            }
+
+            public static async Task Wait(int ms = 0)
+            {
+                await Task.Delay(ms);
+            }
         }
     }
-}

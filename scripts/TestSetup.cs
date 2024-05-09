@@ -21,6 +21,9 @@ using NBitcoin;
 using Nethereum.HdWallet;
 using Nethereum.Web3.Accounts;
 using System.Numerics;
+using Nethereum.Signer;
+using NUnit.Framework;
+using Nethereum.RPC.Eth.Blocks;
 
 namespace Arbitrum.Scripts
 {
@@ -30,18 +33,21 @@ namespace Arbitrum.Scripts
         public L2Network L2Network { get; set; }
     }
 
-    public class TestSetupResult
+    public class TestState
     {
-        public Account L1Signer { get; set; }
-        public Account L2Signer { get; set; }
-        public L1Network L1Network { get; set; }
-        public L2Network L2Network { get; set; }
-        public Erc20Bridger Erc20Bridger { get; set; }
-        public AdminErc20Bridger AdminErc20Bridger { get; set; }
-        public EthBridger EthBridger { get; set; }
-        public InboxTools InboxTools { get; set; }
-        public Account L1Deployer { get; set; }
-        public Account L2Deployer { get; set; }
+        public Account? L1Signer { get; set; }
+        public Account? L2Signer { get; set; }
+        public L1Network? L1Network { get; set; }
+        public L2Network? L2Network { get; set; }
+        public Erc20Bridger? Erc20Bridger { get; set; }
+        public AdminErc20Bridger? AdminErc20Bridger { get; set; }
+        public EthBridger? EthBridger { get; set; }
+        public InboxTools? InboxTools { get; set; }
+        public Account? L1Deployer { get; set; }
+        public Account? L2Deployer { get; set; }
+        public Contract? L1CustomToken { get; set; }
+        public Contract? L1Token { get; set; }
+
     }
 
     public static class TestSetupUtils
@@ -233,7 +239,7 @@ namespace Arbitrum.Scripts
             return key != null ? new Account(key) : new Account((await provider.Eth.Accounts.SendRequestAsync())[0]);
         }
 
-        public static async Task<TestSetupResult> TestSetup()
+        public static async Task<TestState> TestSetup()
         {
             // Assuming __src_directory is the directory of the current assembly file
             string assemblyDirectory = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
@@ -336,7 +342,7 @@ namespace Arbitrum.Scripts
             var ethBridger = new EthBridger(setL2Network);
             var inboxTools = new InboxTools(signerAccount, setL2Network);
 
-            var result = new TestSetupResult
+            var result = new TestState
             {
                 L1Signer = l1Signer.Account,
                 L2Signer = l2Signer.Account,
@@ -351,6 +357,22 @@ namespace Arbitrum.Scripts
             };
 
             return result;
+        }
+
+        public static async Task SkipIfMainnet(int chainId)
+        {
+            if (chainId == 0)
+            {
+                // Initialize chainId if not already set
+                var l1Network = (await TestSetup()).L1Network;
+                chainId = l1Network.ChainID;
+            }
+
+            if (chainId == 1)
+            {
+                Console.WriteLine("You're writing to the chain on mainnet lol stop");
+                Assert.Ignore("Skipping test on mainnet");
+            }
         }
     }
 

@@ -1,89 +1,105 @@
-﻿using NUnit.Framework;
+﻿using System;
+using System.Numerics;
+using System.Reflection;
 using System.Threading.Tasks;
-using Nethereum.Web3;
-using Nethereum.Hex.HexTypes;
-using System.Threading;
-using Nethereum.Signer;
-using YourNamespace.Lib.SignerOrProvider;
-using YourNamespace.Scripts;
-using YourNamespace.Tests.Integration.Helpers;
 using Arbitrum.DataEntities;
 using Arbitrum.Message;
+using Arbitrum.Scripts;
+using Arbitrum.Tests.Integration;
+using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities.Resources;
+using NBitcoin;
+using Nethereum.Contracts;
+using Nethereum.HdWallet;
+using Nethereum.Hex.HexTypes;
+using Nethereum.RPC.Eth.DTOs;
+using Nethereum.Signer;
+using Nethereum.Util;
+using Nethereum.Web3;
+using Nethereum.Web3.Accounts;
+using NUnit.Framework;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+using static NBitcoin.Protocol.Behaviors.ChainBehavior;
 
-namespace YourNamespace.Tests.Integration
+namespace YourNamespace
 {
-    [TestFixture]
-    public class L2TransactionTests
+    public class YourTestClass
     {
-        private Web3 l1Provider;
-        private Web3 l2Provider;
-        private Account l1Signer;
-        private Account l2Signer;
-
-        private const ulong AMOUNT_TO_SEND = 5_000;
-
-        [SetUp]
-        public async Task Setup()
-        {
-            var setupState = await TestSetup.TestSetup();
-            l1Provider = setupState.L1Signer.Provider;
-            l2Provider = setupState.L2Signer.Provider;
-            l1Signer = setupState.L1Signer.Account;
-            l2Signer = setupState.L2Signer.Account;
-
-            await FundL1(l1Signer, Web3.Convert.ToWei(1, Unit.Eth));
-            await FundL2(l2Signer, Web3.Convert.ToWei(1, Unit.Eth));
-        }
+        private static readonly BigInteger AMOUNT_TO_SEND = Web3.Convert.ToWei(0.000005m, UnitConversion.EthUnit.Ether);
 
         [Test]
-        public async Task FindL1BatchInfo()
+        public async Task TestFindL1BatchInfo()
         {
-            var miner1Seed = EthECKey.GenerateKey();
-            var miner2Seed = EthECKey.GenerateKey();
+            var setupState = await TestSetupUtils.TestSetup();
+            var l1Signer = setupState.L1Signer;
+            var l2Signer = setupState.L2Signer;
+            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
+            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
 
-            var miner1Account = new Account(miner1Seed.GetPrivateKey());
-            var miner2Account = new Account(miner2Seed.GetPrivateKey());
+            //creating a random wallet
+            string mnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve).ToString();
+
+            // Connect the wallet to the provider
+            var miner1Seed = new Wallet(mnemonic, "");
+            var miner2Seed = new Wallet(mnemonic, "");
+
+            //private keys of miners
+            var miner1PrivateKey = miner1Seed.GetPrivateKey(0);
+            var miner2PrivateKey = miner2Seed.GetPrivateKey(0);
+
+            //accounts of miners
+            var miner1Account = new Account(miner1PrivateKey);
+            var miner2Account = new Account(miner2PrivateKey);
 
             var miner1 = new SignerOrProvider(miner1Account, l1Provider);
             var miner2 = new SignerOrProvider(miner2Account, l2Provider);
 
-            await FundL1(miner1, Web3.Convert.ToWei(1, Unit.Eth));
-            await FundL2(miner2, Web3.Convert.ToWei(1, Unit.Eth));
+            await TestHelpers.FundL1(miner1.Account, Web3.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
+            await TestHelpers.FundL2(miner2.Account, Web3.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
+            var state = new Dictionary<string, object> { { "mining", true } };
 
-            var miningCancellation = new CancellationTokenSource();
-            var miner1Task = MineUntilStop(miner1, miningCancellation.Token);
-            var miner2Task = MineUntilStop(miner2, miningCancellation.Token);
+            //starts mining process
+            var miner1Task = TestHelpers.MineUntilStop(miner1.Account, state);
+            var miner2Task = TestHelpers.MineUntilStop(miner2.Account, state);
 
-            await FundL2(l2Signer);
+            await TestHelpers.FundL2(l2Signer);
 
-            var randomAddress = EthECKey.GenerateKey().GetPublicAddress();
+            // Generate a new private key
+            var privateKey = EthECKey.GenerateKey().GetPrivateKey();
 
-            var tx = new Transaction
+            // Create a new account with the generated private key
+            var account = new Account(privateKey);
+
+            //get the random address
+            var randomAddress = account.Address;
+
+            var tx = new TransactionInput()
             {
                 From = l2Signer.Address,
                 To = randomAddress,
-                Value = new HexBigInteger(AMOUNT_TO_SEND)
+                Value = AMOUNT_TO_SEND.ToHexBigInteger()
             };
 
             var txHash = await l2Provider.Eth.TransactionManager.SendTransactionAsync(tx);
+
             var receipt = await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
 
             while (true)
             {
                 await Task.Delay(300);
                 var arbTxReceipt = new L2TransactionReceipt(receipt);
+                BigInteger l1BatchNumber;
                 try
                 {
-                    var l1BatchNumber = await arbTxReceipt.GetBatchNumber(l2Provider);
+                    l1BatchNumber = await arbTxReceipt.GetBatchNumber(l2Provider.Client);
                 }
-                catch
+                catch (SmartContractCustomErrorRevertException)
                 {
-                    // handle ContractLogicError
+                    l1BatchNumber = BigInteger.Zero;
                 }
 
-                var l1BatchConfirmations = arbTxReceipt.GetBatchConfirmations(l2Provider);
+                var l1BatchConfirmations = await arbTxReceipt.GetBatchConfirmations(l2Provider);
 
-                if (l1BatchNumber > 0)
+                if (l1BatchNumber > BigInteger.Zero)
                 {
                     Assert.That(l1BatchConfirmations, Is.GreaterThan(0), "Missing confirmations");
                 }
@@ -99,8 +115,11 @@ namespace YourNamespace.Tests.Integration
                 }
             }
 
-            miningCancellation.Cancel();
-            await Task.WhenAll(miner1Task, miner2Task);
+            state["mining"] = false;
+
+            //to stop the mining processes and clean up any associated resources.
+            miner1Task.Dispose();
+            miner2Task.Dispose();
         }
     }
 }
