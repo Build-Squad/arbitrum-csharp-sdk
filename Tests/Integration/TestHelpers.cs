@@ -100,11 +100,8 @@ namespace Arbitrum.Tests.Integration
                     await Task.Delay(15000); // Delay for 15 seconds
                 }
             }
-
-            [Test]
             public static async Task WithdrawToken(WithdrawalParams parameters)
             {
-
                 var l1Provider = new Web3(parameters.L1Signer.TransactionManager.Client);
                 var l2Provider = new Web3(parameters.L2Signer.TransactionManager.Client);
 

@@ -20,9 +20,9 @@ using NUnit.Framework;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using static NBitcoin.Protocol.Behaviors.ChainBehavior;
 
-namespace YourNamespace
+namespace Arbitrum.Message.Tests.Integration
 {
-    public class YourTestClass
+    public class L2TransactionReceiptTests
     {
         private static readonly BigInteger AMOUNT_TO_SEND = Web3.Convert.ToWei(0.000005m, UnitConversion.EthUnit.Ether);
 

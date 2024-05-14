@@ -165,7 +165,7 @@ namespace Arbitrum.AssetBridger.Tests.Integration
             Assert.That(l1ToL2Message.MessageData.DestAddress, Is.EqualTo(destWalletAddress), "Message destination address mismatch");
             Assert.That(l1ToL2Message.MessageData.L2CallValue, Is.EqualTo(ethToDeposit), "Message value mismatch");
 
-            var retryableTicketResult = await l1ToL2Message.WaitForStatus(l2Provider);
+            var retryableTicketResult = await l1ToL2Message.WaitForStatus();
             Assert.That(retryableTicketResult.Status, Is.EqualTo(L1ToL2MessageStatus.REDEEMED), "Retryable ticket not redeemed");
 
             var retryableTxReceipt = await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(l1ToL2Message.RetryableCreationId);

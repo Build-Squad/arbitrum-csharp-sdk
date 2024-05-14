@@ -55,10 +55,11 @@ namespace Arbitrum.Message
             _l2Provider = l2Provider;
         }
 
-        public L2TransactionReceipt Wait()
+        public async Task<L2TransactionReceipt> Wait()
         {
-            return _transaction;
+            return await Task.FromResult(_transaction);
         }
+
 
         public async Task<TransactionReceipt> WaitForRedeem()
         {

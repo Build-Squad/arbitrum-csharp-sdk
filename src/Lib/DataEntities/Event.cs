@@ -185,9 +185,6 @@ namespace Arbitrum.DataEntities
             string bytecode;
             string filePath = isClassic ? $"src/abi/classic/{contractName}.json" : $"src/abi/{contractName}.json";
 
-            string a = isClassic ? $"../../src/abi/classic/{contractName}.json" : $"src/abi/{contractName}.json";
-
-            string b = "";
             try
             {
                 using (StreamReader reader = new StreamReader(filePath))

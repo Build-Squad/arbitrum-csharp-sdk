@@ -14,7 +14,6 @@ using System.Reflection.Metadata.Ecma335;
 using Nethereum.Hex.HexTypes;
 using Nethereum.Hex.HexConvertors.Extensions;
 using Nethereum.Web3.Accounts;
-using static Arbitrum.Message.L1EthDepositTransactionReceipt;
 using Org.BouncyCastle.Utilities;
 using Nethereum.JsonRpc.Client;
 using Org.BouncyCastle.Asn1.Ocsp;
@@ -94,7 +93,7 @@ namespace Arbitrum.AssetBridgerModule
     }
 
 
-    public class EthBridger : AssetBridger<EthDepositParams, EthWithdrawParams>
+    public class EthBridger : AssetBridger<EthDepositParams, EthWithdrawParams, L1EthDepositTransactionReceipt>
     {
         private readonly L2Network _l2Network;
 
@@ -155,7 +154,7 @@ namespace Arbitrum.AssetBridgerModule
             };
         }
 
-        public override async Task<L1TransactionReceipt> Deposit(dynamic parameters)
+        public override async Task<L1EthDepositTransactionReceipt> Deposit(dynamic parameters)
         {
             await CheckL1Network(new SignerOrProvider(parameters?.L1Signer));
 

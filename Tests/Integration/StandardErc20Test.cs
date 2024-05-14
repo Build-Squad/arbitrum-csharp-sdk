@@ -87,7 +87,7 @@ namespace Arbitrum.AssetBridger.Tests.Integration
         }
 
         [Test]
-        public async Task DepositWithLowFundsManualRedeem( TestState setupState)
+        public async Task DepositWithLowFundsManualRedeem(TestState setupState)
         {
             var depositTokenParams = await TestHelpers.DepositToken(
                 depositAmount: DEPOSIT_AMOUNT,
@@ -122,7 +122,7 @@ namespace Arbitrum.AssetBridger.Tests.Integration
                 retryableOverrides: new GasOverrides
                 {
                     GasLimit = new PercentIncreaseWithMin() { Base = new BigInteger(21000) }
-                }   
+                }
             );
 
             var waitRes = depositTokenParams.WaitRes;
@@ -133,13 +133,13 @@ namespace Arbitrum.AssetBridger.Tests.Integration
             }
 
             var l2Receipt = new L2TransactionReceipt(retryableCreation);
-            var redeemsScheduled = l2Receipt.GetRedeemScheduledEvents(setupState.l2Signer.Provider);
-            Assert.AreEqual(1, redeemsScheduled.Count, "Unexpected redeem length");
+            var redeemsScheduled = (await l2Receipt.GetRedeemScheduledEvents(new Web3(setupState.L2Signer.TransactionManager.Client))).ToList();
+            Assert.That(1, Is.EqualTo(redeemsScheduled.Count), "Unexpected redeem length");
 
-            var retryReceipt = await GetTransactionReceipt(redeemsScheduled[0].RetryTxHash, setupState.l2Signer.Provider);
-            Assert.IsNull(retryReceipt, "Retry should not exist");
+            var retryReceipt = await Lib.GetTransactionReceiptAsync(txHash: redeemsScheduled[0].Event.RetryTxHash, web3: new Web3(setupState.L2Signer.TransactionManager.Client));
+            Assert.That(retryReceipt, Is.Null, "Retry should not exist");
 
-            await RedeemAndTest(setupState, waitRes.message, 1);
+            await RedeemAndTest(setupState, waitRes.Message, 1);
         }
 
         [Test]
@@ -147,77 +147,71 @@ namespace Arbitrum.AssetBridger.Tests.Integration
         {
             var setupState = await SetupState();
 
-            var depositTokenParams = await DepositToken(
-                DEPOSIT_AMOUNT,
-                setupState.l1Token.Address,
-                setupState.erc20Bridger,
-                setupState.l1Signer,
-                setupState.l2Signer,
-                L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2,
-                GatewayType.STANDARD,
-                new RetryableOverrides
+            var depositTokenParams = await TestHelpers.DepositToken(
+                depositAmount: DEPOSIT_AMOUNT,
+                l1TokenAddress: setupState.L1Token.Address,
+                erc20Bridger: setupState.Erc20Bridger,
+                l1Signer: setupState.L1Signer,
+                l2Signer: setupState.L2Signer,
+                expectedStatus: L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2,
+                expectedGatewayType: GatewayType.STANDARD,
+                retryableOverrides: new GasOverrides
                 {
-                    GasLimit = new GasLimit { Base = 5 },
-                    MaxFeePerGas = new MaxFeePerGas { Base = 5 }
+                    GasLimit = new PercentIncreaseWithMin { Base = 5 },
+                    MaxFeePerGas = new PercentIncreaseType { Base = 5 }
                 }
             );
 
-            var waitRes = depositTokenParams["waitRes"];
-            await RedeemAndTest(setupState, waitRes.message, 0);
+            var waitRes = depositTokenParams.WaitRes;
+            await RedeemAndTest(setupState, waitRes.Message, 0);
 
-            await RedeemAndTest(setupState, waitRes.message, 1);
+            await RedeemAndTest(setupState, waitRes.Message, 1);
         }
 
         [Test]
-        public async Task WithdrawsErc20()
+        public async Task TestWithdrawsErc20(TestState setupState)
         {
-            var setupState = await SetupState();
-
-            var l2TokenAddr = await setupState.erc20Bridger.GetL2ERC20Address(
-                setupState.l1Token.Address, setupState.l1Signer.Provider
+            var l2TokenAddr = await setupState.Erc20Bridger.GetL2ERC20Address(
+                setupState.L1Token.Address, new Web3(setupState.L1Signer.TransactionManager.Client)
             );
 
-            var l2Token = setupState.erc20Bridger.GetL2TokenContract(setupState.l2Signer.Provider, l2TokenAddr);
+            var l2Token = await setupState.Erc20Bridger.GetL2TokenContract(new Web3(setupState.L2Signer.TransactionManager.Client), l2TokenAddr);
 
             var startBalance = DEPOSIT_AMOUNT * 5;
-            var l2BalanceStart = await l2Token.BalanceOf(setupState.l2Signer.Account.Address);
+            var l2BalanceStart = await l2Token.GetFunction("balanceOf").CallAsync<BigInteger>(setupState.L2Signer.Address);
 
-            Assert.AreEqual(startBalance, l2BalanceStart, "Unexpected L2 balance");
+            Assert.That(startBalance, Is.EqualTo(l2BalanceStart), "Unexpected L2 balance");
 
-            await WithdrawToken(new
+            await TestHelpers.WithdrawToken(new WithdrawalParams
             {
-                setupState,
-                amount = WITHDRAWAL_AMOUNT,
-                gatewayType = GatewayType.STANDARD,
-                startBalance,
-                l1Token = deployAbiContract(
-                    provider: setupState.l1Signer.Provider,
-                    deployer: setupState.l1Signer.Account,
+                Erc20Bridger = setupState.Erc20Bridger,
+                L1Signer = setupState.L1Signer,
+                L2Signer = setupState.L1Signer,
+                Amount = WITHDRAWAL_AMOUNT,
+                GatewayType = GatewayType.STANDARD,
+                StartBalance = startBalance,
+                L1Token = await LoadContractUtils.DeployAbiContract(
+                    provider: new Web3(setupState.L1Signer.TransactionManager.Client),
+                    deployer: setupState.L1Signer,
                     contractName: "ERC20",
                     isClassic: true
                 )
             });
         }
-
-        private async Task<dynamic> SetupState()
+        public async Task RedeemAndTest(TestState setupState, L1ToL2MessageReaderOrWriter message, int expectedStatus, BigInteger? gasLimit = null)
         {
-            var setup = await TestSetup.TestSetup();
+            var manualRedeem = await message.Redeem(new Dictionary<string, object> { { "gasLimit", gasLimit } });
+            var retryRec = await manualRedeem.WaitForRedeem();
+            var redeemRec = await manualRedeem.Wait();
+            var blockHash = redeemRec.BlockHash;
 
-            FundL1(setup.l1Signer);
-            FundL2(setup.l2Signer);
+            Assert.That(retryRec.BlockHash, Is.EqualTo(blockHash), "redeemed in same block");
+            Assert.That(retryRec.To, Is.EqualTo(setupState.L2Network.TokenBridge.L2ERC20Gateway), "redeemed in same block");
+            Assert.That(retryRec.Status, Is.EqualTo(expectedStatus), "tx didn't fail");
 
-            var testToken = deployAbiContract(
-                provider: setup.l1Signer.Provider,
-                deployer: setup.l1Signer.Account,
-                contractName: "TestERC20",
-                isClassic: true
-            );
-            var txHash = await testToken.Mint(setup.l1Signer.Account.Address);
-
-            await setup.l1Signer.Provider.Eth.WaitTransactionReceipt.SendRequestAsync(txHash);
-
-            setup.l1Token = testToken;
-            return setup;
+            var messageStatus = await message.Status();
+            var expectedMessageStatus = expectedStatus == 0 ? L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2 : L1ToL2MessageStatus.REDEEMED;
+            Assert.That(messageStatus, Is.EqualTo(expectedMessageStatus), "message status");
         }
     }
 }

@@ -57,7 +57,7 @@ namespace Arbitrum.Message.Tests.Integration
             Assert.That(l1ToL2Messages.Count, Is.EqualTo(1));
             var l1ToL2Message = l1ToL2Messages[0];
 
-            var retryableTicketResult = await l1ToL2Message.WaitForStatus(l2Provider);
+            var retryableTicketResult = await l1ToL2Message.WaitForStatus();
             Assert.That(retryableTicketResult.Status, Is.EqualTo(L1ToL2MessageStatus.REDEEMED));
             var finalL2Balance = l2Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Address);
             Assert.That(finalL2Balance, Is.GreaterThan(initialL2Balance));
@@ -99,7 +99,7 @@ namespace Arbitrum.Message.Tests.Integration
             Assert.That(l1ToL2Messages.Count, Is.EqualTo(1));
             var l1ToL2Message = l1ToL2Messages[0];
 
-            var retryableTicketResult = await l1ToL2Message.WaitForStatus(l2Provider);
+            var retryableTicketResult = await l1ToL2Message.WaitForStatus();
             Assert.That(retryableTicketResult.Status, Is.EqualTo(L1ToL2MessageStatus.REDEEMED));
 
             var finalL2Balance = l2Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Address);

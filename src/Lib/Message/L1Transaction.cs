@@ -222,7 +222,7 @@ namespace Arbitrum.Message
             );
         }
 
-        public async Task<IEnumerable<L1ToL2Message>> GetL1ToL2Messages<T>(T l2SignerOrProvider) where T : SignerOrProvider
+        public async Task<IEnumerable<L1ToL2MessageReaderOrWriter>> GetL1ToL2Messages<T>(T l2SignerOrProvider) where T : SignerOrProvider
         {
 
             var provider = SignerProviderUtils.GetProviderOrThrow(l2SignerOrProvider);
@@ -267,12 +267,12 @@ namespace Arbitrum.Message
             return new L1TransactionReceipt(contractTransaction);
         }
 
-        public static L1TransactionReceipt MonkeyPatchEthDepositWait(TransactionReceipt contractTransaction)
+        public static L1EthDepositTransactionReceipt MonkeyPatchEthDepositWait(TransactionReceipt contractTransaction)
         {
             return new L1EthDepositTransactionReceipt(contractTransaction);
         }
 
-        public static L1TransactionReceipt MonkeyPatchContractCallWait(TransactionReceipt contractTransaction)
+        public static L1ContractCallTransactionReceipt MonkeyPatchContractCallWait(TransactionReceipt contractTransaction)
         {
             return new L1ContractCallTransactionReceipt(contractTransaction);
         }
@@ -357,7 +357,7 @@ namespace Arbitrum.Message
         int? timeout = null) where T : SignerOrProvider
         {
             var messages = await GetL1ToL2Messages(l2SignerOrProvider);
-            var message = messages.FirstOrDefault() as L1ToL2MessageReader;
+            var message = messages.FirstOrDefault();
             if (message == null)
             {
                 throw new ArbSdkError("Unexpected missing L1ToL2 message.");

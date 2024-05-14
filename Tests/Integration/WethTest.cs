@@ -1,91 +1,150 @@
-﻿using System.Numerics;
+﻿using System;
+using System.Collections.Generic;
+using System.Numerics;
 using System.Threading.Tasks;
-using NUnit.Framework;
+using Nethereum.Contracts;
 using Nethereum.Web3;
-using YourNamespace.Lib.Message;
-using YourNamespace.Lib.Utils;
-using Arbitrum.AssetBridger;
-using Arbitrum.DataEntities;
+using NUnit.Framework;
+using Arbitrum.Tests.Integration;
+using Arbitrum.Utils;
+using Nethereum.Util;
+using Org.BouncyCastle.Asn1.X509;
+using static Arbitrum.Message.L1ToL2MessageUtils;
+using Arbitrum.Scripts;
+using Nethereum.RPC.Eth.DTOs;
+using Nethereum.Hex.HexTypes;
+using Nethereum.Signer;
 using Nethereum.Web3.Accounts;
 
-namespace YourNamespace.Tests.Integration
+namespace Arbitrum.AssetBridger.Tests.Integration
 {
     [TestFixture]
-    public class WethTests
+    public class TokenBridgeTests
     {
         [Test]
-        public async Task TestDepositWeth()
+        public async Task DepositWETH()
         {
-            // Setup
-            var wethToWrap = Web3.Convert.ToWei(0.00001);
-            var wethToDeposit = Web3.Convert.ToWei(0.0000001);
-
-            var setupState = await TestSetup();
+            var setupState = await TestSetupUtils.TestSetup();
             var l2Network = setupState.L2Network;
             var l1Signer = setupState.L1Signer;
             var l2Signer = setupState.L2Signer;
+            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
+            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
             var erc20Bridger = setupState.Erc20Bridger;
 
-            // Execution
-            // Deposit WETH to L1
-            await DepositWethToL1(l1Signer, wethToWrap);
+            var l1WethAddress = l2Network.TokenBridge.L1Weth;
 
-            // Deposit WETH from L1 to L2
-            await DepositWethToL2(l1Signer, l2Signer, erc20Bridger, wethToDeposit);
+            var wethToWrap = Web3.Convert.ToWei(0.00001, UnitConversion.EthUnit.Ether);
+            var wethToDeposit = Web3.Convert.ToWei(0.0000001, UnitConversion.EthUnit.Ether);
 
-            // Withdraw WETH from L2 to L1
-            await WithdrawWethFromL2(l1Signer, l2Signer, erc20Bridger, l2Network, wethToDeposit);
+            await TestHelpers.FundL1(l1Signer, Web3.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
 
-            // Assert
-            // Check the balance of the recipient account in L1
-            var recipientBalance = await l1Signer.Provider.Eth.GetBalance.SendRequestAsync(recipientAddress);
-            Assert.AreEqual(wethToDeposit, recipientBalance);
+            var l2WETH = await LoadContractUtils.LoadContract(
+                provider: l2Provider,
+                address: l2Network.TokenBridge.L2Weth,
+                contractName: "AeWETH",
+                isClassic: true
+            );
+            Assert.That(l2WETH.GetFunction("balanceOf").CallAsync<BigInteger>(l2Signer.Address).Result, Is.Zero);
+
+            var l1WETH = await LoadContractUtils.LoadContract(
+                provider: l1Provider,
+                address: l1WethAddress,
+                contractName: "AeWETH",
+                isClassic: true
+            );
+
+            var tx = await l1WETH.GetFunction("deposit").SendTransactionAsync(from: l1Signer.Address, new CallInput{Value = new HexBigInteger(wethToWrap) });
+
+            await l1Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(tx);
+
+            await TestHelpers.DepositToken(
+                depositAmount: wethToDeposit,
+                l1TokenAddress: l1WethAddress,
+                erc20Bridger: erc20Bridger,
+                l1Signer: l1Signer,
+                l2Signer: l2Signer,
+                expectedStatus: L1ToL2MessageStatus.REDEEMED,
+                expectedGatewayType: GatewayType.WETH
+            );
+
+            var l2WethGateway = await erc20Bridger.GetL2GatewayAddress(l1WethAddress, l2Provider);
+            Assert.That(l2WethGateway, Is.EqualTo(l2Network.TokenBridge.L2WethGateway));
+
+            var l2Token = await erc20Bridger.GetL2TokenContract(l2Provider, l2Network.TokenBridge.L2Weth);
+            Assert.That(l2Token.Address, Is.EqualTo(l2Network.TokenBridge.L2Weth));
+
+            await TestHelpers.FundL2(l2Signer);
+
+            var l2Weth = await LoadContractUtils.LoadContract(
+                provider: l2Provider,
+                address: l2Token.Address,
+                contractName: "AeWETH",
+                isClassic: true
+            );
+
+            // Generate a new private key
+            var privateKey = EthECKey.GenerateKey().GetPrivateKey();
+
+            // Create a new account with the generated private key
+            var account = new Account(privateKey);
+
+            //random address
+            var randomAddr = account.Address;
+
+            tx = await l2Weth.GetFunction("withdrawTo").SendTransactionAsync(from: l2Signer.Address, randomAddr, wethToDeposit);
+
+            await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(tx);
+
+            var afterBalance = await l2Provider.Eth.GetBalance.SendRequestAsync(randomAddr);
+            Assert.That(afterBalance, Is.EqualTo(wethToDeposit));
         }
 
         [Test]
-        public async Task TestWithdrawWeth()
+        public async Task WithdrawWETH()
         {
-            // Setup
-            var wethToWrap = Web3.Convert.ToWei(0.00001);
-            var wethToWithdraw = Web3.Convert.ToWei(0.00000001);
+            var wethToWrap = Web3.Convert.ToWei(0.00001, UnitConversion.EthUnit.Ether);
+            var wethToWithdraw = Web3.Convert.ToWei(0.00000001, UnitConversion.EthUnit.Ether);
 
-            var setupState = await TestSetup();
+            var setupState = await TestSetupUtils.TestSetup();
             var l2Network = setupState.L2Network;
             var l1Signer = setupState.L1Signer;
             var l2Signer = setupState.L2Signer;
+            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
+            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
             var erc20Bridger = setupState.Erc20Bridger;
 
-            // Execution
-            // Deposit WETH to L2
-            await DepositWethToL2(l1Signer, l2Signer, erc20Bridger, wethToWrap);
+            await TestHelpers.FundL1(l1Signer);
+            await TestHelpers.FundL2(l2Signer);
 
-            // Withdraw WETH from L2 to L1
-            await WithdrawWethFromL2(l1Signer, l2Signer, erc20Bridger, l2Network, wethToWithdraw);
+            var l2Weth = await LoadContractUtils.LoadContract(
+                provider: l2Provider,
+                address: l2Network.TokenBridge.L2Weth,
+                contractName: "AeWETH",
+                isClassic: true
+            );
 
-            // Assert
-            // Check the balance of the recipient account in L1
-            var recipientBalance = await l1Signer.Provider.Eth.GetBalance.SendRequestAsync(recipientAddress);
-            Assert.AreEqual(wethToWithdraw, recipientBalance);
-        }
+            var tx = await l2Weth.GetFunction("deposit").SendTransactionAsync(from: l2Signer.Address, new CallInput{ Value = new HexBigInteger(wethToWrap) });
 
-        private async Task DepositWethToL1(Account l1Signer, BigInteger amount)
-        {
-            // Implement WETH deposit to L1 logic
-        }
+            var rec = await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(tx);
 
-        private async Task DepositWethToL2(Account l1Signer, Account l2Signer, Erc20Bridger erc20Bridger, BigInteger amount)
-        {
-            // Implement WETH deposit from L1 to L2 logic
-        }
+            Assert.That(rec.Status, Is.EqualTo(1));
 
-        private async Task WithdrawWethFromL2(Account l1Signer, Account l2Signer, Erc20Bridger erc20Bridger, L2Network l2Network, BigInteger amount)
-        {
-            // Implement WETH withdraw from L2 to L1 logic
-        }
-
-        private async Task<TestSetup> TestSetup()
-        {
-            // Implement test setup logic
+            await TestHelpers.WithdrawToken(new WithdrawalParams
+            {
+                Amount = wethToWithdraw,
+                Erc20Bridger = erc20Bridger,
+                GatewayType = GatewayType.WETH,
+                L1Signer = l1Signer,
+                L1Token= await LoadContractUtils.LoadContract(
+                    provider: l1Provider,
+                    address: l2Network.TokenBridge.L1Weth,
+                    contractName: "ERC20",
+                    isClassic: true
+                ),
+                L2Signer = setupState.L2Signer,
+                StartBalance = wethToWrap
+            });
         }
     }
 }

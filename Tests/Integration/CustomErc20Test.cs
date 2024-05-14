@@ -165,11 +165,11 @@ namespace Arbitrum.AssetBridger.Tests.Integration
             Assert.That(l1ToL2Messages.Count, Is.EqualTo(2));
 
             // Wait for status of set token transaction
-            var setTokenTx = await l1ToL2Messages[0].WaitForStatus(l2Provider);
+            var setTokenTx = await l1ToL2Messages[0].WaitForStatus();
             Assert.That(setTokenTx.Status, Is.EqualTo(L1ToL2MessageStatus.REDEEMED));
 
             // Wait for status of set gateway transaction
-            var setGatewayTx = await l1ToL2Messages[1].WaitForStatus(l2Provider);
+            var setGatewayTx = await l1ToL2Messages[1].WaitForStatus();
             Assert.That(setGatewayTx.Status, Is.EqualTo(L1ToL2MessageStatus.REDEEMED));
 
             // Get end L1 gateway address

@@ -16,11 +16,26 @@ using Nethereum.RPC.Eth.DTOs;
 using System.Reflection.Metadata.Ecma335;
 using Nethereum.ABI.Model;
 using System.Reflection;
+using Nethereum.Hex.HexTypes;
+using Newtonsoft.Json.Linq;
+using Nethereum.Web3.Accounts;
+using Nethereum.Hex.HexConvertors.Extensions;
+using Nethereum.RLP;
+using Org.BouncyCastle.Utilities.Encoders;
 
 namespace Arbitrum.Utils
 {
     public static class HelperMethods
     {
+        private static Random random = new Random();
+
+        public static string GenerateRandomHex(int length)
+        {
+            byte[] randomBytes = new byte[length];
+            random.NextBytes(randomBytes);
+            return "0x" + BitConverter.ToString(randomBytes).Replace("-", "").ToLower();
+        }
+
         //generic method to get bytecode from an abi
         public static string GetBytecodeFromABI(string filePath)
         {
@@ -351,6 +366,31 @@ namespace Arbitrum.Utils
             return contract;
         }
 
+        public static async Task<Contract> DeployAbiContract(
+            Web3 provider,
+            Account deployer,
+            string contractName,
+            object[] constructorArgs = null,
+            bool isClassic = false)
+        {
+            var deployerAddress = deployer.Address;
+
+            var (contractAbi, contractAddress) = await LogParser.LoadAbi(contractName, isClassic);
+
+            var contract = provider.Eth.GetContract(contractAbi, contractAddress);
+
+            var contractByteCode = await provider.Eth.GetCode.SendRequestAsync(contract.Address);
+
+            var deploymentReceipt = await provider.Eth.DeployContract.SendRequestAndWaitForReceiptAsync(
+                                        abi: contractAbi,
+                                        contractByteCode: contractByteCode,
+                                        from: deployerAddress,
+                                        receiptRequestCancellationToken: null,
+                                        values:constructorArgs);
+
+            return provider.Eth.GetContract(contractAbi, deploymentReceipt.ContractAddress);
+        }
+
         public static Web3 GetWeb3Provider(object provider)
         {
             if (provider is SignerOrProvider signerOrProvider)
@@ -365,6 +405,14 @@ namespace Arbitrum.Utils
             {
                 return (Web3)provider;
             }
+        }
+        public static string GetContractAddress(string senderAddress, BigInteger nonce)
+        {
+            var encodedData = RLP.EncodeList(RLP.EncodeElement(senderAddress.Substring(2).HexToByteArray()), RLP.EncodeElement(nonce.ToByteArray()));
+            var hashedData = new Sha3Keccack().CalculateHash(encodedData);
+            var contractAddressBytes = new byte[20];
+            Array.Copy(hashedData, hashedData.Length - 20, contractAddressBytes, 0, 20);
+            return contractAddressBytes.ToHex();
         }
 
         public static string GetAddress(string address)

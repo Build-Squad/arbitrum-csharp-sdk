@@ -107,7 +107,7 @@ namespace Arbitrum.AssetBridger
         public string? TokenAddr { get; set; }
         public string? GatewayAddr { get; set; }
     }
-    public class Erc20Bridger : AssetBridger<Erc20DepositParams, Erc20WithdrawParams>
+    public class Erc20Bridger : AssetBridger<Erc20DepositParams, Erc20WithdrawParams, L1ContractCallTransactionReceipt>
     {
         public static BigInteger MAX_APPROVAL { get; set; } = BigInteger.Parse("18446744073709551615");
         public static BigInteger MIN_CUSTOM_DEPOSIT_GAS_LIMIT { get; set; } = BigInteger.Parse("275000");
@@ -674,7 +674,7 @@ namespace Arbitrum.AssetBridger
             };
         }
 
-        public override async Task<L1TransactionReceipt> Deposit(dynamic parameters)
+        public override async Task<L1ContractCallTransactionReceipt> Deposit(dynamic parameters)
         {
             await CheckL1Network(new SignerOrProvider(parameters?.L1Signer));
 
@@ -1102,7 +1102,7 @@ namespace Arbitrum.AssetBridger
                 return formattedEvents;
             }
 
-            public async Task<L1TransactionReceipt> SetGateways(
+            public async Task<L1ContractCallTransactionReceipt> SetGateways(
                 Account l1Signer,
                 Web3 l2Provider,
                 List<TokenAndGateway> tokenGateways,
