@@ -1,60 +1,76 @@
 ﻿using System.Threading.Tasks;
+using System.Numerics;
+using Nethereum.RPC.Eth.DTOs;
+using Nethereum.JsonRpc.Client;
 
 namespace Arbitrum.DataEntities
 {
-    public class L1ToL2MessageParams
-    {
-        // Add any necessary members or methods
-    }
-
     public class L1ToL2MessageGasParams
     {
-        // Add any necessary members or methods
+        public BigInteger? MaxSubmissionCost { get; set; }
+        public BigInteger? MaxFeePerGas { get; set; }
+        public BigInteger? GasLimit { get; set; }
+        public BigInteger? Deposit { get; set; }
     }
 
-    public class L1ToL2TransactionRequest
+    public class L1ToL2MessageNoGasParams
     {
-        public object TxRequest { get; }
-        public object RetryableData { get; }
+        public string? From { get; set; }
+        public string? To { get; set; }
+        public BigInteger? L2CallValue { get; set; }
+        public string? ExcessFeeRefundAddress { get; set; }
+        public string? CallValueRefundAddress { get; set; }
+        public byte[]? Data { get; set; }
+    }
 
-        public L1ToL2TransactionRequest(object txRequest, object retryableData)
+    public class L1ToL2MessageParams : L1ToL2MessageNoGasParams
+    {
+        public new string? ExcessFeeRefundAddress { get; set; }
+        public new string? CallValueRefundAddress { get; set; }
+    }
+    public class TransactionRequest : TransactionInput            //////////
+    {
+        public new string? To { get; set; }
+        public new string? Data { get; set; }
+        public new BigInteger? Value { get; set; }
+        public new string? From { get; set; }
+    }
+
+    public class L1ToL2TransactionRequest 
+    {
+        public TransactionRequest? TxRequest { get; set; }
+        public RetryableData? RetryableData { get; set; }
+        public Func<Task<bool>>? IsValid { get; set; }
+        public L1ToL2TransactionRequest()
+        { }
+        public L1ToL2TransactionRequest(TransactionRequest? txRequest, RetryableData? retryableData)
         {
             TxRequest = txRequest;
             RetryableData = retryableData;
         }
 
-        public Task<bool> IsValid()
-        {
-            
-            throw new NotImplementedException();
-        }
     }
 
     public class L2ToL1TransactionRequest
     {
-        public object TxRequest { get; }
-        public object EstimateL1GasLimit { get; }
+        public TransactionRequest? TxRequest { get; set; }
+        public Func<IClient, Task<BigInteger>>? EstimateL1GasLimit { get; set; }
 
-        public L2ToL1TransactionRequest(object txRequest, object estimateL1GasLimit)
-        {
-            TxRequest = txRequest;
-            EstimateL1GasLimit = estimateL1GasLimit;
-        }
     }
 
-    public static class Utils
+    public static class TransactionUtils
     {
-        public static bool IsL1ToL2TransactionRequest(object possibleRequest)
+        public static bool IsL1ToL2TransactionRequest(dynamic possibleRequest)
         {
-            return IsDefined(possibleRequest is IDictionary<string, object> dict ? dict["txRequest"] : null);
+            return possibleRequest?.TxRequest != null;
         }
 
-        public static bool IsL2ToL1TransactionRequest(object possibleRequest)
+        public static bool IsL2ToL1TransactionRequest(dynamic possibleRequest)
         {
-            return IsDefined(possibleRequest is IDictionary<string, object> dict ? dict["txRequest"] : null);
+            return possibleRequest?.TxRequest != null;
         }
 
-        public static bool IsDefined(object val)
+        public static bool IsDefined<T>(T val)
         {
             return val != null;
         }

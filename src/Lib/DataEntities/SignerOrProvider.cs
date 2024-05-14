@@ -2,16 +2,38 @@
 using Arbitrum.DataEntities;
 using Nethereum.Web3.Accounts;
 using Nethereum.Web3;
+using Nethereum.JsonRpc.Client;
 
 namespace Arbitrum.DataEntities
 {
     public class SignerOrProvider
     {
-        public Account Account { get; }
-        public object Provider { get; }
+        public Account? Account { get; }
+        public Web3? Provider { get; }
 
-        public SignerOrProvider(Account account, object provider)
+        public SignerOrProvider(Web3 provider)
         {
+            if (provider == null)
+            {
+                throw new ArgumentException("Provider is not provided");
+            }
+            Provider = provider;
+        }
+        public SignerOrProvider(Account account)
+        {
+            if (account == null)
+            {
+                throw new ArgumentException("Signer is not provided");
+            }
+            Account = account;
+        }
+
+        public SignerOrProvider(Account account, Web3 provider)
+        {
+            if (account == null && provider == null)
+            {
+                throw new ArgumentException("Either account or provider should be set, but not both.");
+            }
             Account = account;
             Provider = provider;
         }
@@ -31,7 +53,7 @@ namespace Arbitrum.DataEntities
             }
         }
 
-        public static IWeb3 GetProvider(object signerOrProvider)
+        public static Web3 GetProvider(dynamic signerOrProvider)
         {
             if (signerOrProvider is Web3)
             {
@@ -39,11 +61,19 @@ namespace Arbitrum.DataEntities
             }
             else if (signerOrProvider is SignerOrProvider)
             {
-                return (signerOrProvider as SignerOrProvider).Provider;
+                return (signerOrProvider as SignerOrProvider)?.Provider!;
+            }
+            else if(signerOrProvider is IClient)
+            {
+                return new Web3(signerOrProvider);
+            }
+            else if(signerOrProvider is Account)
+            {
+                return new Web3(signerOrProvider?.TransactionManager?.Client);
             }
             else
             {
-                return null;
+                return null!;
             }
         }
 
@@ -55,15 +85,15 @@ namespace Arbitrum.DataEntities
             }
             else if (signerOrProvider is SignerOrProvider)
             {
-                return (signerOrProvider as SignerOrProvider).Account;
+                return (signerOrProvider as SignerOrProvider)?.Account!;
             }
             else
             {
-                return null;
+                return null!;
             }
         }
 
-        public static IWeb3 GetProviderOrThrow(object signerOrProvider)
+        public static Web3 GetProviderOrThrow(object signerOrProvider)
         {
             var provider = GetProvider(signerOrProvider);
             if (provider != null)
@@ -81,13 +111,13 @@ namespace Arbitrum.DataEntities
             return signer is SignerOrProvider;
         }
 
-        public static async Task<bool> CheckNetworkMatches(object signerOrProvider, int chainId)
+        public static async Task<bool> CheckNetworkMatches(dynamic signerOrProvider, int chainId)
         {
-            IWeb3 provider;
+            Web3 provider;
 
             if (signerOrProvider is SignerOrProvider)
             {
-                provider = (signerOrProvider as SignerOrProvider).Provider;
+                provider = (signerOrProvider as SignerOrProvider)?.Provider!;
             }
             else if (signerOrProvider is Web3)
             {
@@ -95,7 +125,7 @@ namespace Arbitrum.DataEntities
             }
             else
             {
-                provider = null;
+                provider = null!;
             }
 
             if (provider == null)

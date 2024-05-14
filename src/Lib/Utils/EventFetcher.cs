@@ -10,34 +10,39 @@ using Nethereum.Contracts.Services;
 using Nethereum.JsonRpc.Client;
 using Arbitrum.DataEntities;
 using Nethereum.RPC.Eth.Filters;
+using Nethereum.RPC.Eth.Services;
+using Nethereum.ABI.Model;
+using Nethereum.Hex.HexTypes;
+using Nethereum.ABI.FunctionEncoding.Attributes;
+
 
 namespace Arbitrum.Utils
 {
-    public class FetchedEvent : CaseDict
+    public class FetchedEvent<TEventArgs>
     {
-        public string Event { get; }
-        public string Topic { get; }
-        public string Name { get; }
-        public BigInteger BlockNumber { get; }
-        public string BlockHash { get; }
-        public string TransactionHash { get; }
-        public string Address { get; }
-        public List<string> Topics { get; }
-        public string Data { get; }
+        public TEventArgs Event { get; set; }
+        public string Topic { get; set; }
+        public string Name { get; set; }
+        public int BlockNumber { get; set; }
+        public string BlockHash { get; set; }
+        public string TransactionHash { get; set; }
+        public string Address { get; set; }
+        public List<string> Topics { get; set; }
+        public string Data { get; set; }
 
         public FetchedEvent(
-            string _event,
+            TEventArgs eventArgs,
             string topic,
             string name,
-            BigInteger blockNumber,
+            int blockNumber,
             string blockHash,
             string transactionHash,
             string address,
             List<string> topics,
-                    string data) : base(data) // Passing 'data' to the base class constructor
+            string data)
         {
-            Event = _event;
-            Topic = topic?.ToString() ?? string.Empty; // Convert topic to string or default to empty string
+            Event = eventArgs;
+            Topic = topic;
             Name = name;
             BlockNumber = blockNumber;
             BlockHash = blockHash;
@@ -50,7 +55,7 @@ namespace Arbitrum.Utils
 
     public class EventFetcher
     {
-        public readonly object _provider;
+        public readonly Web3 _provider;
 
         public EventFetcher(object provider)
         {
@@ -63,65 +68,141 @@ namespace Arbitrum.Utils
             }
             else if (provider is SignerOrProvider signerOrProvider)
             {
-                _provider = signerOrProvider.Provider;
+                _provider = signerOrProvider.Provider!;
             }
             else if (provider is ArbitrumProvider arbitrumProvider)
             {
-                _provider = arbitrumProvider.Provider;
+                _provider = arbitrumProvider;
             }
             else
             {
                 throw new ArgumentException("Invalid provider type", nameof(provider));
             }
         }
-
-        public async Task<List<FetchedEvent>> GetEventsAsync(
-            string contractFactory,
+        //generic FetchedEvent type(to be tested)
+        public async Task<List<FetchedEvent<TEventArgs>>> GetEventsAsync<TEventArgs>(
+            dynamic contractFactory,
             string eventName,
-            object argumentFilters = null,
-            object filter = null,
+            Dictionary<string, object>? argumentFilters = null,
+            NewFilterInput? filter = null,
             bool isClassic = false)
         {
+
+            // Initialize filter and argumentFilters if they are null
             if (filter == null)
-                filter = new { };
+                filter = new NewFilterInput();
 
             if (argumentFilters == null)
-                argumentFilters = new { };
+                argumentFilters = new Dictionary<string, object>();
 
-            var contractAddress = LoadContractUtils.GetChecksumAddress("0x0000000000000000000000000000000000000000");
-            var contract = LoadContractUtils.LoadContract(provider: _provider, contractName: contractFactory, address: contractAddress, isClassic: isClassic);
+            // Get the contract instance
+            Contract contract;
 
-            Event eventHandler = contract.GetEvent(eventName);
-            if (eventHandler == null)
+            // If the contract factory is a string (indicating the contract address or name),
+            // get the contract address from the filter dictionary.
+            // If the filter contains an "address" key, use its value as the contract address.
+            // Otherwise, use a default address.
+            if (contractFactory is string)
+            {
+                string contractAddress = LoadContractUtils.GetAddress(!string.IsNullOrEmpty(filter?.Address?.ToString())
+                    ? filter?.Address?.ToString()!
+                    : "0x0000000000000000000000000000000000000000");
+
+
+                contract = await LoadContractUtils.LoadContract(
+                    provider: _provider,
+                    contractName: contractFactory,
+                    address: contractAddress,
+                    isClassic: isClassic
+                );
+            }
+            else if (contractFactory is Contract contractInstance)
+            {
+                contract = contractInstance;
+            }
+            else
+            {
+                throw new ArbSdkError("Invalid contract factory type");
+            }
+
+            // Get the event instance
+            var eventInstance = contract.GetEvent(eventName);
+
+            if (eventInstance == null)
                 throw new ArgumentException($"Event {eventName} not found in contract");
 
-            var ethGetLogs = new EthGetLogs((IClient)_provider);
+            // Create event filter
+            BlockParameter fromBlock = new BlockParameter(new HexBigInteger(BigInteger.Zero));
+            BlockParameter toBlock = new BlockParameter(new HexBigInteger(BigInteger.Zero));
 
-            var filterInput = new NewFilterInput
+            if (filter is NewFilterInput filterDict)
             {
-                FromBlock = BlockParameter.CreateEarliest(),
-                ToBlock = BlockParameter.CreateLatest(),
-                Address = new List<string> { contract.Address }.ToArray()
+                if (filterDict.FromBlock!=null)
+                {
+                    fromBlock = filterDict.FromBlock;
+                }
+
+                if (filterDict.ToBlock !=null)
+                {
+                    toBlock = filterDict.ToBlock;
+                }
+            }
+
+            // Create event filter
+            var eventFilter = new NewFilterInput
+            {
+                FromBlock = fromBlock,
+                ToBlock = toBlock,
+                Address = new[] { contract.Address },
+                // Merge filter and argumentFilters
+                Topics = MergeTopics(filter!, argumentFilters)
             };
 
-            var logs = await ethGetLogs.SendRequestAsync(filterInput);
-            var fetchedEvents = new List<FetchedEvent>();
+            var logs = await _provider.Eth.Filters.GetLogs.SendRequestAsync(eventFilter);
+
+            var fetchedEvents = new List<FetchedEvent<TEventArgs>>();
+            int logCount = 0;
 
             foreach (var log in logs)
             {
-                fetchedEvents.Add(new FetchedEvent(
-                    _event: log.Address,
-                    topic: log.GetTopic(0),   ///////
+                fetchedEvents.Add(new FetchedEvent<TEventArgs>(
+                    //Since the generic type parameter TEventArgs does not have a new() constraint,
+                    //you cannot create an instance of it using the new keyword.
+                    //We need to ensure that TEventArgs has a parameterless constructor. 
+                    //Activator.CreateInstance<TEventArgs>() is used to create an instance of TEventArgs
+                    eventArgs: Activator.CreateInstance<TEventArgs>(),
+                    topic: log.GetTopic(logCount),   ///////
                     name: eventName,
-                    blockNumber: log.BlockNumber.Value,
+                    blockNumber: (int)log.BlockNumber.Value,
                     blockHash: log.BlockHash,
                     transactionHash: log.TransactionHash,
                     address: log.Address,
                     topics: ConvertToStringList(log.Topics),
                     data: log.Data));
+                logCount++;
             }
 
             return fetchedEvents;
+        }
+
+        // Helper method to merge topics from filter and argumentFilters
+        private string[] MergeTopics(NewFilterInput filter, Dictionary<string, object> argumentFilters)
+        {
+            List<string> topics = new List<string>();
+
+            // Add topics from filter
+            if (filter.Topics != null  && filter.Topics is string[] filterTopicsArray)
+            {
+                topics.AddRange(filterTopicsArray);
+            }
+
+            // Add topics from argumentFilters
+            if (argumentFilters != null && argumentFilters.TryGetValue("topics", out var argumentFilterTopics) && argumentFilterTopics is string[] argumentFilterTopicsArray)
+            {
+                topics.AddRange(argumentFilterTopicsArray);
+            }
+
+            return topics.ToArray();
         }
 
         private List<string> ConvertToStringList(object[] topics)

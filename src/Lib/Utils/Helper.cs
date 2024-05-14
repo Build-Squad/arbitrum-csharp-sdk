@@ -1,24 +1,156 @@
 ﻿using System;
 using System.IO;
+using System.Numerics;
 using System.Text.Json;
 using Nethereum.Contracts;
 using Nethereum.Web3;
 using Nethereum.JsonRpc.Client;
 using Arbitrum.DataEntities;
 using Arbitrum.Utils;
+using Nethereum.Util;
+using System.Collections.Generic;
+using System.Collections;
+using Nethereum.ABI.FunctionEncoding.Attributes;
+using Nethereum.ABI.FunctionEncoding;
+using Nethereum.RPC.Eth.DTOs;
+using System.Reflection.Metadata.Ecma335;
+using Nethereum.ABI.Model;
+using System.Reflection;
 
 namespace Arbitrum.Utils
 {
+    public static class HelperMethods
+    {
+        //generic method to get bytecode from an abi
+        public static string GetBytecodeFromABI(string filePath)
+        {
+            try
+            {
+                // Read the JSON file as a string
+                string jsonString = File.ReadAllText(filePath);
+
+                // Deserialize the JSON string to a dynamic object
+                var jsonData = JsonSerializer.Deserialize<dynamic>(jsonString);
+
+                // Check if the jsonData contains an ABI object and bytecode
+                if (jsonData is not null && jsonData.ContainsKey("abi"))
+                {
+                    // Extract the ABI array
+                    var abiArray = jsonData["abi"];
+
+                    // Iterate through the ABI array to find the bytecode
+                    foreach (var item in abiArray)
+                    {
+                        if (item is not null && item.ContainsKey("bytecode"))
+                        {
+                            // Return the bytecode
+                            return item["bytecode"];
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred: {ex.Message}");
+            }
+
+            // Return null if bytecode is not found
+            return null;
+        }
+
+        //Generic method to copy properties of one type into other
+        public static TDestination CopyMatchingProperties<TDestination, TSource>(TSource source)
+        where TDestination : new()
+        {
+            // Create a new instance of the destination type
+            TDestination destination = new TDestination();
+
+            // Get the properties of the source and destination types
+            PropertyInfo[] sourceProperties = typeof(TSource).GetProperties();
+            PropertyInfo[] destinationProperties = typeof(TDestination).GetProperties();
+
+            // Create a dictionary to map property names to PropertyInfo objects for quick lookup
+            var destinationPropertyDictionary = new Dictionary<string, PropertyInfo>();
+            foreach (var destProp in destinationProperties)
+            {
+                destinationPropertyDictionary[destProp.Name] = destProp;
+            }
+
+            // Iterate through each property in the source object
+            foreach (var sourceProp in sourceProperties)
+            {
+                // Check if the property exists in the destination object
+                if (destinationPropertyDictionary.TryGetValue(sourceProp.Name, out PropertyInfo? matchingDestProp))
+                {
+                    // Check if the property types match and the destination property is writable
+                    if (matchingDestProp.PropertyType == sourceProp.PropertyType && matchingDestProp.CanWrite)
+                    {
+                        // Copy the value from the source to the destination
+                        object value = sourceProp.GetValue(source)!;
+                        matchingDestProp.SetValue(destination, value);
+                    }
+                }
+            }
+
+            // Return the new instance of the destination type with copied properties
+            return destination;
+        }
+    }
     public class LoadContractException : Exception
     {
         public LoadContractException(string message) : base(message)
         {
         }
     }
-
-    public class CaseDict
+    public class L2ToL1TransactionEvent : IEventDTO
     {
-        private readonly Dictionary<string, object> _data;
+        public string? Caller { get; set; }
+        public string? Destination { get; set; }
+        public BigInteger? ArbBlockNum { get; set; }
+        public BigInteger? EthBlockNum { get; set; }
+        public BigInteger? Timestamp { get; set; }
+        public BigInteger? CallValue { get; set; }
+        public string? Data { get; set; }
+        public BigInteger? UniqueId { get; set; }
+        public BigInteger BatchNumber { get; set; }
+        public BigInteger IndexInBatch { get; set; }
+        public BigInteger? Hash { get; set; }
+        public BigInteger? Position { get; set; }
+        public string? TransactionHash { get; set; }
+
+    }
+    public class ClassicL2ToL1TransactionEvent : L2ToL1TransactionEvent
+    {
+        public new BigInteger? UniqueId { get; set; }
+        public new BigInteger? BatchNumber { get; set; }
+        public new BigInteger? IndexInBatch { get; set; }
+    }
+    public class NitroL2ToL1TransactionEvent : L2ToL1TransactionEvent
+    {
+        public new BigInteger? Hash { get; set; }
+        public new BigInteger? Position { get; set; }
+    }
+    public class BlockTag
+    {
+        public string? StringValue { get; set; }
+        public int? NumberValue { get; set; }
+
+        public BlockTag(string stringValue)
+        {
+            StringValue = stringValue;
+            NumberValue = null;
+        }
+
+        public BlockTag(int numberValue)
+        {
+            StringValue = null;
+            NumberValue = numberValue;
+        }
+    }
+
+    public class CaseDict : IEnumerable<KeyValuePair<string, object>>
+    {
+        private readonly Dictionary<string, object> _data = new Dictionary<string, object>();
         public string RetryTxHash
         {
             get { return Get<string>("retryTxHash"); }
@@ -56,7 +188,7 @@ namespace Arbitrum.Utils
             }
         }
 
-        public T Get<T>(string key, T defaultValue = default)
+        public T Get<T>(string key, T? defaultValue = default)
         {
             if (_data.TryGetValue(key, out var value))
             {
@@ -64,13 +196,26 @@ namespace Arbitrum.Utils
             }
             else
             {
-                return defaultValue;
+                return defaultValue!;
             }
         }
 
-        public IEnumerable<KeyValuePair<string, object>> GetEnumerator()
+        // Implementing IEnumerable<KeyValuePair<string, object>>
+        public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
         {
-            return _data;
+            return _data.GetEnumerator();
+        }
+
+        // Implementing IEnumerable
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        // Method to add key-value pairs
+        public void Add(string key, object value)
+        {
+            _data.Add(key, value);
         }
 
         public bool ContainsKey(string key)
@@ -114,86 +259,124 @@ namespace Arbitrum.Utils
 
     public class LoadContractUtils
     {
-        public class ContractData
+        public static dynamic FormatContractOutput(Contract contract, string functionName, object output)
         {
-            public string[] Abi { get; set; }
-            public string Bytecode { get; set; }
+            // Get the FunctionABI object for the specified function name
+            var funcAbi = contract.ContractBuilder.GetFunctionAbi(functionName);
+
+            // Check if the FunctionABI object is null
+            if (funcAbi == null)
+            {
+                // Throw an exception if the function ABI is not found
+                throw new ArgumentException($"Function {functionName} not found in contract ABI");
+            }
+
+            return FormatOutput(funcAbi.OutputParameters, output);
         }
 
-        public static Contract LoadContract(string contractName, object provider, string address = null, bool isClassic = false)
+        private static object FormatOutput(Parameter[] outputParameters, object output)
         {
-            var web3Provider = GetWeb3Provider(provider);
-            var web3 = new Web3(web3Provider);
-
-            string filePath;
-            if (isClassic)
+            if (outputParameters == null || !outputParameters.Any())
             {
-                filePath = $"src/abi/classic/{contractName}.json";
-            }
-            else
-            {
-                filePath = $"src/abi/{contractName}.json";
+                return output;
             }
 
-            using (var abiFile = File.OpenText(filePath))
+            var formattedOutput = new Dictionary<string, object>();
+
+            for (int i = 0; i < outputParameters.Length; i++)
             {
-                var contractData = JsonSerializer.Deserialize<ContractData>(abiFile.ReadToEnd());
-                if (contractData == null || contractData.Abi == null)
+                var parameter = outputParameters[i];
+                var parameterName = parameter.Name ?? $"output_{i}";
+
+                if (parameter.Type.StartsWith("tuple"))
                 {
-                    throw new Exception($"No ABI found for contract: {contractName}");
-                }
-
-                var abi = string.Join(",", contractData.Abi);
-                var bytecode = contractData.Bytecode;
-
-                if (address != null)
-                {
-                    var contractAddress = GetChecksumAddress(address);
-
-                    if (string.IsNullOrEmpty(bytecode))
+                    if (output is object[] outputArray && outputArray.Length > i)
                     {
-                        return web3.Eth.GetContract(abi, contractAddress);
+                        formattedOutput[parameterName] = FormatOutput(outputParameters, outputArray[i]);
                     }
-                    //else
-                    //{
-                    //    return web3.Eth.GetContract(abi, bytecode, contractAddress);
-                    //}
-                    return null; ///////
+                    else
+                    {
+                        formattedOutput[parameterName] = FormatOutput(outputParameters, output);
+                    }
                 }
                 else
                 {
-                    if (string.IsNullOrEmpty(bytecode))
+                    if (output is object[] outputArray && outputArray.Length > i)
                     {
-                        return web3.Eth.GetContract<object>(abi);
+                        formattedOutput[parameterName] = outputArray[i];
                     }
-
                     else
                     {
-                        return web3.Eth.GetContract(abi, bytecode);
+                        formattedOutput[parameterName] = output;
                     }
                 }
             }
+
+            return formattedOutput;
+        }
+        public static async Task<bool> IsContractDeployed(Web3 web3, string address)
+        {
+
+            var bytecode = await web3.Eth.GetCode.SendRequestAsync(Web3.ToChecksumAddress(address));
+            return bytecode != "0x" && bytecode.Length > 2;
+        }
+        public class ContractData
+        {
+            public string[]? Abi { get; set; }
+            public string? Bytecode { get; set; }
         }
 
-        public static IClient GetWeb3Provider(object provider)
+        public static async Task<Contract> LoadContract(string contractName, object provider, string? address = null, bool isClassic = false)
+        {
+            Contract contract;
+            try
+            {
+
+                var web3Provider = GetWeb3Provider(provider);
+
+                var (abi, contractAddress) = await LogParser.LoadAbi(contractName, isClassic);
+                // Ensure the address is exactly 42 characters long, including '0x' prefix
+                if (contractAddress.Length < 42)
+                {
+                    contractAddress = contractAddress.PadRight(42, '0');
+                }
+
+                contract = web3Provider.Eth.GetContract(abi, contractAddress);
+            }
+            catch (Exception ex) 
+            {
+                throw new Exception(ex.Message, ex.InnerException);
+            }
+
+            return contract;
+        }
+
+        public static Web3 GetWeb3Provider(object provider)
         {
             if (provider is SignerOrProvider signerOrProvider)
             {
-                return (IClient)signerOrProvider.Provider;
+                return signerOrProvider.Provider;
             }
             else if (provider is ArbitrumProvider arbitrumProvider)
             {
-                return (IClient)arbitrumProvider.Provider;
+                return arbitrumProvider;
             }
             else
             {
-                return (IClient)provider;
+                return (Web3)provider;
             }
         }
 
-        public static string GetChecksumAddress(string address)
+        public static string GetAddress(string address)
         {
-            return Web3.ToChecksumAddress(address);
+            if (AddressUtil.Current.IsChecksumAddress(address))
+            {
+                return AddressUtil.Current.ConvertToChecksumAddress(address);
+            }
+            else
+            {
+                throw new ArgumentException($"Invalid Ethereum address: {address}");
+            }
         }
     }
 }

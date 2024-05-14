@@ -1,0 +1,298 @@
+﻿using NUnit.Framework;
+using System;
+using Nethereum.Web3;
+using Nethereum.Web3.Accounts;
+using System.Threading.Tasks;
+using System.Threading;
+using System.Collections.Generic;
+using Nethereum.Hex.HexTypes;
+using Nethereum.RPC.Eth.DTOs;
+using Nethereum.Util;
+using Arbitrum.Scripts;
+using Arbitrum.Tests.Integration;
+using NBitcoin;
+using Nethereum.HdWallet;
+using Arbitrum.AssetBridgerModule;
+using Arbitrum.Message;
+using static Arbitrum.Message.L1ToL2MessageUtils;
+using Arbitrum.DataEntities;
+using Nethereum.Signer;
+
+namespace Arbitrum.AssetBridger.Tests.Integration
+{
+    public class EthTests
+    {
+        [Test]
+        public async Task TestTransfersEtherOnL2()
+        {
+            TestState setupState = await TestSetupUtils.TestSetup();
+            var l2Signer = setupState.L2Signer;
+            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
+
+            await TestHelpers.FundL2(l2Signer);
+
+            // Generate a new private key
+            var privateKey = EthECKey.GenerateKey().GetPrivateKey();
+
+            // Create a new account with the generated private key
+            var account = new Account(privateKey);
+
+            //random address
+            var randomAddress = account.Address;
+
+            var amountToSend = Web3.Convert.ToWei(0.000005, UnitConversion.EthUnit.Ether);
+
+            var balanceBefore = await l2Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Address);
+
+            var txHash = await l2Provider.Eth.Transactions.SendTransaction.SendRequestAsync(new TransactionInput
+                {
+                    From = l2Signer.Address,
+                    To = randomAddress,
+                    Value = new HexBigInteger(amountToSend),
+                    MaxFeePerGas = new HexBigInteger(15000000000),
+                    MaxPriorityFeePerGas = new HexBigInteger(0)
+                });
+
+            var txReceipt = await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
+
+            var balanceAfter = await l2Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Address);
+            var randomBalanceAfter = await l2Provider.Eth.GetBalance.SendRequestAsync(randomAddress);
+
+            Assert.That(Web3.Convert.FromWei(randomBalanceAfter, UnitConversion.EthUnit.Ether), Is.EqualTo(Web3.Convert.FromWei(amountToSend, UnitConversion.EthUnit.Ether)), "Random address balance after should match the sent amount");
+
+            var expectedBalanceAfter = balanceBefore - txReceipt.GasUsed.Value * txReceipt.EffectiveGasPrice.Value - amountToSend;
+
+            Assert.That(balanceAfter, Is.EqualTo(expectedBalanceAfter), "L2 signer balance after should be correctly reduced");
+        }
+
+        [Test]
+        public async Task TestDepositsEther()
+        {
+            var setupState = await TestSetupUtils.TestSetup() as TestState;
+            var ethBridger = setupState.EthBridger;
+            var l1Signer = setupState.L1Signer;
+            var l2Signer = setupState.L2Signer;
+            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
+            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
+
+            var initialTestWalletL2EthBalance = await l2Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Address);
+
+            await TestHelpers.Fund(l1Signer);
+
+            var inboxAddress = ethBridger.L2Network.EthBridge.Inbox;
+            var initialInboxBalance = l1Provider.Eth.GetBalance.SendRequestAsync(inboxAddress);
+
+            var ethToDeposit = Web3.Convert.ToWei(0.0002m, UnitConversion.EthUnit.Ether);
+
+            var rec = await ethBridger.Deposit(new EthDepositParams()
+            {
+                Amount = ethToDeposit,
+                L1Signer = l1Signer
+            });
+
+            Assert.That(rec.Status, Is.EqualTo(1), "ETH deposit L1 transaction failed");
+
+            var finalInboxBalance = l1Provider.Eth.GetBalance.SendRequestAsync(inboxAddress);
+
+            // Also fails in TS implementation - https://github.com/OffchainLabs/arbitrum-sdk/pull/407
+            // Assert.That(finalInboxBalance, Is.EqualTo(initialInboxBalance + ethToDeposit), "Balance failed to update after ETH deposit");
+
+            var waitResult = await rec.WaitForL2(l2Provider);
+
+            var l1ToL2Messages = (await rec.GetEthDeposits(l2Provider)).ToList();
+
+            Assert.That(l1ToL2Messages.Count, Is.EqualTo(1), "Failed to find 1 L1 to L2 message");
+            var l1ToL2Message = l1ToL2Messages[0];
+
+            var walletAddress = l1Signer.Address;
+
+            Assert.That(l1ToL2Message.ToAddress, Is.EqualTo(walletAddress), "Message inputs value error");
+
+            Assert.That(l1ToL2Message.Value, Is.EqualTo(ethToDeposit), "Message inputs value error");
+
+            Assert.That(waitResult.Complete, Is.True, "Eth deposit not complete");
+            Assert.That(waitResult.L2TxReceipt, Is.Not.Null);
+
+            var finalTestWalletL2EthBalance = await l2Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Address);
+
+            Assert.That(finalTestWalletL2EthBalance, Is.EqualTo(initialTestWalletL2EthBalance + ethToDeposit), "Final balance incorrect");
+        }
+
+        [Test]
+        public async Task TestDepositsEtherToSpecificL2Address()
+        {
+            var setupState = await TestSetupUtils.TestSetup() as TestState;
+            var ethBridger = setupState.EthBridger;
+            var l1Signer = setupState.L1Signer;
+            var l2Signer = setupState.L2Signer;
+            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
+            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
+
+            await TestHelpers.Fund(l1Signer);
+
+            var inboxAddress = ethBridger.L2Network.EthBridge.Inbox;
+            var initialInboxBalance = await l1Provider.Eth.GetBalance.SendRequestAsync(inboxAddress);
+
+            // Generate a new private key
+            var privateKey = EthECKey.GenerateKey().GetPrivateKey();
+
+            // Create a new account with the generated private key
+            var account = new Account(privateKey);
+
+            //destination address 
+            var destWalletAddress = account.Address;
+
+            var ethToDeposit = Web3.Convert.ToWei(0.0002m, UnitConversion.EthUnit.Ether);
+            var rec = await ethBridger.DepositTo(new EthDepositToParams
+            {
+                Amount = ethToDeposit,
+                L1Signer = l1Signer,
+                DestinationAddress = destWalletAddress,
+                L2Provider = l2Provider
+            });
+
+            Assert.That(rec.Status, Is.EqualTo(1), "ETH deposit L1 transaction failed");
+
+            var finalInboxBalance = await l1Provider.Eth.GetBalance.SendRequestAsync(inboxAddress);
+
+            // Also fails in TS implementation - https://github.com/OffchainLabs/arbitrum-sdk/pull/407
+            // Assert.That(finalInboxBalance, Is.EqualTo(initialInboxBalance + ethToDeposit), "Balance failed to update after ETH deposit");
+
+            var l1ToL2Messages = (await rec.GetL1ToL2Messages(new SignerOrProvider(l2Provider))).ToList();
+            Assert.That(l1ToL2Messages.Count, Is.EqualTo(1), "Failed to find 1 L1 to L2 message");
+            var l1ToL2Message = l1ToL2Messages[0];
+
+            Assert.That(l1ToL2Message.MessageData.DestAddress, Is.EqualTo(destWalletAddress), "Message destination address mismatch");
+            Assert.That(l1ToL2Message.MessageData.L2CallValue, Is.EqualTo(ethToDeposit), "Message value mismatch");
+
+            var retryableTicketResult = await l1ToL2Message.WaitForStatus(l2Provider);
+            Assert.That(retryableTicketResult.Status, Is.EqualTo(L1ToL2MessageStatus.REDEEMED), "Retryable ticket not redeemed");
+
+            var retryableTxReceipt = await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(l1ToL2Message.RetryableCreationId);
+            Assert.That(retryableTxReceipt, Is.Not.Null, "Retryable transaction receipt not found");
+
+            var l2RetryableTxReceipt = new L2TransactionReceipt(retryableTxReceipt);
+            var ticketRedeemEvents = (await l2RetryableTxReceipt.GetRedeemScheduledEvents(l2Provider)).ToList();
+
+            Assert.That(ticketRedeemEvents.Count, Is.EqualTo(1), "Failed finding the redeem event");
+            Assert.That(ticketRedeemEvents[0].Event.RetryTxHash, Is.Not.Null, "Retry transaction hash not found");
+
+            var testWalletL2EthBalance = await l2Provider.Eth.GetBalance.SendRequestAsync(destWalletAddress);
+            Assert.That(testWalletL2EthBalance, Is.EqualTo(ethToDeposit), "Final balance mismatch");
+        }
+
+        [Test]
+        public async Task TestWithdrawEtherTransactionSucceeds()
+        {
+            var setupState = await TestSetupUtils.TestSetup() as TestState;
+            var l2Signer = setupState.L2Signer;
+            var l1Signer = setupState.L1Signer;
+            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
+            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
+            var ethBridger = setupState.EthBridger;
+
+            await TestHelpers.FundL2(l2Signer);
+            await TestHelpers.FundL1(l1Signer);
+
+            var ethToWithdraw = Web3.Convert.ToWei(0.00000002m, UnitConversion.EthUnit.Ether);
+
+            // Generate a new private key
+            var privateKey = EthECKey.GenerateKey().GetPrivateKey();
+
+            // Create a new account with the generated private key
+            var account = new Account(privateKey);
+
+            var randomAddress = account.Address;
+
+            var request = await ethBridger.GetWithdrawalRequest(new EthWithdrawParams
+            {
+                Amount = ethToWithdraw,
+                DestinationAddress = randomAddress,
+                From = l2Signer.Address,
+                L2Signer = l2Signer
+            });
+
+            var l1GasEstimate = await request.EstimateL1GasLimit(l2Provider.Client);
+
+            var withdrawEthRec = await ethBridger.Withdraw(new EthWithdrawParams
+            {
+                Amount = ethToWithdraw,
+                L2Signer = l2Signer,
+                DestinationAddress = randomAddress,
+                From = l2Signer.Address
+            });
+
+            Assert.That(withdrawEthRec.Status, Is.EqualTo(1), "Initiate ETH withdraw transaction failed");
+
+            var withdrawMessage = (await withdrawEthRec.GetL2ToL1Messages(new SignerOrProvider(l1Signer))).FirstOrDefault();
+
+            Assert.That(withdrawMessage, Is.Not.Null, "ETH withdraw getWithdrawalsInL2Transaction query came back empty");
+
+            var withdrawEvents = await L2ToL1Message.GetL2ToL1Events(
+                l2Provider: l2Provider,
+                filter: new NewFilterInput()
+                {
+                    FromBlock = new BlockParameter(withdrawEthRec.BlockNumber),
+                    ToBlock = BlockParameter.CreateLatest()
+                },
+                position: null,
+                destination: randomAddress
+            );
+
+            Assert.That(withdrawEvents.Count, Is.EqualTo(1), "ETH withdraw getL2ToL1EventData failed");
+
+            var messageStatus = await withdrawMessage.StatusBase(new SignerOrProvider(l2Provider));
+            Assert.That(messageStatus, Is.EqualTo(L2ToL1MessageStatus.UNCONFIRMED), $"ETH withdraw status returned {messageStatus}");
+
+            //creating a random wallet
+            string mnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve).ToString();
+
+            // Connect the wallet to the provider
+            var miner1Seed = new Wallet(mnemonic, "");
+            var miner2Seed = new Wallet(mnemonic, "");
+
+            //private keys of miners
+            var miner1PrivateKey = miner1Seed.GetPrivateKey(0);
+            var miner2PrivateKey = miner2Seed.GetPrivateKey(0);
+
+            //accounts of miners
+            var miner1Account = new Account(miner1PrivateKey);
+            var miner2Account = new Account(miner2PrivateKey);
+
+            var miner1 = new SignerOrProvider(miner1Account, l1Provider);
+            var miner2 = new SignerOrProvider(miner2Account, l2Provider);
+
+            await TestHelpers.FundL1(miner1.Account, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
+            await TestHelpers.FundL2(miner2.Account, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
+
+            var state = new Dictionary<string, object> { { "mining", true } };
+
+            await Task.WhenAny(
+                TestHelpers.MineUntilStop(miner1.Account, state),
+                TestHelpers.MineUntilStop(miner2.Account, state),
+                withdrawMessage.WaitUntilReadyToExecuteBase(new SignerOrProvider(l2Provider))
+            );
+
+            state["mining"] = false;
+
+            Assert.That(
+                await withdrawMessage.StatusBase(new SignerOrProvider(l2Provider)),
+                Is.EqualTo(L2ToL1MessageStatus.CONFIRMED),
+                "Message status should be confirmed"
+            );
+
+            var execTx = await withdrawMessage.WaitUntilReadyToExecuteBase(new SignerOrProvider(l2Provider));
+
+            //Assert.That(execTx.GasUsed.ToBigInteger(), Is.LessThan(l1GasEstimate), "Gas used greater than estimate");       ///////////
+
+            Assert.That(
+                await withdrawMessage.StatusBase(new SignerOrProvider(l2Provider)),
+                Is.EqualTo(L2ToL1MessageStatus.EXECUTED),
+                "Message status should be executed"
+            );
+
+            var finalRandomBalance = await l1Provider.Eth.GetBalance.SendRequestAsync(randomAddress);
+            Assert.That(finalRandomBalance, Is.EqualTo(ethToWithdraw), "L1 final balance mismatch");
+        }
+    }
+}

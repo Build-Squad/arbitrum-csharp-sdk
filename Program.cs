@@ -1,7 +1,22 @@
-﻿using Nethereum.Signer;
-using Nethereum.Web3;
-using Nethereum.Contracts;
-using Nethereum.Hex.HexTypes;
-using System.Numerics;
+﻿using Serilog;
+using Serilog.Events;
+using Serilog.Sinks; // Add this line
 
-namespace Arbitrum;
+namespace Arbitrum
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.Console()
+                .CreateLogger();
+
+            // Your code here
+
+            Log.CloseAndFlush();
+        }
+    }
+
+}

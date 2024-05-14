@@ -12,6 +12,8 @@ using Nethereum.Web3;
 
 using Arbitrum.DataEntities;
 using Arbitrum.Utils;
+using Nethereum.ABI.FunctionEncoding.Attributes;
+using System.Linq;
 
 namespace Arbitrum.Message
 {
@@ -25,6 +27,11 @@ namespace Arbitrum.Message
         public HexBigInteger? MaxRefund { get; set; }
         public HexBigInteger? SubmissionFeeRefund { get; set; }
     }
+    public class LifetimeExtendedEvent
+    {
+        public string? TicketId { get; set; }
+        public BigInteger? NewTimeout { get; set; }
+    }
     public class L2ContractTransaction : ContractTransactionVO
     {
         public L2ContractTransaction(string contractAddress, string code, Transaction transaction)
@@ -37,16 +44,33 @@ namespace Arbitrum.Message
         }
     }
 
-    public class RedeemTransaction : L2ContractTransaction
+    public class RedeemTransaction
     {
-        public RedeemTransaction(string contractAddress, string code, Transaction transaction)
-            : base(contractAddress, code, transaction)
+        private readonly L2TransactionReceipt _transaction;
+        private readonly Web3 _l2Provider;
+
+        public RedeemTransaction(L2TransactionReceipt transaction, Web3 l2Provider)
         {
+            _transaction = transaction;
+            _l2Provider = l2Provider;
         }
-        public Task<TransactionReceipt> WaitForRedeem()
+
+        public L2TransactionReceipt Wait()
         {
-            // Implement logic to wait for redeem
-            return Task.FromResult(new TransactionReceipt());
+            return _transaction;
+        }
+
+        public async Task<TransactionReceipt> WaitForRedeem()
+        {
+            var l2Receipt = new L2TransactionReceipt(_transaction);
+            var redeemScheduledEvents = await l2Receipt.GetRedeemScheduledEvents(_l2Provider);
+
+            if (redeemScheduledEvents.Count() != 1)
+            {
+                throw new ArbSdkError($"Transaction is not a redeem transaction: {_transaction.TransactionHash}");
+            }
+
+            return await Lib.GetTransactionReceiptAsync(web3: _l2Provider, txHash: redeemScheduledEvents?.FirstOrDefault()?.Event?.RetryTxHash);
         }
     }
 
@@ -91,14 +115,101 @@ namespace Arbitrum.Message
             Status = tx.Status;
         }
 
-        public bool GetL2ToL1Events(IEthApiContractService provider)  ///////
+        public async Task<IEnumerable<EventLog<L2ToL1TransactionEvent>>> GetL2ToL1Events(Web3 provider)
         {
-            return true;
+            var classicLogs = await LogParser.ParseTypedLogs<ClassicL2ToL1TransactionEvent, Contract>(provider, "ArbSys", Logs, "L2ToL1Transaction", isClassic: false);
+            var nitroLogs = await LogParser.ParseTypedLogs<NitroL2ToL1TransactionEvent, Contract>(provider, "ArbSys", Logs, "L2ToL1Tx", isClassic: false);
+
+
+            // Convert classicLogs to a list of EventLog<L2ToL1TransactionEvent>
+            var classicList = classicLogs.Select(log => new EventLog<L2ToL1TransactionEvent>(log.Event, log.Log)).ToList();
+
+            // Convert nitroLogs to a list of EventLog<L2ToL1TransactionEvent>
+            var nitroList = nitroLogs.Select(log => new EventLog<L2ToL1TransactionEvent>(log.Event, log.Log)).ToList();
+
+            // Concatenate the two lists
+            var allLogs = classicList.Concat(nitroList);
+
+            return allLogs;
+
         }
 
-        public async Task<List<CaseDict>> GetRedeemScheduledEvents(Web3 provider)    ///////
+        public async Task<IEnumerable<EventLog<RedeemScheduledEvent>>> GetRedeemScheduledEvents(Web3 provider)
         {
-            return await LogParser.ParseTypedLogs(provider, "ArbRetryableTx", Logs, "RedeemScheduled");
+            var redeemScheduledEvents = await LogParser.ParseTypedLogs<RedeemScheduledEvent, Contract>(provider, "ArbRetryableTx", Logs, "RedeemScheduled");
+            return redeemScheduledEvents.ToArray();
+        }
+
+        public async Task<IEnumerable<L2ToL1Message>> GetL2ToL1Messages<T>(T l1SignerOrProvider) where T : SignerOrProvider
+
+        {
+            var provider = SignerProviderUtils.GetProvider(l1SignerOrProvider);
+
+            if (provider == null)
+            {
+                throw new ArbSdkError("Signer not connected to provider.");
+            }
+
+            var events = await GetL2ToL1Events(provider);
+
+            var messages = new List<L2ToL1Message>();
+
+            foreach (var log in events)
+            {
+                messages.Add(await L2ToL1Message.FromEvent<T>(l1SignerOrProvider, log.Event));
+            }
+
+            return messages;
+        }
+
+        public async Task<BigInteger> GetBatchConfirmations(Web3 l2Provider)
+        {
+            var nodeInterfaceContract = await LoadContractUtils.LoadContract(
+                                    contractName: "NodeInterface",
+                                    address: Constants.NODE_INTERFACE_ADDRESS,
+                                    provider: l2Provider,
+                                    isClassic: false
+                                );
+            var nodeInterfaceContractFunction = nodeInterfaceContract.GetFunction("nodeInterfaceContract");
+            return await nodeInterfaceContractFunction.CallAsync<BigInteger>(BlockHash);
+        }
+
+        public async Task<BigInteger> GetBatchNumber(IClient l2Provider)
+        {
+            var arbProvider = new ArbitrumProvider(l2Provider);
+            var nodeInterfaceContract = await LoadContractUtils.LoadContract(
+                                    contractName: "NodeInterface",
+                                    address: Constants.NODE_INTERFACE_ADDRESS,
+                                    provider: l2Provider,
+                                    isClassic: false
+                                );
+            TransactionReceipt rec = await arbProvider.GetTransactionReceipt(TransactionHash);
+
+            if (rec == null)
+            {
+                throw new ArbSdkError("No receipt available for current transaction");
+            }
+            var nodeInterfaceContractFunction = nodeInterfaceContract.GetFunction("findBatchContainingBlock");
+
+            return await nodeInterfaceContractFunction.CallAsync<BigInteger>(BlockNumber);
+        }
+
+        public async Task<bool> IsDataAvailable(Web3 l2Provider, int confirmations = 10)
+        {
+            var batchConfirmations = await GetBatchConfirmations(l2Provider);
+            return (int)batchConfirmations > confirmations;
+        }
+
+        public static L2TransactionReceipt MonkeyPatchWait(TransactionReceipt contractTransaction)   /////
+        {
+
+            return new L2TransactionReceipt(contractTransaction);
+        }
+
+        public static RedeemTransaction ToRedeemTransaction(L2TransactionReceipt redeemTx, Web3 l2Provider)
+        {
+            return new RedeemTransaction(redeemTx, l2Provider);
+
         }
 
     }

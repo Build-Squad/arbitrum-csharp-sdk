@@ -27,6 +27,26 @@ using Nethereum.Util;
 
 namespace Arbitrum.DataEntities
 {
+    public class INetwork
+    {
+        public TokenBridge? TokenBridge { get; set; }
+        public EthBridge? EthBridge { get; set; }
+        public int PartnerChainID { get; set; }
+        public bool IsArbitrum { get; set; }
+        public int ConfirmPeriodBlocks { get; set; }
+        public int RetryableLifetimeSeconds { get; set; }
+        public int NitroGenesisBlock { get; set; }
+        public int NitroGenesisL1Block { get; set; }
+        public int DepositTimeout { get; set; }
+        public string? NativeToken { get; set; }
+        public int ChainID { get; set; }
+        public string? Name { get; set; }
+        public string? ExplorerUrl { get; set; }
+        public string? Gif { get; set; }
+        public bool IsCustom { get; set; }
+        public double BlockTime { get; set; }
+        public int[]? PartnerChainIDs { get; set; }
+    }
     public class Network
     {
         public int ChainID { get; set; }
@@ -163,45 +183,141 @@ namespace Arbitrum.DataEntities
          */
         public static Dictionary<int, L1Network> l1Networks = new Dictionary<int, L1Network>()
         {
+            {
+                1, new L1Network
                 {
-                    1, new L1Network
-                    {
-                        ChainID = 1,
-                        Name = "Mainnet",
-                        ExplorerUrl = "https://etherscan.io",
-                        PartnerChainIDs = new[] { 42161, 42170 },
-                        BlockTime = 14,
-                        IsCustom = false,
-                        IsArbitrum = false
-                    }
+                    ChainID = 1,
+                    Name = "Mainnet",
+                    ExplorerUrl = "https://etherscan.io",
+                    PartnerChainIDs = new[] { 42161, 42170 },
+                    BlockTime = 14,
+                    IsCustom = false,
+                    IsArbitrum = false
                 }
+            },
+            {
+                1338, new L1Network
+                {
+                    ChainID = 1338,
+                    Name = "Hardhat_Mainnet_Fork",
+                    ExplorerUrl = "https://etherscan.io",
+                    PartnerChainIDs = new[] { 42161 },
+                    BlockTime = 1,
+                    IsCustom = false,
+                    IsArbitrum = false
+                }
+            },
+            {
+                11155111, new L1Network
+                {
+                    ChainID = 11155111,
+                    Name = "Sepolia",
+                    ExplorerUrl = "https://sepolia.etherscan.io",
+                    PartnerChainIDs = new[] { 421614 },
+                    BlockTime = 12,
+                    IsCustom = false,
+                    IsArbitrum = false
+                }
+            },
+            {
+                17000, new L1Network
+                {
+                    ChainID = 17000,
+                    Name = "Holesky",
+                    ExplorerUrl = "https://holesky.etherscan.io",
+                    PartnerChainIDs = Array.Empty<int>(),
+                    BlockTime = 12,
+                    IsCustom = false,
+                    IsArbitrum = false
+                }
+            }
         };
 
         public static Dictionary<int, L2Network> l2Networks = new Dictionary<int, L2Network>()
         {
+            {
+                42161, new L2Network
                 {
-                    42161, new L2Network
-                    {
-                        ChainID = 42161,
-                        Name = "Arbitrum One",
-                        ExplorerUrl = "https://arbiscan.io",
-                        PartnerChainID = 1,
-                        PartnerChainIDs = Array.Empty<int>(),
-                        IsArbitrum = true,
-                        TokenBridge = MainnetTokenBridge,
-                        EthBridge = MainnetETHBridge,
-                        ConfirmPeriodBlocks = 45818,
-                        IsCustom = false,
-                        RetryableLifetimeSeconds = Constants.SEVEN_DAYS_IN_SECONDS,
-                        NitroGenesisBlock = 22207817,
-                        NitroGenesisL1Block = 15447158,
-                        DepositTimeout = 1800000,
-                        BlockTime = Constants.ARB_MINIMUM_BLOCK_TIME_IN_SECONDS
-                    }
+                    ChainID = 42161,
+                    Name = "Arbitrum One",
+                    ExplorerUrl = "https://arbiscan.io",
+                    PartnerChainID = 1,
+                    PartnerChainIDs = Array.Empty<int>(),
+                    IsArbitrum = true,
+                    TokenBridge = MainnetTokenBridge, 
+                    EthBridge = MainnetETHBridge, 
+                    ConfirmPeriodBlocks = 45818,
+                    IsCustom = false,
+                    RetryableLifetimeSeconds = Constants.SEVEN_DAYS_IN_SECONDS,
+                    NitroGenesisBlock = 22207817,
+                    NitroGenesisL1Block = 15447158,
+                    DepositTimeout = 1800000,
+                    BlockTime = Constants.ARB_MINIMUM_BLOCK_TIME_IN_SECONDS
                 }
+            },
+            {
+                42170, new L2Network
+                {
+                    ChainID = 42170,
+                    Name = "Arbitrum Nova",
+                    ExplorerUrl = "https://nova.arbiscan.io",
+                    PartnerChainID = 1,
+                    PartnerChainIDs = Array.Empty<int>(),
+                    IsArbitrum = true,
+                    TokenBridge = MainnetTokenBridge,
+                    EthBridge = MainnetETHBridge, 
+                    ConfirmPeriodBlocks = 45818,
+                    IsCustom = false,
+                    RetryableLifetimeSeconds = Constants.SEVEN_DAYS_IN_SECONDS,
+                    NitroGenesisBlock = 0,
+                    NitroGenesisL1Block = 0,
+                    DepositTimeout = 1800000,
+                    BlockTime = Constants.ARB_MINIMUM_BLOCK_TIME_IN_SECONDS
+                }
+            },
+            {
+                421614, new L2Network
+                {
+                    ChainID = 421614,
+                    Name = "Arbitrum Rollup Sepolia Testnet",
+                    ExplorerUrl = "https://sepolia-explorer.arbitrum.io",
+                    PartnerChainID = 11155111,
+                    PartnerChainIDs = new[] { 23011913 },
+                    IsArbitrum = true,
+                    TokenBridge = MainnetTokenBridge, 
+                    EthBridge = MainnetETHBridge, 
+                    ConfirmPeriodBlocks = 20,
+                    IsCustom = false,
+                    RetryableLifetimeSeconds = Constants.SEVEN_DAYS_IN_SECONDS,
+                    NitroGenesisBlock = 0,
+                    NitroGenesisL1Block = 0,
+                    DepositTimeout = 1800000,
+                    BlockTime = Constants.ARB_MINIMUM_BLOCK_TIME_IN_SECONDS
+                }
+            },
+            {
+                23011913, new L2Network
+                {
+                    ChainID = 23011913,
+                    Name = "Stylus Testnet",
+                    ExplorerUrl = "https://stylus-testnet-explorer.arbitrum.io",
+                    PartnerChainID = 421614,
+                    PartnerChainIDs = Array.Empty<int>(),
+                    IsArbitrum = true,
+                    TokenBridge = MainnetTokenBridge, 
+                    EthBridge = MainnetETHBridge, 
+                    ConfirmPeriodBlocks = 20,
+                    IsCustom = false,
+                    RetryableLifetimeSeconds = Constants.SEVEN_DAYS_IN_SECONDS,
+                    NitroGenesisBlock = 0,
+                    NitroGenesisL1Block = 0,
+                    DepositTimeout = 900000,
+                    BlockTime = Constants.ARB_MINIMUM_BLOCK_TIME_IN_SECONDS
+                }
+            }
         };
 
-        public async static Task<Network> GetNetwork(object signerOrProviderOrChainId, int layer)
+        public async static Task<Network> GetNetwork(dynamic signerOrProviderOrChainId, int layer)
         {
             int chainId;
 
@@ -215,7 +331,7 @@ namespace Arbitrum.DataEntities
             }
             else if (signerOrProviderOrChainId is SignerOrProvider)
             {
-                chainId = await GetChainIdAsync(((SignerOrProvider)signerOrProviderOrChainId).Provider);
+                chainId = await GetChainIdAsync(((SignerOrProvider)signerOrProviderOrChainId)?.Provider!);
             }
             else
             {
@@ -254,19 +370,19 @@ namespace Arbitrum.DataEntities
         }
 
 
-        public static async Task<L1Network> GetL1NetworkAsync(object signerOrProviderOrChainId)
+        public static async Task<L1Network> GetL1NetworkAsync(dynamic signerOrProviderOrChainId)
         {
             return (L1Network)await GetNetwork(signerOrProviderOrChainId, 1);
         }
 
-        public static async Task<L2Network> GetL2NetworkAsync(object signerOrProviderOrChainId)
+        public static async Task<L2Network> GetL2NetworkAsync(dynamic signerOrProviderOrChainId)
         {
             return (L2Network)await GetNetwork(signerOrProviderOrChainId, 2);
         }
 
-        public static EthBridgeInformation GetEthBridgeInformation(string rollupContractAddress, IWeb3 l1SignerOrProvider)
+        public static async Task<EthBridgeInformation> GetEthBridgeInformation(string rollupContractAddress, SignerOrProvider l1SignerOrProvider)
         {
-            Contract rollup = LoadContractUtils.LoadContract("RollupAdminLogic", l1SignerOrProvider, rollupContractAddress, false);
+            Contract rollup = await LoadContractUtils.LoadContract("RollupAdminLogic", l1SignerOrProvider, rollupContractAddress, false);
 
             return new EthBridgeInformation
             {
@@ -327,9 +443,9 @@ namespace Arbitrum.DataEntities
                 throw new ArbSdkError($"Network {customL2Network.ChainID}'s partner network, {customL2Network.PartnerChainID}, not recognized");
             }
 
-            if (!l1PartnerChain.PartnerChainIDs.Contains(customL2Network.ChainID))
+            if (!l1PartnerChain.PartnerChainIDs!.Contains(customL2Network.ChainID))
             {
-                l1PartnerChain.PartnerChainIDs.Append(customL2Network.ChainID);
+                l1PartnerChain.PartnerChainIDs!.Append(customL2Network.ChainID);
             }
         }
 
