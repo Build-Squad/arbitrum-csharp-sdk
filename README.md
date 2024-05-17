@@ -2,7 +2,7 @@
 
 C# library for client-side interactions with Arbitrum. Arbitrum C# SDK provides common helper functionality as well as access to the underlying smart contract interfaces.
 
-Below is an overview of the Arbitrum C# SDK functionality.
+Below is an overview of the Arbitrum C# SDK functionality. See the [tutorials](https://github.com/Build-Squad/arbitrum-csharp-tutorials) for further examples of how to use these classes.
 
 > **Note**: Arbitrum C# SDK is NOT official and currently in alpha. It is NOT recommended for production use. Go to [Arbitrum Typescript SDK](https://github.com/OffchainLabs/arbitrum-sdk) for official library.
 
