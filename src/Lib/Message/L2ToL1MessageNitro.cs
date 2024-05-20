@@ -35,7 +35,7 @@ namespace Arbitrum.Message
         private static Dictionary<string, object> _l2BlockRangeCache = new Dictionary<string, object>();
         private static object _lock = new object();
 
-        public static string GetL2BlockRangeCacheKey(string l2ChainId, int l1BlockNumber)
+        public static string GetL2BlockRangeCacheKey(int l2ChainId, int l1BlockNumber)
         {
             return $"{l2ChainId}-{l1BlockNumber}";
         }
@@ -48,9 +48,9 @@ namespace Arbitrum.Message
             }
         }
 
-        public static async Task<object> GetBlockRangesForL1BlockWithCache(IClient l1Provider, IClient l2Provider, int forL1Block)
+        public static async Task<object> GetBlockRangesForL1BlockWithCache(Web3 l1Provider, Web3 l2Provider, int forL1Block)
         {
-            string l2ChainId = (await new Web3(l2Provider).Eth.ChainId.SendRequestAsync()).ToString();
+            int l2ChainId = (int)(await l2Provider.Eth.ChainId.SendRequestAsync()).Value;//.ToString();
             string key = GetL2BlockRangeCacheKey(l2ChainId, forL1Block);
 
             lock (_lock)
@@ -156,7 +156,7 @@ namespace Arbitrum.Message
         {
             if (SignerProviderUtils.IsSigner(l1SignerOrProvider))
             {
-                return new L2ToL1MessageWriterNitro(l1SignerOrProvider?.Account, l2ToL1TransactionEvent, l1Provider);
+                return new L2ToL1MessageWriterNitro(l1SignerOrProvider, l2ToL1TransactionEvent, l1Provider);
             }
             else if (l1SignerOrProvider is Web3)
             {
@@ -338,7 +338,7 @@ namespace Arbitrum.Message
                 try
                 {
                     // Get L2 block range for the given L1 block
-                    var l2BlockRange = await CacheUtils.GetBlockRangesForL1BlockWithCache(l1Provider.Client, l2Provider.Client, createdAtBlock);
+                    var l2BlockRange = await CacheUtils.GetBlockRangesForL1BlockWithCache(l1Provider, l2Provider, createdAtBlock);
 
                     BigInteger? startBlock = l2BlockRange.startBlock;
                     BigInteger? endBlock = l2BlockRange.endBlock;
@@ -559,10 +559,10 @@ namespace Arbitrum.Message
 
     public class L2ToL1MessageWriterNitro : L2ToL1MessageReaderNitro
     {
-        private readonly Account l1Signer;
+        private readonly SignerOrProvider l1Signer;
 
-        public L2ToL1MessageWriterNitro(Account l1Signer, L2ToL1TxEvent eventArgs, Web3? l1Provider = null)
-            : base(l1Provider ?? new Web3(l1Signer?.TransactionManager?.Client), eventArgs)
+        public L2ToL1MessageWriterNitro(SignerOrProvider l1Signer, L2ToL1TxEvent eventArgs, Web3? l1Provider = null)
+            : base(l1Provider ?? l1Signer.Provider, eventArgs)
         {
             this.l1Signer = l1Signer ?? throw new ArgumentNullException(nameof(l1Signer));
         }
@@ -581,13 +581,13 @@ namespace Arbitrum.Message
 
             var outboxContract = await LoadContractUtils.LoadContract(
                                                         contractName: "Outbox",
-                                                        provider: new Web3(l1Signer?.TransactionManager?.Client),
+                                                        provider: l1Signer.Provider,
                                                         address: l2Network?.EthBridge?.Outbox,
                                                         isClassic: false
                                                     );
 
             var txReceipt = await outboxContract.GetFunction("executeTransaction").SendTransactionAndWaitForReceiptAsync(
-                from: l1Signer?.Address,
+                from: l1Signer?.Account?.Address,
                 receiptRequestCancellationToken: null,
                 L1BatchNumber.ToString(),
                 proof,

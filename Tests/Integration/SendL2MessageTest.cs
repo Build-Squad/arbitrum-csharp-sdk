@@ -6,7 +6,6 @@ using NUnit.Framework;
 using Nethereum.Contracts;
 using Nethereum.Hex.HexTypes;
 using Nethereum.Web3;
-using Arbitrum.AssetBridger.Tests.Integration;
 using Arbitrum.DataEntities;
 using static Arbitrum.Inbox.ForceInclusionParams;
 using Arbitrum.Scripts;
@@ -17,7 +16,7 @@ using Arbitrum.Utils;
 using Nethereum.JsonRpc.Client;
 using Nethereum.JsonRpc.Client.RpcMessages;
 
-namespace Arbitrum.Message.Tests.Integration
+namespace Arbitrum.Tests.Integration
 {
     [TestFixture]
     public class SendL2MessageTest
@@ -27,18 +26,18 @@ namespace Arbitrum.Message.Tests.Integration
             public string? SignedMsg { get; set; }
             public TransactionReceipt? L1TransactionReceipt { get; set; }
         }
-        private async Task<TxResult> SendSignedTx(TestState testState, TransactionInput info = null)
+        private async Task<TxResult> SendSignedTx(TestState testState, TransactionRequest info = null)
         {
             var l1Deployer = testState.L1Deployer;
             var l2Deployer = testState.L2Deployer;
-            var l1Provider = new Web3(l1Deployer.TransactionManager.Client);
-            var l2Provider = new Web3(l2Deployer.TransactionManager.Client);
+            var l1Provider = l1Deployer.Provider;
+            var l2Provider = l2Deployer.Provider;
             var l2Network = await NetworkUtils.GetL2NetworkAsync(l2Provider.Eth.ChainId);
             var inbox = new InboxTools(l1Deployer, l2Network);
 
             var message = new TransactionRequest
             {
-                Value = Web3.Convert.ToWei(0, UnitConversion.EthUnit.Ether),
+                Value = new HexBigInteger(Web3.Convert.ToWei(0, UnitConversion.EthUnit.Ether)),
                 From = info.From,
                 MaxFeePerGas = info.MaxFeePerGas,
                 MaxPriorityFeePerGas = info.MaxPriorityFeePerGas,
@@ -78,15 +77,16 @@ namespace Arbitrum.Message.Tests.Integration
         }
 
         [Test]
-        public async Task CanDeployContract(TestState testState)
+        public async Task CanDeployContract()
         {
+            var testState = await TestSetupUtils.TestSetup();
             var l2Deployer = testState.L2Deployer;
-            var l2Provider = new Web3(l2Deployer.TransactionManager.Client);
+            var l2Provider = l2Deployer.Provider;
             var (abi, bytecode) = ReadGreeterContract();
             var greeterContract = l2Provider.Eth.GetContract(abi, bytecode);
 
-            var constructTxn = greeterContract.GetFunction("constructor").CreateTransactionInput(from: l2Deployer.Address,functionInput: new TransactionInput() { Value = new HexBigInteger(0) });
-            var returnData = await SendSignedTx(testState, constructTxn);
+            var constructTxn = greeterContract.GetFunction("constructor").CreateTransactionInput(from: l2Deployer.Account.Address,functionInput: new TransactionRequest() { Value = new HexBigInteger(0) });
+            var returnData = await SendSignedTx(testState, constructTxn as TransactionRequest);
             var l1TransactionReceipt = returnData.L1TransactionReceipt;
             var signedMsg = returnData.SignedMsg;
 
@@ -110,11 +110,13 @@ namespace Arbitrum.Message.Tests.Integration
         }
 
         [Test]
-        public async Task ShouldConfirmSameTxOnL2(TestState testState)
+        public async Task ShouldConfirmSameTxOnL2()
         {
+            var testState = await TestSetupUtils.TestSetup();
+
             var l2Deployer = testState.L2Deployer;
-            var l2Provider = new Web3(l2Deployer.TransactionManager.Client);
-            var returnData = await SendSignedTx(testState, new TransactionInput { Data = "0x12", To = l2Deployer.Address });
+            var l2Provider = l2Deployer.Provider;
+            var returnData = await SendSignedTx(testState, new TransactionRequest { Data = "0x12", To = l2Deployer.Account.Address });
             var l1TransactionReceipt = returnData.L1TransactionReceipt;
             var signedMsg = returnData.SignedMsg;
 
@@ -128,18 +130,20 @@ namespace Arbitrum.Message.Tests.Integration
         }
 
         [Test]
-        public async Task SendTwoTxShareSameNonce(TestState testState)
+        public async Task SendTwoTxShareSameNonce()
         {
-            var l2Deployer = testState.L2Deployer;
-            var l2Provider = new Web3(l2Deployer.TransactionManager.Client);
+            var testState = await TestSetupUtils.TestSetup();
 
-            var currentNonce = await l2Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(testState.L2Deployer.Address);
-            var lowFeeInfo = new TransactionInput { Data = "0x12", Nonce = currentNonce, To = testState.L2Deployer.Address, MaxFeePerGas = new HexBigInteger(10000000), MaxPriorityFeePerGas = new HexBigInteger(10000000) };
+            var l2Deployer = testState.L2Deployer;
+            var l2Provider = l2Deployer.Provider;
+
+            var currentNonce = await l2Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(testState.L2Deployer.Account.Address);
+            var lowFeeInfo = new TransactionRequest { Data = "0x12", Nonce = currentNonce, To = testState.L2Deployer.Account.Address, MaxFeePerGas = new HexBigInteger(10000000), MaxPriorityFeePerGas = new HexBigInteger(10000000) };
             var lowFeeTxData = await SendSignedTx(testState, lowFeeInfo);
             
             Assert.That(lowFeeTxData.L1TransactionReceipt.Status, Is.EqualTo(1), "L1 transaction (low fee) failed");
 
-            var enoughFeeInfo = new TransactionInput{ Data = "0x12", To = testState.L2Deployer.Address, Nonce = currentNonce };
+            var enoughFeeInfo = new TransactionRequest{ Data = "0x12", To = testState.L2Deployer.Account.Address, Nonce = currentNonce };
             var enoughFeeTxData = await SendSignedTx(testState, enoughFeeInfo);
 
             Assert.That(enoughFeeTxData.L1TransactionReceipt.Status, Is.EqualTo(1), "L1 transaction (enough fee) failed");

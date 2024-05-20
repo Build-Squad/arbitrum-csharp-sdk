@@ -4,12 +4,12 @@ using Nethereum.Web3;
 using NUnit.Framework;
 using System;
 
-namespace Arbitrum.AssetBridger.Tests.Integration
+namespace Arbitrum.Tests.Integration
 {
     public class EthBridgeTests
     {
         [Test]
-        public async void TestObtainDeployedBridgeAddresses()
+        public async Task TestObtainDeployedBridgeAddresses()
         {
             var arbOneL2Network = await NetworkUtils.GetL2NetworkAsync(42161);
             var ethProvider = new Web3(new RpcClient(new Uri(Environment.GetEnvironmentVariable("MAINNET_RPC"))));

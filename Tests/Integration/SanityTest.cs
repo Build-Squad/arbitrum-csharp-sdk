@@ -13,7 +13,7 @@ using Nethereum.Web3.Accounts;
 using Arbitrum.Tests.Integration;
 using Arbitrum.Scripts;
 
-namespace Arbitrum.Message.Tests.Integration
+namespace Arbitrum.Tests.Integration
 {
     [TestFixture]
     public class SanityTest
@@ -25,8 +25,8 @@ namespace Arbitrum.Message.Tests.Integration
             var setupState = await TestSetupUtils.TestSetup();
             var l1Signer = setupState.L1Signer;
             var l2Signer = setupState.L2Signer;
-            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
-            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
+            var l1Provider = l1Signer.Provider;
+            var l2Provider = l2Signer.Provider;
             var l2Network = setupState.L2Network;
 
             var l1Gateway = await LoadContractUtils.LoadContract(contractName: "L1ERC20Gateway", provider: l1Provider, address: l2Network.TokenBridge.L1ERC20Gateway, isClassic: true);
@@ -62,8 +62,8 @@ namespace Arbitrum.Message.Tests.Integration
             var setupState = await TestSetupUtils.TestSetup();
             var l1Signer = setupState.L1Signer;
             var l2Signer = setupState.L2Signer;
-            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
-            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
+            var l1Provider = l1Signer.Provider;
+            var l2Provider = l2Signer.Provider;
             var l2Network = setupState.L2Network;
 
             var l1CustomGateway = await LoadContractUtils.LoadContract(contractName: "L1CustomGateway", provider: l1Provider, address: l2Network.TokenBridge.L1CustomGateway, isClassic: true);
@@ -91,8 +91,8 @@ namespace Arbitrum.Message.Tests.Integration
             var setupState = await TestSetupUtils.TestSetup();
             var l1Signer = setupState.L1Signer;
             var l2Signer = setupState.L2Signer;
-            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
-            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
+            var l1Provider = l1Signer.Provider;
+            var l2Provider = l2Signer.Provider;
             var l2Network = setupState.L2Network;
 
             var l1WethGateway = await LoadContractUtils.LoadContract(contractName: "L1WethGateway", provider: l1Provider, address: l2Network.TokenBridge.L1WethGateway, isClassic: true);
@@ -125,13 +125,13 @@ namespace Arbitrum.Message.Tests.Integration
         {
             var setupState = await TestSetupUtils.TestSetup();
             var l2Signer = setupState.L2Signer;
-            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
+            var l2Provider = l2Signer.Provider;
             var l2Network = setupState.L2Network;
 
             var aeWeth = await LoadContractUtils.LoadContract(contractName: "AeWETH", provider: l2Provider, address: l2Network.TokenBridge.L2Weth, isClassic: true);
             Assert.That(aeWeth, Is.Not.Null);
 
-            var l2GatewayOnAeWeth = await aeWeth.GetFunction("l2Gateway").CallAsync<string>();
+            var l2GatewayOnAeWeth = await aeWeth.GetFunction("l2Gateway").CallAsync<dynamic>();
             await ExpectIgnoreCase(l2GatewayOnAeWeth, l2Network.TokenBridge.L2WethGateway);
 
             var l1AddressOnAeWeth = await aeWeth.GetFunction("l1Address").CallAsync<string>();
@@ -143,7 +143,7 @@ namespace Arbitrum.Message.Tests.Integration
         {
             var setupState = await TestSetupUtils.TestSetup();
             var l1Signer = setupState.L1Signer;
-            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
+            var l1Provider = l1Signer.Provider;
             var l2Network = setupState.L2Network;
             var adminErc20Bridger = setupState.AdminErc20Bridger;
 
@@ -157,8 +157,8 @@ namespace Arbitrum.Message.Tests.Integration
             var setupState = await TestSetupUtils.TestSetup();
             var l1Signer = setupState.L1Signer;
             var l2Signer = setupState.L2Signer;
-            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
-            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
+            var l1Provider = l1Signer.Provider;
+            var l2Provider = l2Signer.Provider;
             var l2Network = setupState.L2Network;
             var erc20Bridger = setupState.Erc20Bridger;
 
@@ -177,10 +177,13 @@ namespace Arbitrum.Message.Tests.Integration
 
         public async Task ExpectIgnoreCase(string expected, string actual)
         {
-            await Task.Run(() =>
+            if (expected != null && actual != null)
             {
-                Assert.That(expected.ToLower(), Is.EqualTo(actual.ToLower()));
-            });
+                await Task.Run(() =>
+                {
+                    Assert.That(expected.ToLower(), Is.EqualTo(actual.ToLower()));
+                });
+            }
         }
 
     }

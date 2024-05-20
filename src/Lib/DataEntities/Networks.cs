@@ -368,7 +368,7 @@ namespace Arbitrum.DataEntities
             }
         }
 
-        public async static Task<int> GetChainIdAsync(IWeb3 web3)
+        public async static Task<int> GetChainIdAsync(Web3 web3)
         {
             return (int)(await web3.Eth.ChainId.SendRequestAsync()).Value;
         }

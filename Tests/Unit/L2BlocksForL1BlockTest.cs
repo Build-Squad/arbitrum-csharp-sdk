@@ -7,12 +7,12 @@ using Nethereum.JsonRpc.Client;
 using Nethereum.Web3;
 using Nethereum.Hex.HexTypes;
 
-namespace Arbitrum.Message.Tests.Unit
+namespace Arbitrum.Tests.Unit
 {
     [TestFixture]
     public class L2BlocksLookupTests
     {
-        private readonly IClient provider = new Web3("https://arb1.arbitrum.io/rpc").Client;
+        private readonly Web3 provider = new Web3("https://arb1.arbitrum.io/rpc");
         private readonly ArbitrumProvider arbProvider;
 
         public L2BlocksLookupTests()
@@ -23,7 +23,7 @@ namespace Arbitrum.Message.Tests.Unit
         [Test]
         public async Task SuccessfullySearchesForL2BlockRange()
         {
-            var l2Blocks = await Lib.GetBlockRangesForL1Block(provider: arbProvider.Client,forL1Block: 17926532, minL2Block: 121800000,maxL2Block: 122000000);
+            var l2Blocks = await Lib.GetBlockRangesForL1Block(provider: arbProvider.Provider,forL1Block: 17926532, minL2Block: 121800000,maxL2Block: 122000000);
             Assert.That(l2Blocks.Length, Is.EqualTo(2));
             await ValidateL2Blocks(l2Blocks, 2);
         }
@@ -31,7 +31,7 @@ namespace Arbitrum.Message.Tests.Unit
         [Test]
         public async Task FailsToSearchForL2BlockRange()
         {
-            var l2Blocks = await Lib.GetBlockRangesForL1Block(provider: arbProvider.Client, forL1Block: 17926533, minL2Block: 121800000, maxL2Block: 122000000);
+            var l2Blocks = await Lib.GetBlockRangesForL1Block(provider: arbProvider.Provider, forL1Block: 17926533, minL2Block: 121800000, maxL2Block: 122000000);
             Assert.That(l2Blocks.Length, Is.EqualTo(2));
             foreach (var block in l2Blocks)
             {
@@ -42,7 +42,7 @@ namespace Arbitrum.Message.Tests.Unit
         [Test]
         public async Task SuccessfullySearchesForFirstL2Block()
         {
-            var l2Block = await Lib.GetFirstBlockForL1Block(provider: arbProvider.Client, forL1Block: 17926532, minL2Block: 121800000, maxL2Block: 122000000);
+            var l2Block = await Lib.GetFirstBlockForL1Block(provider: arbProvider.Provider, forL1Block: 17926532, minL2Block: 121800000, maxL2Block: 122000000);
             Assert.That(l2Block, Is.Not.Null);
             await ValidateL2Blocks(new int[] { l2Block }, 1);
         }
@@ -50,14 +50,14 @@ namespace Arbitrum.Message.Tests.Unit
         [Test]
         public async Task FailsToSearchForFirstL2BlockWithoutAllowGreaterFlag()
         {
-            var l2Block = await Lib.GetFirstBlockForL1Block(provider: arbProvider.Client, forL1Block: 17926533, allowGreater: false, minL2Block: 121800000, maxL2Block: 122000000);
+            var l2Block = await Lib.GetFirstBlockForL1Block(provider: arbProvider.Provider, forL1Block: 17926533, allowGreater: false, minL2Block: 121800000, maxL2Block: 122000000);
             Assert.That(l2Block, Is.Null);
         }
 
         [Test]
         public async Task SuccessfullySearchesForFirstL2BlockWithAllowGreaterFlag()
         {
-            var l2Block = await Lib.GetFirstBlockForL1Block(provider: arbProvider.Client, forL1Block: 17926533, allowGreater: true, minL2Block: 121800000, maxL2Block: 122000000);
+            var l2Block = await Lib.GetFirstBlockForL1Block(provider: arbProvider.Provider, forL1Block: 17926533, allowGreater: true, minL2Block: 121800000, maxL2Block: 122000000);
             Assert.That(l2Block, Is.Not.Null);
             await ValidateL2Blocks(new int[] { l2Block }, 1);
         }
@@ -80,7 +80,7 @@ namespace Arbitrum.Message.Tests.Unit
                 return;
             }
 
-            var arbProvider = new ArbitrumProvider(new RpcClient(new Uri("https://arb1.arbitrum.io/rpc")));
+            var arbProvider = new ArbitrumProvider(new Web3(new RpcClient(new Uri("https://arb1.arbitrum.io/rpc"))));
             var promises = l2Blocks.Select(async (l2Block, index) =>
             {
                 if (l2Block == null)

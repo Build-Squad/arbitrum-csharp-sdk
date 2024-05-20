@@ -16,7 +16,7 @@ using Nethereum.Hex.HexTypes;
 using Nethereum.Signer;
 using Nethereum.Web3.Accounts;
 
-namespace Arbitrum.AssetBridger.Tests.Integration
+namespace Arbitrum.Tests.Integration
 {
     [TestFixture]
     public class TokenBridgeTests
@@ -28,8 +28,8 @@ namespace Arbitrum.AssetBridger.Tests.Integration
             var l2Network = setupState.L2Network;
             var l1Signer = setupState.L1Signer;
             var l2Signer = setupState.L2Signer;
-            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
-            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
+            var l1Provider = l1Signer.Provider;
+            var l2Provider = l2Signer.Provider;
             var erc20Bridger = setupState.Erc20Bridger;
 
             var l1WethAddress = l2Network.TokenBridge.L1Weth;
@@ -45,7 +45,7 @@ namespace Arbitrum.AssetBridger.Tests.Integration
                 contractName: "AeWETH",
                 isClassic: true
             );
-            Assert.That(l2WETH.GetFunction("balanceOf").CallAsync<BigInteger>(l2Signer.Address).Result, Is.Zero);
+            Assert.That(l2WETH.GetFunction("balanceOf").CallAsync<BigInteger>(l2Signer.Account.Address).Result, Is.Zero);
 
             var l1WETH = await LoadContractUtils.LoadContract(
                 provider: l1Provider,
@@ -54,7 +54,7 @@ namespace Arbitrum.AssetBridger.Tests.Integration
                 isClassic: true
             );
 
-            var tx = await l1WETH.GetFunction("deposit").SendTransactionAsync(from: l1Signer.Address, new CallInput{Value = new HexBigInteger(wethToWrap) });
+            var tx = await l1WETH.GetFunction("deposit").SendTransactionAsync(from: l1Signer.Account.Address, new CallInput{Value = new HexBigInteger(wethToWrap) });
 
             await l1Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(tx);
 
@@ -92,7 +92,7 @@ namespace Arbitrum.AssetBridger.Tests.Integration
             //random address
             var randomAddr = account.Address;
 
-            tx = await l2Weth.GetFunction("withdrawTo").SendTransactionAsync(from: l2Signer.Address, randomAddr, wethToDeposit);
+            tx = await l2Weth.GetFunction("withdrawTo").SendTransactionAsync(from: l2Signer.Account.Address, randomAddr, wethToDeposit);
 
             await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(tx);
 
@@ -103,15 +103,16 @@ namespace Arbitrum.AssetBridger.Tests.Integration
         [Test]
         public async Task WithdrawWETH()
         {
+            var setupState = await TestSetupUtils.TestSetup();
+
             var wethToWrap = Web3.Convert.ToWei(0.00001, UnitConversion.EthUnit.Ether);
             var wethToWithdraw = Web3.Convert.ToWei(0.00000001, UnitConversion.EthUnit.Ether);
 
-            var setupState = await TestSetupUtils.TestSetup();
             var l2Network = setupState.L2Network;
             var l1Signer = setupState.L1Signer;
             var l2Signer = setupState.L2Signer;
-            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
-            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
+            var l1Provider = l1Signer.Provider;
+            var l2Provider = l2Signer.Provider;
             var erc20Bridger = setupState.Erc20Bridger;
 
             await TestHelpers.FundL1(l1Signer);
@@ -124,7 +125,7 @@ namespace Arbitrum.AssetBridger.Tests.Integration
                 isClassic: true
             );
 
-            var tx = await l2Weth.GetFunction("deposit").SendTransactionAsync(from: l2Signer.Address, new CallInput{ Value = new HexBigInteger(wethToWrap) });
+            var tx = await l2Weth.GetFunction("deposit").SendTransactionAsync(from: l2Signer.Account.Address, new CallInput{ Value = new HexBigInteger(wethToWrap) });
 
             var rec = await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(tx);
 

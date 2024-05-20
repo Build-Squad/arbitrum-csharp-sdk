@@ -151,14 +151,14 @@ namespace Arbitrum.DataEntities
 
                 //var eventABI = contract.ContractBuilder.GetEventAbi(contractName);
 
-                //FilterLog[] parsedLogs = EventExtensions.GetLogsForEvent(eventABI, logs);
+                FilterLog[] parsedLogs = EventExtensions.GetLogsForEvent(eventABI, logs);
 
-                var parsedLogs = logs.Select(l => new FilterLog
-                {
-                    Address = l["address"].ToString(),
-                    Topics = l["topics"].Select(t => t.ToString()).ToArray(),
-                    Data = l["data"].ToString()
-                }).ToArray();
+                //var parsedLogs = logs.Select(l => new FilterLog
+                //{
+                //    Address = l["address"].ToString(),
+                //    Topics = l["topics"].Select(t => t.ToString()).ToArray(),
+                //    Data = l["data"].ToString()
+                //}).ToArray();
 
                 var decodedLogs = new List<EventLog<T>>();
 
@@ -193,17 +193,13 @@ namespace Arbitrum.DataEntities
 
                     string json2 = File.ReadAllText(filePath);
 
-                    var contractData2 = System.Text.Json.JsonSerializer.Deserialize<RootObject>(json);
-
-                    var contractData = System.Text.Json.JsonSerializer.Deserialize<RootObject>(json);
+                    RootObject contractData = JsonConvert.DeserializeObject<RootObject>(json);
 
                     if (contractData == null || string.IsNullOrEmpty(contractData.abi.ToString()))
                         throw new Exception($"No ABI found for contract: {contractName}");
-                    RootObject contractData3 = JsonConvert.DeserializeObject<RootObject>(json);
 
-
-                    abi = JsonConvert.SerializeObject(contractData3.abi);
-                    bytecode = contractData3.bytecode!;
+                    abi = JsonConvert.SerializeObject(contractData.abi);
+                    bytecode = contractData.bytecode;
                 }
             }
             catch (Exception ex)

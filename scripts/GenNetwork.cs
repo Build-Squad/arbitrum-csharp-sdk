@@ -39,8 +39,8 @@ namespace Abitrum.Scripts
             var networkAndDeployers = await TestSetupUtils.SetupNetworks(
                 l1Url: TestSetupUtils.Config["ETH_URL"],
                 l2Url: TestSetupUtils.Config["ARB_URL"],
-                l1Deployer: l1Signer.Account,
-                l2Deployer: l2Signer.Account
+                l1Deployer: l1Signer,
+                l2Deployer: l2Signer
             );
 
             var l1Network = networkAndDeployers.L1Network;

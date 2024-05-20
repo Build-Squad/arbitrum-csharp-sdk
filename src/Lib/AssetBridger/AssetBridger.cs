@@ -18,6 +18,7 @@ namespace Arbitrum.AssetBridgerModule
         public AssetBridger(L2Network l2Network)
         {
             L2Network = l2Network;
+            L1Network = NetworkUtils.l1Networks[l2Network.PartnerChainID];
             NativeToken = l2Network?.NativeToken;
             if (L1Network == null)
             {
@@ -34,12 +35,12 @@ namespace Arbitrum.AssetBridgerModule
             }
         }
 
-        protected async Task CheckL1Network(SignerOrProvider sop)
+        protected async Task CheckL1Network(dynamic sop)
         {
             await SignerProviderUtils.CheckNetworkMatches(sop, L1Network.ChainID);
         }
 
-        protected async Task CheckL2Network(SignerOrProvider sop)
+        protected async Task CheckL2Network(dynamic sop)
         {
             await SignerProviderUtils.CheckNetworkMatches(sop, L2Network.ChainID);
         }

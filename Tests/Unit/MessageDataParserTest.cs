@@ -6,7 +6,7 @@
 //using Nethereum.Hex.HexTypes;
 //using System.Numerics;
 
-//namespace Arbitrum.Message.Tests.Unit
+//namespace Arbitrum.Tests.Unit
 //{
 //    public class SubmitRetryableMessageDataParserTests
 //    {

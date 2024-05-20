@@ -114,10 +114,12 @@ namespace Arbitrum.DataEntities
         public static async Task<bool> CheckNetworkMatches(dynamic signerOrProvider, int chainId)
         {
             Web3 provider;
+            Account account;
 
             if (signerOrProvider is SignerOrProvider)
             {
-                provider = (signerOrProvider as SignerOrProvider)?.Provider!;
+                provider = (signerOrProvider as SignerOrProvider)?.Provider;
+                account = (signerOrProvider as SignerOrProvider)?.Account;
             }
             else if (signerOrProvider is Web3)
             {
@@ -130,7 +132,7 @@ namespace Arbitrum.DataEntities
 
             if (provider == null)
             {
-                throw new MissingProviderArbSdkError((string)signerOrProvider);
+                throw new MissingProviderArbSdkError("signerOrProvider");
             }
 
             int providerChainId = (int)(await provider.Eth.ChainId.SendRequestAsync()).Value;

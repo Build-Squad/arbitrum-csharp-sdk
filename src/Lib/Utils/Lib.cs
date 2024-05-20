@@ -96,7 +96,7 @@ namespace Arbitrum.Utils
         }
 
         public static async Task<dynamic?> GetFirstBlockForL1Block(
-        IClient provider,
+        Web3 provider,
         int forL1Block,
         bool allowGreater = false,
         int? minL2Block = null,
@@ -111,15 +111,17 @@ namespace Arbitrum.Utils
                 maxL2Block = maxL2Block?.ToString() ?? "latest";
                 // Proceed with your logic
             }
-            if (!await IsArbitrumChain(new Web3(provider)))
+            if (!await IsArbitrumChain(provider))
             {
                 return forL1Block;
             }
 
             var arbProvider = new ArbitrumProvider(provider);
 
-            var currentArbBlock = await arbProvider.Eth.Blocks.GetBlockNumber.SendRequestAsync();
-            var arbitrumChainId = await arbProvider.Eth.ChainId.SendRequestAsync();
+            var currentArbBlock = await arbProvider.Provider.Eth.Blocks.GetBlockNumber.SendRequestAsync();
+
+            var arbitrumChainId = await arbProvider.Provider.Eth.ChainId.SendRequestAsync();
+
             var nitroGenesisBlock = NetworkUtils.l2Networks[(int)arbitrumChainId.Value].NitroGenesisBlock;
              
             async Task<int> GetL1Block(int forL2Block)
@@ -183,7 +185,7 @@ namespace Arbitrum.Utils
 
 
         public static async Task<int[]> GetBlockRangesForL1Block(
-        IClient provider,
+        Web3 provider,
         int forL1Block,
         bool allowGreater = false,
         int? minL2Block = null,
@@ -200,7 +202,7 @@ namespace Arbitrum.Utils
             // Convert maxL2Block to current block number if needed
             if (maxL2Block.ToString() == "latest")
             {
-                maxL2Block = (await new Web3(provider).Eth.Blocks.GetBlockNumber.SendRequestAsync()).Value.ToString();
+                maxL2Block = (await provider.Eth.Blocks.GetBlockNumber.SendRequestAsync()).Value.ToString();
             }
 
             var arbProvider = new ArbitrumProvider(provider);
@@ -233,7 +235,7 @@ namespace Arbitrum.Utils
                 return new int[] { startBlock, endBlock - 1 };
             }
 
-            return new int[] { startBlock!, maxL2Block };
+            return new int[] { startBlock, maxL2Block };
         }
 
     }

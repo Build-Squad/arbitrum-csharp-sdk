@@ -371,7 +371,7 @@ namespace Arbitrum.Message
             else
             {
                 nitroWriter = new L2ToL1MessageWriterNitro(
-                    l1Signer: l1Signer.Account,
+                    l1Signer: l1Signer,
                     eventArgs:new L2ToL1TxEvent()
                     {
                         // Mapping properties from L2ToL1TransactionEvent to L2ToL1TxEvent

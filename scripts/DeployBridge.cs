@@ -29,14 +29,14 @@ namespace Arbitrum.Scripts
     public static class DeploymentUtils
     {
         public static async Task<Contract> DeployBehindProxy(
-            Account deployer,
+            SignerOrProvider deployer,
             string contractName,
             Contract admin,
             string dataToCallProxy = "0x",
             bool isClassic = false)
         {
             var instance = await LoadContractUtils.DeployAbiContract(
-                                    new Web3(deployer.TransactionManager.Client),
+                                    deployer.Provider,
                                     deployer,
                                     contractName,
                                     isClassic:isClassic);
@@ -44,18 +44,18 @@ namespace Arbitrum.Scripts
             var (contractAbi, contractAddress) = await LogParser.LoadAbi(contractName, isClassic);
 
             var proxy = await LoadContractUtils.DeployAbiContract(
-                                new Web3(deployer.TransactionManager.Client),
+                                deployer.Provider,
                                 deployer,
                                 "TransparentUpgradeableProxy",
                                 new object[] { instance.Address, admin.Address, dataToCallProxy },
                                 isClassic);
 
-            return new Web3(deployer.TransactionManager.Client).Eth.GetContract(contractAddress: proxy.Address,abi: contractAbi);
+            return deployer.Provider.Eth.GetContract(contractAddress: proxy.Address,abi: contractAbi);
         }
 
-        public static async Task<ERC20DeploymentResult> DeployERC20L1(Account deployer)
+        public static async Task<ERC20DeploymentResult> DeployERC20L1(SignerOrProvider deployer)
         {
-            var provider = new Web3(deployer.TransactionManager.Client);
+            var provider = deployer.Provider;
 
             var proxyAdmin = await LoadContractUtils.DeployAbiContract(provider, deployer, "ProxyAdmin", isClassic: false);
             Console.WriteLine("Proxy admin address: " + proxyAdmin.Address);
@@ -90,9 +90,9 @@ namespace Arbitrum.Scripts
             };
         }
 
-        public static async Task<ERC20DeploymentResult> DeployERC20L2(Account deployer)
+        public static async Task<ERC20DeploymentResult> DeployERC20L2(SignerOrProvider deployer)
         {
-            var provider = new Web3(deployer.TransactionManager.Client);
+            var provider = deployer.Provider;
 
             var proxyAdmin = await LoadContractUtils.DeployAbiContract(provider, deployer, "ProxyAdmin", isClassic: false);
             Console.WriteLine("Proxy admin address: " + proxyAdmin.Address);
@@ -137,14 +137,14 @@ namespace Arbitrum.Scripts
                 Multicall = multicall
             };
         }
-        public static async Task<TransactionReceipt> SendTransactionWrapper(Account signer, Function contractFunction, params object[] functionInput)
+        public static async Task<TransactionReceipt> SendTransactionWrapper(SignerOrProvider signer, Function contractFunction, params object[] functionInput)
         {
-            var txHash = await contractFunction.SendTransactionAsync(signer.Address);
-            var txReceipt = await new Web3(signer.TransactionManager.Client).Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
+            var txHash = await contractFunction.SendTransactionAsync(signer.Account.Address);
+            var txReceipt = await signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
             return txReceipt;
         }
 
-        public static async Task<Tuple<ERC20DeploymentResult, ERC20DeploymentResult>> DeployERC20AndInit(Account l1Signer, Account l2Signer, string inboxAddress)
+        public static async Task<Tuple<ERC20DeploymentResult, ERC20DeploymentResult>> DeployERC20AndInit(SignerOrProvider l1Signer, SignerOrProvider l2Signer, string inboxAddress)
         {
             Console.WriteLine("Deploying L1 contracts...");
             var l1Contracts = await DeployERC20L1(l1Signer);
@@ -184,9 +184,9 @@ namespace Arbitrum.Scripts
             await SendTransactionWrapper(
                 l1Signer,
                 l1Contracts.Router.GetFunction("initialize"),
-                new object[] { l1Signer.Address, l1Contracts.StandardGateway.Address, Constants.ADDRESS_ZERO, l2Contracts.Router.Address, inboxAddress });
+                new object[] { l1Signer.Account.Address, l1Contracts.StandardGateway.Address, Constants.ADDRESS_ZERO, l2Contracts.Router.Address, inboxAddress });
 
-            var cloneableProxyHash = await new Web3(l2Signer).Eth.GetContract(l2Contracts.BeaconProxyFactory.Address, (await LogParser.LoadAbi("BeaconProxyFactory")).Item1)
+            var cloneableProxyHash = await l2Signer.Provider.Eth.GetContract(l2Contracts.BeaconProxyFactory.Address, (await LogParser.LoadAbi("BeaconProxyFactory")).Item1)
                 .GetFunction("cloneableProxyHash").CallAsync<string>();
 
             await SendTransactionWrapper(
@@ -197,7 +197,7 @@ namespace Arbitrum.Scripts
             await SendTransactionWrapper(
                 l1Signer,
                 l1Contracts.CustomGateway.GetFunction("initialize"),
-                new object[] { l2Contracts.CustomGateway.Address, l1Contracts.Router.Address, inboxAddress, l1Signer.Address });
+                new object[] { l2Contracts.CustomGateway.Address, l1Contracts.Router.Address, inboxAddress, l1Signer.Account.Address });
 
             await SendTransactionWrapper(
                 l1Signer,

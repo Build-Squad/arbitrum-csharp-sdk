@@ -416,13 +416,13 @@ namespace Arbitrum.Message
             return await reader.WaitForStatus();
         }
 
-        public static L1ToL2MessageReaderOrWriter FromEventComponents<T>(
-            T l2SignerOrProvider,
+        public static L1ToL2MessageReaderOrWriter FromEventComponents(
+            Web3 l2SignerOrProvider,
             BigInteger chainId,
             string sender,
             BigInteger messageNumber,
             BigInteger l1BaseFee,
-            RetryableMessageParams messageData) where T : SignerOrProvider
+            RetryableMessageParams messageData)
         {
             if (SignerProviderUtils.IsSigner(l2SignerOrProvider))
             {
@@ -437,7 +437,7 @@ namespace Arbitrum.Message
             else
             {
                 return new L1ToL2MessageReaderOrWriter(
-                    l2SignerOrProvider.Provider,
+                    l2SignerOrProvider,
                     chainId,
                     sender,
                     messageNumber,
@@ -944,20 +944,20 @@ namespace Arbitrum.Message
 
     public class L1ToL2MessageWriter : L1ToL2MessageReader
     {
-        public readonly Account? _l2Signer;
+        private SignerOrProvider _l2Signer;
         public L1ToL2MessageWriter(
-            SignerOrProvider l2provider,
+            SignerOrProvider l2Signer,
             BigInteger chainId,
             string sender,
             BigInteger messageNumber,
             BigInteger l1BaseFee,
-            RetryableMessageParams messageData) : base(l2provider.Provider, chainId, sender, messageNumber, l1BaseFee, messageData)
+            RetryableMessageParams messageData) : base(l2Signer.Provider, chainId, sender, messageNumber, l1BaseFee, messageData)
         {
-            if (l2provider?.Provider == null)
+            if (l2Signer?.Provider == null)
             {
                 throw new ArbSdkError("Signer not connected to provider.");
             }
-            _l2Signer = new Account(privateKey: EthECKey.GenerateKey().GetPrivateKeyAsBytes(), chainId: chainId);   ///////
+            this._l2Signer = l2Signer;
         }
 
         /**
@@ -973,7 +973,7 @@ namespace Arbitrum.Message
                 var arbRetryableTxContract = await LoadContractUtils.LoadContract(
                                                         contractName: "ArbRetryableTx",
                                                         address: Constants.ARB_RETRYABLE_TX_ADDRESS,
-                                                        provider: new Web3(account: _l2Signer, _l2Signer!.TransactionManager.Client),
+                                                        provider: _l2Signer.Provider,
                                                         isClassic: false
                                                     );
                 if (overrides == null)
@@ -982,7 +982,7 @@ namespace Arbitrum.Message
                 }
                 if (!overrides.ContainsKey("from"))
                 {
-                    overrides["from"] = _l2Signer!.Address;
+                    overrides["from"] = _l2Signer?.Account?.Address;
                 }
                 if (overrides.ContainsKey("gasLimit"))
                 {
@@ -1018,7 +1018,7 @@ namespace Arbitrum.Message
                 var arbRetryableTxContract = await LoadContractUtils.LoadContract(
                     contractName: "ArbRetryableTx",
                     address: Constants.ARB_RETRYABLE_TX_ADDRESS,
-                    provider: new Web3(account: _l2Signer, _l2Signer!.TransactionManager.Client),
+                    provider: _l2Signer.Provider,
                     isClassic: false
                 );
 
@@ -1029,7 +1029,7 @@ namespace Arbitrum.Message
 
                 if (!overrides.ContainsKey("from"))
                 {
-                    overrides["from"] = _l2Signer!.Address;
+                    overrides["from"] = _l2Signer?.Account?.Address;
                 }
 
                 if (overrides.ContainsKey("gasLimit"))
@@ -1065,7 +1065,7 @@ namespace Arbitrum.Message
                 var arbRetryableTxContract = await LoadContractUtils.LoadContract(
                     contractName: "ArbRetryableTx",
                     address: Constants.ARB_RETRYABLE_TX_ADDRESS,
-                    provider: new Web3(account: _l2Signer, _l2Signer!.TransactionManager.Client),
+                    provider: _l2Signer.Provider,
                     isClassic: false
                 );
 
@@ -1076,7 +1076,7 @@ namespace Arbitrum.Message
 
                 if (!overrides.ContainsKey("from"))
                 {
-                    overrides["from"] = _l2Signer!.Address;
+                    overrides["from"] = _l2Signer?.Account?.Address;
                 }
 
                 if (overrides.ContainsKey("gasLimit"))

@@ -12,7 +12,7 @@ using Nethereum.Web3;
 using NUnit.Framework;
 using static Arbitrum.Message.L1ToL2MessageUtils;
 
-namespace Arbitrum.AssetBridger.Tests.Integration
+namespace Arbitrum.Tests.Integration
 {
     [TestFixture]
     public class StandardERC20Tests
@@ -20,7 +20,6 @@ namespace Arbitrum.AssetBridger.Tests.Integration
         private static readonly BigInteger DEPOSIT_AMOUNT = 100;
         private static readonly BigInteger WITHDRAWAL_AMOUNT = 10;
 
-        [OneTimeSetUp]
         public async Task<TestState> SetupState()
         {
             TestState setupState = await TestSetupUtils.TestSetup();
@@ -29,14 +28,14 @@ namespace Arbitrum.AssetBridger.Tests.Integration
             await TestHelpers.FundL2(setupState.L2Signer);
 
             var testToken = await LoadContractUtils.DeployAbiContract(
-                provider: new Web3(setupState.L1Signer.TransactionManager.Client),
+                provider: setupState.L1Signer.Provider,
                 deployer: setupState.L1Signer,
                 contractName: "TestERC20",
                 isClassic: true
                 );
 
-            var txHash = await testToken.GetFunction("mint").SendTransactionAsync(from: setupState?.L1Signer?.Address);
-            await new Web3(setupState.L1Signer.TransactionManager.Client).Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
+            var txHash = await testToken.GetFunction("mint").SendTransactionAsync(from: setupState?.L1Signer?.Account.Address);
+            await setupState.L1Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
 
             setupState.L1Token = testToken;
 
@@ -44,15 +43,18 @@ namespace Arbitrum.AssetBridger.Tests.Integration
         }
 
         [SetUp]
-        public async Task SkipIfMainnet(TestState setupState)
+        public async Task SkipIfMainnet()
         {
+            var setupState = await SetupState();
             int chainId = setupState.L1Network.ChainID;
             await TestSetupUtils.SkipIfMainnet(chainId);
         }
 
         [Test]
-        public async Task TestDepositErc20(TestState setupState)
+        public async Task TestDepositErc20()
         {
+            var setupState = await SetupState();
+
             await TestHelpers.DepositToken(
                 depositAmount: DEPOSIT_AMOUNT,
                 l1TokenAddress: setupState.L1Token.Address,
@@ -65,8 +67,10 @@ namespace Arbitrum.AssetBridger.Tests.Integration
         }
 
         [Test]
-        public async Task DepositWithNoFundsManualRedeem(TestState setupState)
+        public async Task DepositWithNoFundsManualRedeem()
         {
+            var setupState = await SetupState();
+
             var depositTokenParams = await TestHelpers.DepositToken(
                 depositAmount: DEPOSIT_AMOUNT,
                 l1TokenAddress: setupState.L1Token.Address,
@@ -87,8 +91,10 @@ namespace Arbitrum.AssetBridger.Tests.Integration
         }
 
         [Test]
-        public async Task DepositWithLowFundsManualRedeem(TestState setupState)
+        public async Task DepositWithLowFundsManualRedeem()
         {
+            var setupState = await SetupState();
+
             var depositTokenParams = await TestHelpers.DepositToken(
                 depositAmount: DEPOSIT_AMOUNT,
                 l1TokenAddress: setupState.L1Token.Address,
@@ -109,8 +115,10 @@ namespace Arbitrum.AssetBridger.Tests.Integration
         }
 
         [Test]
-        public async Task DepositWithOnlyLowGasLimitManualRedeemSuccess(TestState setupState)
+        public async Task DepositWithOnlyLowGasLimitManualRedeemSuccess()
         {
+            var setupState = await SetupState();
+
             var depositTokenParams = await TestHelpers.DepositToken(
                 depositAmount: DEPOSIT_AMOUNT,
                 l1TokenAddress: setupState.L1Token.Address,
@@ -133,10 +141,10 @@ namespace Arbitrum.AssetBridger.Tests.Integration
             }
 
             var l2Receipt = new L2TransactionReceipt(retryableCreation);
-            var redeemsScheduled = (await l2Receipt.GetRedeemScheduledEvents(new Web3(setupState.L2Signer.TransactionManager.Client))).ToList();
+            var redeemsScheduled = (await l2Receipt.GetRedeemScheduledEvents(setupState.L2Signer.Provider)).ToList();
             Assert.That(1, Is.EqualTo(redeemsScheduled.Count), "Unexpected redeem length");
 
-            var retryReceipt = await Lib.GetTransactionReceiptAsync(txHash: redeemsScheduled[0].Event.RetryTxHash, web3: new Web3(setupState.L2Signer.TransactionManager.Client));
+            var retryReceipt = await Lib.GetTransactionReceiptAsync(txHash: redeemsScheduled[0].Event.RetryTxHash, web3: setupState.L2Signer.Provider);
             Assert.That(retryReceipt, Is.Null, "Retry should not exist");
 
             await RedeemAndTest(setupState, waitRes.Message, 1);
@@ -169,16 +177,18 @@ namespace Arbitrum.AssetBridger.Tests.Integration
         }
 
         [Test]
-        public async Task TestWithdrawsErc20(TestState setupState)
+        public async Task TestWithdrawsErc20()
         {
+            var setupState = await SetupState();
+
             var l2TokenAddr = await setupState.Erc20Bridger.GetL2ERC20Address(
-                setupState.L1Token.Address, new Web3(setupState.L1Signer.TransactionManager.Client)
+                setupState.L1Token.Address, setupState.L1Signer.Provider
             );
 
-            var l2Token = await setupState.Erc20Bridger.GetL2TokenContract(new Web3(setupState.L2Signer.TransactionManager.Client), l2TokenAddr);
+            var l2Token = await setupState.Erc20Bridger.GetL2TokenContract(setupState.L2Signer.Provider, l2TokenAddr);
 
             var startBalance = DEPOSIT_AMOUNT * 5;
-            var l2BalanceStart = await l2Token.GetFunction("balanceOf").CallAsync<BigInteger>(setupState.L2Signer.Address);
+            var l2BalanceStart = await l2Token.GetFunction("balanceOf").CallAsync<BigInteger>(setupState.L2Signer.Account.Address);
 
             Assert.That(startBalance, Is.EqualTo(l2BalanceStart), "Unexpected L2 balance");
 
@@ -191,7 +201,7 @@ namespace Arbitrum.AssetBridger.Tests.Integration
                 GatewayType = GatewayType.STANDARD,
                 StartBalance = startBalance,
                 L1Token = await LoadContractUtils.DeployAbiContract(
-                    provider: new Web3(setupState.L1Signer.TransactionManager.Client),
+                    provider: setupState.L1Signer.Provider,
                     deployer: setupState.L1Signer,
                     contractName: "ERC20",
                     isClassic: true

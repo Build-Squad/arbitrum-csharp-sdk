@@ -2,7 +2,7 @@
 using NUnit.Framework;
 using System.Threading.Tasks;
 
-namespace Arbitrum.DataEntities.Tests.Unit
+namespace Arbitrum.Tests.Unit
 {
     [TestFixture]
     public class NetworksTests

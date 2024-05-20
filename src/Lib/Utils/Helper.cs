@@ -4,24 +4,18 @@ using System.Numerics;
 using System.Text.Json;
 using Nethereum.Contracts;
 using Nethereum.Web3;
-using Nethereum.JsonRpc.Client;
 using Arbitrum.DataEntities;
-using Arbitrum.Utils;
 using Nethereum.Util;
-using System.Collections.Generic;
-using System.Collections;
 using Nethereum.ABI.FunctionEncoding.Attributes;
-using Nethereum.ABI.FunctionEncoding;
-using Nethereum.RPC.Eth.DTOs;
-using System.Reflection.Metadata.Ecma335;
 using Nethereum.ABI.Model;
 using System.Reflection;
-using Nethereum.Hex.HexTypes;
-using Newtonsoft.Json.Linq;
 using Nethereum.Web3.Accounts;
 using Nethereum.Hex.HexConvertors.Extensions;
 using Nethereum.RLP;
-using Org.BouncyCastle.Utilities.Encoders;
+using Nethereum.ABI.ABIDeserialisation;
+using Nethereum.ABI.FunctionEncoding;
+using Nethereum.Hex.HexTypes;
+using Org.BouncyCastle.Math.EC.Multiplier;
 
 namespace Arbitrum.Utils
 {
@@ -34,43 +28,6 @@ namespace Arbitrum.Utils
             byte[] randomBytes = new byte[length];
             random.NextBytes(randomBytes);
             return "0x" + BitConverter.ToString(randomBytes).Replace("-", "").ToLower();
-        }
-
-        //generic method to get bytecode from an abi
-        public static string GetBytecodeFromABI(string filePath)
-        {
-            try
-            {
-                // Read the JSON file as a string
-                string jsonString = File.ReadAllText(filePath);
-
-                // Deserialize the JSON string to a dynamic object
-                var jsonData = JsonSerializer.Deserialize<dynamic>(jsonString);
-
-                // Check if the jsonData contains an ABI object and bytecode
-                if (jsonData is not null && jsonData.ContainsKey("abi"))
-                {
-                    // Extract the ABI array
-                    var abiArray = jsonData["abi"];
-
-                    // Iterate through the ABI array to find the bytecode
-                    foreach (var item in abiArray)
-                    {
-                        if (item is not null && item.ContainsKey("bytecode"))
-                        {
-                            // Return the bytecode
-                            return item["bytecode"];
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"An error occurred: {ex.Message}");
-            }
-
-            // Return null if bytecode is not found
-            return null;
         }
 
         //Generic method to copy properties of one type into other
@@ -162,115 +119,6 @@ namespace Arbitrum.Utils
             NumberValue = numberValue;
         }
     }
-
-    public class CaseDict : IEnumerable<KeyValuePair<string, object>>
-    {
-        private readonly Dictionary<string, object> _data = new Dictionary<string, object>();
-        public string RetryTxHash
-        {
-            get { return Get<string>("retryTxHash"); }
-            set { this["retryTxHash"] = value; }
-        }
-
-        public CaseDict(object data)
-        {
-            if (data is Dictionary<string, object> dict)
-            {
-                _data = new Dictionary<string, object>(dict, StringComparer.OrdinalIgnoreCase);
-            }
-            else
-            {
-                throw new ArgumentException("Input data must be a dictionary");
-            }
-        }
-
-        public object this[string key]
-        {
-            get
-            {
-                if (_data.TryGetValue(key, out var value))
-                {
-                    return value;
-                }
-                else
-                {
-                    throw new KeyNotFoundException(key);
-                }
-            }
-            set
-            {
-                _data[key] = value; 
-            }
-        }
-
-        public T Get<T>(string key, T? defaultValue = default)
-        {
-            if (_data.TryGetValue(key, out var value))
-            {
-                return (T)value;
-            }
-            else
-            {
-                return defaultValue!;
-            }
-        }
-
-        // Implementing IEnumerable<KeyValuePair<string, object>>
-        public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
-        {
-            return _data.GetEnumerator();
-        }
-
-        // Implementing IEnumerable
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
-
-        // Method to add key-value pairs
-        public void Add(string key, object value)
-        {
-            _data.Add(key, value);
-        }
-
-        public bool ContainsKey(string key)
-        {
-            return _data.ContainsKey(key);
-        }
-
-        public Dictionary<string, object> ToDictionary()
-        {
-            return _data.ToDictionary(kvp => kvp.Key, kvp => ConvertValue(kvp.Key, kvp.Value), StringComparer.OrdinalIgnoreCase);
-        }
-
-        public override string ToString()
-        {
-            var items = string.Join(", ", ToDictionary().Select(kvp => $"{kvp.Key}: {ConvertValue(kvp.Key, kvp.Value)}"));
-            return $"CaseDict({items})";
-        }
-
-        private object ConvertValue(string key, object value)
-        {
-            if (value is Dictionary<string, object> dict)
-            {
-                return new CaseDict(dict);
-            }
-            else if (value is List<object> list)
-            {
-                return list.Select(item => ConvertValue(key, item)).ToList();
-            }
-            // Handle Contract class conversion if applicable in your context
-            // else if (value is Contract contract)
-            // {
-            //     return contract.Address;
-            // }
-            else
-            {
-                return value;
-            }
-        }
-    }
-
 
     public class LoadContractUtils
     {
@@ -368,27 +216,46 @@ namespace Arbitrum.Utils
 
         public static async Task<Contract> DeployAbiContract(
             Web3 provider,
-            Account deployer,
+            SignerOrProvider deployer,
             string contractName,
             object[] constructorArgs = null,
             bool isClassic = false)
         {
-            var deployerAddress = deployer.Address;
+            var deployerAddress = deployer.Account.Address;
 
-            var (contractAbi, contractAddress) = await LogParser.LoadAbi(contractName, isClassic);
+            var (contractAbi, contractByteCode) = await LogParser.LoadAbi(contractName, isClassic);
 
-            var contract = provider.Eth.GetContract(contractAbi, contractAddress);
+            var contract = provider.Eth.GetContract(contractAbi, contractByteCode);
 
-            var contractByteCode = await provider.Eth.GetCode.SendRequestAsync(contract.Address);
 
-            var deploymentReceipt = await provider.Eth.DeployContract.SendRequestAndWaitForReceiptAsync(
-                                        abi: contractAbi,
-                                        contractByteCode: contractByteCode,
-                                        from: deployerAddress,
-                                        receiptRequestCancellationToken: null,
-                                        values:constructorArgs);
+            var c = contract.ContractBuilder.ContractABI.Constructor.InputParameters;
 
-            return provider.Eth.GetContract(contractAbi, deploymentReceipt.ContractAddress);
+            //var deploymentTx = new DeployContractTransactionBuilder().BuildTransaction(contractAbi, contractByteCode, deployerAddress, constructorArgs); //, constructorArgs);
+
+            //var txHash = await provider.Eth.Transactions.SendTransaction.SendRequestAsync(deploymentTx);
+
+            // Check if constructorArgs contains null values
+            if (constructorArgs != null)
+            {
+                for (int i = 0; i < constructorArgs.Length; i++)
+                {
+                    if (constructorArgs[i] == null)
+                    {
+                        throw new ArgumentException($"Constructor argument at index {i} is null");
+                    }
+                }
+            }
+
+            //var deploymentReceipt = await provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
+            var receipt = await provider.Eth.DeployContract.SendRequestAndWaitForReceiptAsync(
+                            contractAbi,
+                            contractByteCode,
+                            deployerAddress,
+                            new HexBigInteger(10000000),
+                            null,
+                            constructorArgs);
+
+            return provider.Eth.GetContract(contractAbi, receipt.ContractAddress);
         }
 
         public static Web3 GetWeb3Provider(object provider)
@@ -399,7 +266,7 @@ namespace Arbitrum.Utils
             }
             else if (provider is ArbitrumProvider arbitrumProvider)
             {
-                return arbitrumProvider;
+                return arbitrumProvider.Provider;
             }
             else
             {

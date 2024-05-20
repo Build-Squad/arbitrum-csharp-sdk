@@ -10,7 +10,7 @@ using Arbitrum.Message;
 using Arbitrum.DataEntities;
 using Nethereum.Hex.HexTypes;
 
-namespace Arbitrum.Message.Tests.Unit
+namespace Arbitrum.Tests.Unit
 {
 
     [TestFixture]
