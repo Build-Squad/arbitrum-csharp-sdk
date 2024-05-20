@@ -84,50 +84,32 @@ namespace Arbitrum.Message
 
     public class L1TransactionReceipt : TransactionReceipt
     {
-        public new string To { get; set; }
-        public new string From { get; set; }
-        public new string ContractAddress { get; set; }
-        public new BigInteger TransactionIndex { get; set; }
-        public new string Root { get; set; }
-        public new BigInteger GasUsed { get; set; }
-        public new string LogsBloom { get; set; }
-        public new string BlockHash { get; set; }
-        public new string TransactionHash { get; set; }
-        public new JArray Logs { get; set; }
-        public new BigInteger BlockNumber { get; set; }
-        //public int Confirmations { get; set; }
-        public new BigInteger CumulativeGasUsed { get; set; }
-        public new BigInteger EffectiveGasPrice { get; set; }
-        //public bool Byzantium { get; set; }
-        public new BigInteger Type { get; set; }
-        public new BigInteger? Status { get; set; }
 
         public L1TransactionReceipt(TransactionReceipt tx) : base()
         {
-            To = tx.To;
-            From = tx.From;
-            ContractAddress = tx.ContractAddress;
-            TransactionIndex = tx.TransactionIndex;
-            Root = tx.Root;
-            GasUsed = tx.GasUsed;
-            LogsBloom = tx.LogsBloom;
-            BlockHash = tx.BlockHash;
-            TransactionHash = tx.TransactionHash;
-            Logs = tx.Logs;
-            BlockNumber = tx.BlockNumber;
-            //Confirmations = tx.Confirmations;
-            CumulativeGasUsed = tx.CumulativeGasUsed;
-            EffectiveGasPrice = tx.EffectiveGasPrice;
-            //Byzantium = tx.Byzantium;
-            Type = tx.Type;
-            Status = tx.Status;
+            To = tx?.To;
+            From = tx?.From;
+            ContractAddress = tx?.ContractAddress;
+            TransactionIndex = tx?.TransactionIndex;
+            Root = tx?.Root;
+            GasUsed = tx?.GasUsed;
+            LogsBloom = tx?.LogsBloom;
+            BlockHash = tx?.BlockHash;
+            TransactionHash = tx?.TransactionHash;
+            Logs = tx?.Logs;
+            BlockNumber = tx?.BlockNumber;
+            CumulativeGasUsed = tx?.CumulativeGasUsed;
+            EffectiveGasPrice = tx?.EffectiveGasPrice;
+            Type = tx?.Type;
+            Status = tx?.Status;
+
         }
 
         public async Task<bool> IsClassic(object l2SignerOrProvider)
         {
             var provider = SignerProviderUtils.GetProviderOrThrow(l2SignerOrProvider);
             var network = await NetworkUtils.GetL2NetworkAsync(provider);
-            return BlockNumber < network.NitroGenesisL1Block;
+            return BlockNumber.Value < network.NitroGenesisL1Block;
         }
 
         public async Task<IEnumerable<EventLog<MessageDeliveredEvent>>> GetMessageDeliveredEvents(Web3 provider)
@@ -222,7 +204,7 @@ namespace Arbitrum.Message
             );
         }
 
-        public async Task<IEnumerable<L1ToL2Message>> GetL1ToL2Messages<T>(T l2SignerOrProvider) where T : SignerOrProvider
+        public async Task<IEnumerable<L1ToL2MessageReaderOrWriter>> GetL1ToL2Messages(Web3 l2SignerOrProvider)
         {
 
             var provider = SignerProviderUtils.GetProviderOrThrow(l2SignerOrProvider);
@@ -246,7 +228,7 @@ namespace Arbitrum.Message
                 {
                     var inboxMessageData = SubmitRetryableMessageDataParser.Parse(mn.InboxMessageEvent.Event.Data);
 
-                    return L1ToL2Message.FromEventComponents<T>(      ////////////////
+                    return L1ToL2Message.FromEventComponents(    
                         l2SignerOrProvider,
                         chainID,
                         mn?.BridgeMessageEvent?.Event?.Sender,
@@ -267,12 +249,12 @@ namespace Arbitrum.Message
             return new L1TransactionReceipt(contractTransaction);
         }
 
-        public static L1TransactionReceipt MonkeyPatchEthDepositWait(TransactionReceipt contractTransaction)
+        public static L1EthDepositTransactionReceipt MonkeyPatchEthDepositWait(TransactionReceipt contractTransaction)
         {
             return new L1EthDepositTransactionReceipt(contractTransaction);
         }
 
-        public static L1TransactionReceipt MonkeyPatchContractCallWait(TransactionReceipt contractTransaction)
+        public static L1ContractCallTransactionReceipt MonkeyPatchContractCallWait(TransactionReceipt contractTransaction)
         {
             return new L1ContractCallTransactionReceipt(contractTransaction);
         }
@@ -282,23 +264,23 @@ namespace Arbitrum.Message
     {
         public L1EthDepositTransactionReceipt(TransactionReceipt tx) : base(tx)
         {
-            To = tx.To;
-            From = tx.From;
-            ContractAddress = tx.ContractAddress;
-            TransactionIndex = tx.TransactionIndex;
-            Root = tx.Root;
-            GasUsed = tx.GasUsed;
-            LogsBloom = tx.LogsBloom;
-            BlockHash = tx.BlockHash;
-            TransactionHash = tx.TransactionHash;
-            Logs = tx.Logs;
-            BlockNumber = tx.BlockNumber;
+            To = tx?.To;
+            From = tx?.From;
+            ContractAddress = tx?.ContractAddress;
+            TransactionIndex = tx?.TransactionIndex;
+            Root = tx?.Root;
+            GasUsed = tx?.GasUsed;
+            LogsBloom = tx?.LogsBloom;
+            BlockHash = tx?.BlockHash;
+            TransactionHash = tx?.TransactionHash;
+            Logs = tx?.Logs;
+            BlockNumber = tx?.BlockNumber;
             //Confirmations = tx.Confirmations;
-            CumulativeGasUsed = tx.CumulativeGasUsed;
-            EffectiveGasPrice = tx.EffectiveGasPrice;
+            CumulativeGasUsed = tx?.CumulativeGasUsed;
+            EffectiveGasPrice = tx?.EffectiveGasPrice;
             //Byzantium = tx.Byzantium;
-            Type = tx.Type;
-            Status = tx.Status;
+            Type = tx?.Type;
+            Status = tx?.Status;
         }
         public async Task<L1EthDepositTransactionReceiptResults> WaitForL2(
             Web3 l2Provider,
@@ -351,13 +333,13 @@ namespace Arbitrum.Message
             Status = tx.Status;
         }
 
-        public async Task<L1ContractCallTransactionReceiptResults> WaitForL2<T>(
-        T l2SignerOrProvider,
+        public async Task<L1ContractCallTransactionReceiptResults> WaitForL2(
+        Web3 l2SignerOrProvider,
         int? confirmations = null,
-        int? timeout = null) where T : SignerOrProvider
+        int? timeout = null)
         {
             var messages = await GetL1ToL2Messages(l2SignerOrProvider);
-            var message = messages.FirstOrDefault() as L1ToL2MessageReader;
+            var message = messages.FirstOrDefault();
             if (message == null)
             {
                 throw new ArbSdkError("Unexpected missing L1ToL2 message.");

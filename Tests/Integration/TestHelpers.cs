@@ -10,6 +10,7 @@ using Arbitrum.DataEntities;
 using static Arbitrum.DataEntities.SignerOrProvider;
 using Arbitrum.Scripts;
 using Nethereum.Util;
+using Nethereum.Contracts.Standards.ERC20.ContractDefinition;
 using Org.BouncyCastle.Bcpg;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.JsonRpc.Client;
@@ -17,9 +18,11 @@ using Arbitrum.Message;
 using Nethereum.Contracts;
 using Nethereum.HdWallet;
 using NBitcoin;
+using Nethereum.Hex.HexTypes;
 using static Arbitrum.Message.L1ToL2MessageUtils;
 using Nethereum.Signer;
-
+using Nethereum.Hex.HexConvertors.Extensions;
+using Nethereum.RPC.HostWallet;
 namespace Arbitrum.Tests.Integration
 {
     public static class Config
@@ -51,8 +54,8 @@ namespace Arbitrum.Tests.Integration
         public BigInteger? Amount { get; set; }
         public Erc20Bridger? Erc20Bridger { get; set; }
         public Contract? L1Token { get; set; }
-        public Account? L2Signer { get; set; }
-        public Account? L1Signer { get; set; }
+        public SignerOrProvider? L2Signer { get; set; }
+        public SignerOrProvider? L1Signer { get; set; }
         public GatewayType? GatewayType { get; set; }
     }
     public class DepositTokenResults
@@ -68,19 +71,19 @@ namespace Arbitrum.Tests.Integration
 
             private static readonly BigInteger PRE_FUND_AMOUNT = Web3.Convert.ToWei(0.1, UnitConversion.EthUnit.Ether);
 
-            public static async Task MineUntilStop(Account miner, Dictionary<string, object> state)
+            public static async Task MineUntilStop(SignerOrProvider miner, Dictionary<string, object> state)
             {
-                var provider = new Web3(miner.TransactionManager.Client);
+                var provider = miner.Provider;
                 while ((bool)state["mining"])
                 {
                     var tx = new TransactionRequest
                     {
-                        From = miner.Address,
-                        To = miner.Address,
-                        Value = 0,
+                        From = miner.Account.Address,
+                        To = miner.Account.Address,
+                        Value = new HexBigInteger(0),
                         ChainId = await provider.Eth.ChainId.SendRequestAsync(), // Assuming Provider has an eth property
                         GasPrice = await provider.Eth.GasPrice.SendRequestAsync(), // Assuming Provider has an eth property
-                        Nonce = await provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(miner.Address) // Assuming Provider has an eth property
+                        Nonce = await provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(miner.Account.Address) // Assuming Provider has an eth property
                     };
 
                     // Estimate gas asynchronously
@@ -88,33 +91,28 @@ namespace Arbitrum.Tests.Integration
 
                     tx.Gas = gasEstimate;
 
-                    // Sign transaction asynchronously
-                    var signedTx = await provider.TransactionManager.SignTransactionAsync(tx); // Assuming Account has a method for signing transactions
+                var rawTransaction = await provider.TransactionManager.SignTransactionAsync(tx);
 
-                    // Send raw transaction asynchronously
-                    var txHash = await provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);  // Assuming Provider has a method for sending raw transactions
+                var txnHash = await provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(rawTransaction);
 
-                    // Wait for transaction receipt asynchronously
-                    await provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
+                // Get transaction receipt
+                var transactionReceipt = await provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);
 
-                    await Task.Delay(15000); // Delay for 15 seconds
+                await Task.Delay(15000); // Delay for 15 seconds
                 }
             }
-
-            [Test]
             public static async Task WithdrawToken(WithdrawalParams parameters)
             {
-
-                var l1Provider = new Web3(parameters.L1Signer.TransactionManager.Client);
-                var l2Provider = new Web3(parameters.L2Signer.TransactionManager.Client);
+                var l1Provider = parameters.L1Signer.Provider;
+                var l2Provider = parameters.L2Signer.Provider;
 
                 var withdrawalParams = await parameters.Erc20Bridger.GetWithdrawalRequest(
                     new Erc20WithdrawParams()
                     {
                         Amount = parameters.Amount,
                         Erc20L1Address = parameters.L1Token.Address,
-                        DestinationAddress = parameters.L2Signer.Address,
-                        From = parameters.L2Signer.Address,
+                        DestinationAddress = parameters.L2Signer.Account.Address,
+                        From = parameters.L2Signer.Account.Address,
                     }
                     );
 
@@ -125,7 +123,7 @@ namespace Arbitrum.Tests.Integration
 
                 var withdrawRec = await parameters.Erc20Bridger.Withdraw(new Erc20WithdrawParams()
                 {
-                    DestinationAddress = parameters.L2Signer.Address,
+                    DestinationAddress = parameters.L2Signer.Account.Address,
                     Amount = parameters.Amount,
                     Erc20L1Address = parameters.L1Token.Address,
                     L2Signer = parameters.L2Signer
@@ -133,7 +131,7 @@ namespace Arbitrum.Tests.Integration
 
                 Assert.That(withdrawRec.Status, Is.EqualTo(1), "initiate token withdraw txn failed");
 
-                var message = (await withdrawRec.GetL2ToL1Messages(new SignerOrProvider(parameters.L1Signer))).FirstOrDefault();
+                var message = (await withdrawRec.GetL2ToL1Messages(parameters.L1Signer)).FirstOrDefault();
 
                 Assert.That(message, Is.Not.Null, "withdraw message not found");
 
@@ -145,11 +143,11 @@ namespace Arbitrum.Tests.Integration
 
                 var l2Token = await parameters.Erc20Bridger.GetL2TokenContract(l2Provider, l2TokenAddr);
 
-                var testWalletL2Balance = await l2Token.GetFunction("balanceOf").CallAsync<BigInteger>(parameters.L2Signer.Address);
+                var testWalletL2Balance = await l2Token.GetFunction("balanceOf").CallAsync<BigInteger>(parameters.L2Signer.Account.Address);
 
                 Assert.That(testWalletL2Balance, Is.EqualTo(parameters.StartBalance - parameters.Amount), "token withdraw balance not deducted");
 
-                var walletAddress = parameters.L1Signer.Address;
+                var walletAddress = parameters.L1Signer.Account.Address;
 
                 var gatewayAddress = await parameters.Erc20Bridger.GetL2GatewayAddress(parameters.L1Token.Address, l2Provider);
 
@@ -170,7 +168,7 @@ namespace Arbitrum.Tests.Integration
 
                 Assert.That(gatewayWithdrawEvents.Count, Is.EqualTo(1), "token query failed");
 
-                var balBefore = await parameters.L1Token.GetFunction("balanceOf").CallAsync<BigInteger>(parameters.L1Signer.Address);
+                var balBefore = await parameters.L1Token.GetFunction("balanceOf").CallAsync<BigInteger>(parameters.L1Signer.Account.Address);
 
                 //creating a random wallet
                 string mnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve).ToString();
@@ -190,14 +188,14 @@ namespace Arbitrum.Tests.Integration
                 var miner1 = new SignerOrProvider(miner1Account, l1Provider);
                 var miner2 = new SignerOrProvider(miner2Account, l2Provider);
 
-                await FundL1(miner1.Account, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
-                await FundL2(miner2.Account, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
+                await FundL1(miner1, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
+                await FundL2(miner2, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
                 var state = new Dictionary<string, object> { { "mining", true } };
 
                 await Task.WhenAny(
-                    MineUntilStop(miner1?.Account, state),
-                    MineUntilStop(miner2?.Account, state),
-                    message.WaitUntilReadyToExecuteBase(new SignerOrProvider(new Web3(parameters.L2Signer.TransactionManager.Client)))
+                    MineUntilStop(miner1, state),
+                    MineUntilStop(miner2, state),
+                    message.WaitUntilReadyToExecuteBase(parameters.L2Signer)
                 );
                 state["mining"] = false;
 
@@ -212,7 +210,7 @@ namespace Arbitrum.Tests.Integration
 
                 Assert.That(await message.StatusBase(new SignerOrProvider(l2Provider)), Is.EqualTo(L2ToL1MessageStatus.EXECUTED), "executed status");
 
-                var balAfter = await parameters.L1Token.GetFunction("balanceOf").CallAsync<BigInteger>(parameters.L1Signer.Address);
+                var balAfter = await parameters.L1Token.GetFunction("balanceOf").CallAsync<BigInteger>(parameters.L1Signer.Account.Address);
                 Assert.That(balBefore + parameters.Amount, Is.EqualTo(balAfter), "Not withdrawn");
             }
             public static (string? expectedL1Gateway, string? expectedL2Gateway) GetGateways(GatewayType? gatewayType, L2Network l2Network)
@@ -243,16 +241,16 @@ namespace Arbitrum.Tests.Integration
                 BigInteger depositAmount,
                 string l1TokenAddress,
                 Erc20Bridger erc20Bridger,
-                Account l1Signer,
-                Account l2Signer,
+                SignerOrProvider l1Signer,
+                SignerOrProvider l2Signer,
                 L1ToL2MessageStatus expectedStatus,
                 GatewayType expectedGatewayType,
                 BigInteger? ethDepositAmount = null,
                 string? destinationAddress = null,
                 GasOverrides? retryableOverrides = null)
             {
-                var l1Provider = new Web3(l1Signer.TransactionManager.Client);
-                var l2Provider = new Web3(l2Signer.TransactionManager.Client);
+                var l1Provider = l1Signer.Provider;
+                var l2Provider = l2Signer.Provider;
 
                 var approveResult = await erc20Bridger.ApproveToken(
                     new ApproveParamsOrTxRequest()
@@ -265,13 +263,13 @@ namespace Arbitrum.Tests.Integration
 
                 var l1Token = await erc20Bridger.GetL1TokenContract(l1Provider, l1TokenAddress);
 
-                var allowance = l1Token.GetFunction("allowance").CallAsync<BigInteger>(l1Signer.Address, expectedL1GatewayAddress);
+                var allowance = l1Token.GetFunction("allowance").CallAsync<BigInteger>(l1Signer.Account.Address, expectedL1GatewayAddress);
 
                 Assert.That(allowance, Is.EqualTo(Erc20Bridger.MAX_APPROVAL), "set token allowance failed");
 
                 var initialBridgeTokenBalance = await l1Token.GetFunction("balanceOf").CallAsync<BigInteger>(expectedL1GatewayAddress);
 
-                var userBalBefore = await l1Token.GetFunction("balanceOf").CallAsync<BigInteger>(l1Signer.Address);
+                var userBalBefore = await l1Token.GetFunction("balanceOf").CallAsync<BigInteger>(l1Signer.Account.Address);
 
                 var depositRec = await erc20Bridger.Deposit(new Erc20DepositParams()
                 {
@@ -291,11 +289,11 @@ namespace Arbitrum.Tests.Integration
 
                 Assert.That(finalBridgeTokenBalance, Is.EqualTo(expectedBalance), "bridge balance not updated after L1 token deposit txn");
 
-                var userBalAfter = await l1Token.GetFunction("balanceOf").CallAsync<BigInteger>(l1Signer.Address);
+                var userBalAfter = await l1Token.GetFunction("balanceOf").CallAsync<BigInteger>(l1Signer.Account.Address);
 
                 Assert.That(userBalAfter, Is.EqualTo(userBalBefore - depositAmount), "user bal after");
 
-                var waitRes = await depositRec.WaitForL2(new SignerOrProvider(l2Signer));
+                var waitRes = await depositRec.WaitForL2(l2Signer.Provider);
 
                 Assert.That(waitRes.Result.Status, Is.EqualTo(expectedStatus), "Unexpected status");
 
@@ -325,7 +323,7 @@ namespace Arbitrum.Tests.Integration
 
                 Assert.That(l1Erc20Addr, Is.EqualTo(l1TokenAddress), "getERC20L1Address/getERC20L2Address failed with proper token address");
 
-                var testWalletL2Balance = l2Token.GetFunction("balanceOf").CallAsync<BigInteger>(l2Signer.Address);
+                var testWalletL2Balance = l2Token.GetFunction("balanceOf").CallAsync<BigInteger>(l2Signer.Account.Address);
 
                 Assert.That(testWalletL2Balance, Is.EqualTo(depositAmount), "l2 wallet not updated after deposit");
 
@@ -337,45 +335,61 @@ namespace Arbitrum.Tests.Integration
                 };
             }
 
-            public static async Task<TransactionReceipt> Fund(Account signer, BigInteger? amount = null, string? fundingKey = null)
+        public static async Task<TransactionReceipt> Fund(SignerOrProvider signer, BigInteger amount = default, string? fundingKey = null)
+        {
+            var wallet = await TestSetupUtils.GetSigner(signer.Provider, fundingKey);
+
+            //var wallet = new Account("0xaec873961b3a9744d9cfc9a571f250d575b45a809fecc9550b81a976ee2edca2");//await TestSetupUtils.GetSigner(signer.Provider, fundingKey);
+
+            //var tx = new TransactionRequest
+            //{
+            //    From = wallet.Address,
+            //    To = signer.Account.Address,
+            //    Value = new HexBigInteger(1),//amount),
+            //    //Nonce = await signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(signer.Account.Address),
+            //    //GasPrice = await signer.Provider.Eth.GasPrice.SendRequestAsync(),
+            //    ChainId = await signer.Provider.Eth.ChainId.SendRequestAsync(),
+            //    MaxFeePerGas = new HexBigInteger(875000000),
+            //    Gas = new HexBigInteger(21000),
+            //    GasPrice = new HexBigInteger(1000)
+            //};
+
+            var tx = new TransactionRequest
             {
-                var provider = new Web3(signer.TransactionManager.Client);
+                From = wallet.Address,
+                To = signer.Account.Address,
+                Value = new HexBigInteger(Web3.Convert.ToWei(0.01m, UnitConversion.EthUnit.Ether)), // 0.01 Ether
+                Nonce = await signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(wallet.Address),
+                GasPrice = new HexBigInteger(Web3.Convert.ToWei(100, UnitConversion.EthUnit.Gwei)), // 100 Gwei
+                ChainId = await signer.Provider.Eth.ChainId.SendRequestAsync(),
+                MaxFeePerGas = new HexBigInteger(Web3.Convert.ToWei(100, UnitConversion.EthUnit.Gwei)), // 100 Gwei
+                Gas = new HexBigInteger(21000)
+            };
 
-                Account wallet = await TestSetupUtils.GetSigner(provider, fundingKey);
+            var transferService = signer.Provider.Eth.GetEtherTransferService();
+            //var estimatedGas = await transferService.EstimateGasAsync(tx.To, (decimal)tx.Value.Value);
 
-                var tx = new TransactionRequest()
-                {
-                    From = wallet.Address,
-                    To = wallet.Address,
-                    Value = amount,
-                    Nonce = await provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(signer.Address),
-                    GasPrice = await provider.Eth.GasPrice.SendRequestAsync(),
-                    ChainId = await provider.Eth.ChainId.SendRequestAsync()
-                };
+            //tx.Gas = new HexBigInteger(estimatedGas);
 
-                var estimatedGas = await provider.TransactionManager.EstimateGasAsync(tx);
+            var provider = new Web3(wallet);
 
-                tx.Gas = estimatedGas;
+            var rawTransaction = await provider.TransactionManager.SignTransactionAsync(tx);
 
-                // Sign transaction asynchronously
-                var signedTx = await provider.TransactionManager.SignTransactionAsync(tx); // Assuming Account has a method for signing transactions
+            var txnHash = await signer.Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(rawTransaction);
 
-                // Send raw transaction asynchronously
-                var txHash = await provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);  // Assuming Provider has a method for sending raw transactions
+            // Get transaction receipt
+            var transactionReceipt = await signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);
 
-                // Wait for transaction receipt asynchronously
-                var txReceipt = await provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
-
-                return txReceipt;
-            }
+            return transactionReceipt;
+        }
 
 
-            public static async Task FundL1(Account l1Signer, BigInteger? amount = null)
+            public static async Task FundL1(SignerOrProvider l1Signer, BigInteger amount = default)
             {
                 await Fund(l1Signer, amount, Config.ETH_KEY);
             }
 
-            public static async Task FundL2(Account l2Signer, BigInteger? amount = null)
+            public static async Task FundL2(SignerOrProvider l2Signer, BigInteger amount = default)
             {
                 await Fund(l2Signer, amount, Config.ARB_KEY);
             }

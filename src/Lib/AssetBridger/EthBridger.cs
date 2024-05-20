@@ -14,10 +14,10 @@ using System.Reflection.Metadata.Ecma335;
 using Nethereum.Hex.HexTypes;
 using Nethereum.Hex.HexConvertors.Extensions;
 using Nethereum.Web3.Accounts;
-using static Arbitrum.Message.L1EthDepositTransactionReceipt;
 using Org.BouncyCastle.Utilities;
 using Nethereum.JsonRpc.Client;
 using Org.BouncyCastle.Asn1.Ocsp;
+using Nethereum.ABI.FunctionEncoding;
 
 namespace Arbitrum.AssetBridgerModule
 {
@@ -50,7 +50,7 @@ namespace Arbitrum.AssetBridgerModule
 
     public class EthDepositParams
     {
-        public Account? L1Signer { get; set; }
+        public SignerOrProvider? L1Signer { get; set; }
         public BigInteger? Amount { get; set; }
         public PayableOverrides? Overrides { get; set; }
     }
@@ -73,20 +73,20 @@ namespace Arbitrum.AssetBridgerModule
 
     public class L1ToL2TxReqAndSigner : L1ToL2TransactionRequest
     {
-        public Account? L1Signer { get; set; }
+        public SignerOrProvider? L1Signer { get; set; }
         public PayableOverrides? Overrides { get; set; }
         public Web3? L2Provider { get; set; }
     }
 
     public class L2ToL1TxReqAndSigner : L2ToL1TransactionRequest
     {
-        public Account? L2Signer { get; set; }
+        public SignerOrProvider? L2Signer { get; set; }
         public PayableOverrides? Overrides { get; set; }
     }
 
     public class EthWithdrawParams
     {
-        public Account? L2Signer { get; set; }
+        public SignerOrProvider? L2Signer { get; set; }
         public BigInteger? Amount { get; set; }
         public string? DestinationAddress { get; set; }
         public string? From { get; set; }
@@ -94,7 +94,7 @@ namespace Arbitrum.AssetBridgerModule
     }
 
 
-    public class EthBridger : AssetBridger<EthDepositParams, EthWithdrawParams>
+    public class EthBridger : AssetBridger<EthDepositParams, EthWithdrawParams, L1EthDepositTransactionReceipt>
     {
         private readonly L2Network _l2Network;
 
@@ -135,85 +135,111 @@ namespace Arbitrum.AssetBridgerModule
         public async Task<L1ToL2TransactionRequest> GetDepositRequest(EthDepositRequestParams parameters)
         {
             var inbox = await LoadContractUtils.LoadContract(
-                                            provider: new Web3(parameters?.L1Signer, parameters?.L1Signer?.TransactionManager?.Client),
+                                            provider: parameters.L1Signer.Provider,
                                             contractName: "Inbox",
                                             address: _l2Network?.EthBridge?.Inbox,
                                             isClassic: false
                                             );
 
             var functionData = inbox?.ContractBuilder.GetFunctionAbi("depositEth");
+            var function = new FunctionCallEncoder();
+            var sha3Signature = functionData.Sha3Signature;
+            var inputParameters = functionData.InputParameters;
+            var functionCall = function.EncodeRequest(sha3Signature, inputParameters);
+
+            var contractBytecode = (await LogParser.LoadAbi("Inbox")).Item2;
             return new L1ToL2TransactionRequest()
             {
                 TxRequest = new TransactionRequest
                 {
                     To = _l2Network?.EthBridge?.Inbox,
-                    Value = parameters?.Amount,
-                    Data = functionData?.ToString(),
+                    Value = new HexBigInteger((parameters?.Amount).Value),
+                    //contract bytecode
+                    Data = functionCall,
                     From = parameters?.From
                 },
                 IsValid = new Func<Task<bool>>(() => Task.FromResult(true))
             };
         }
 
-        public override async Task<L1TransactionReceipt> Deposit(dynamic parameters)
+        public override async Task<L1EthDepositTransactionReceipt> Deposit(dynamic parameters)
         {
-            await CheckL1Network(new SignerOrProvider(parameters?.L1Signer));
-
+            // Initialize ethDeposit variable
             dynamic ethDeposit;
+
+            // Check the type of parameters and set ethDeposit accordingly
             if (TransactionUtils.IsL1ToL2TransactionRequest(parameters))
             {
-                ethDeposit = parameters;      ///////////
+                ethDeposit = parameters;
             }
             else if (parameters is EthDepositParams)
             {
+                // Get deposit request for EthDepositParams
                 ethDeposit = await GetDepositRequest(new EthDepositRequestParams()
                 {
-                    From = parameters?.L1Signer?.Address,
-                    Amount = parameters?.Amount,
-                    L1Signer = parameters?.L1Signer,
-                    Overrides = parameters?.Overrides
+                    From = parameters.L1Signer.Account.Address,
+                    Amount = parameters.Amount,
+                    L1Signer = parameters.L1Signer,
+                    Overrides = parameters.Overrides
                 });
             }
             else if (parameters is L1ToL2TxReqAndSigner)
             {
+                // Get deposit request for L1ToL2TxReqAndSigner
                 ethDeposit = await GetDepositRequest(new EthDepositRequestParams()
                 {
-                    From = parameters?.L1Signer?.Address,
-                    L1Signer = parameters?.L1Signer,
-                    Overrides = parameters?.Overrides,
-                    Amount = parameters?.Amount
+                    From = parameters.L1Signer.Account.Address,
+                    L1Signer = parameters.L1Signer,
+                    Overrides = parameters.Overrides,
+                    Amount = parameters.Amount
                 });
             }
             else
             {
+                // Invalid parameter type
                 throw new ArgumentException("Invalid parameter type. Expected EthDepositParams or L1ToL2TxReqAndSigner.");
             }
 
+            // Create transaction input
             var tx = new TransactionRequest
             {
                 To = ethDeposit?.TxRequest?.To,
-                Value = ethDeposit?.TxRequest?.Value ?? BigInteger.Zero,
+                Value = ethDeposit?.TxRequest?.Value ?? new HexBigInteger(0),
                 Data = ethDeposit?.TxRequest?.Data,
                 From = ethDeposit?.TxRequest?.From,
                 AccessList = ethDeposit?.TxRequest?.AccessList,
                 ChainId = ethDeposit?.TxRequest?.ChainId,
                 Gas = ethDeposit?.TxRequest?.Gas,
                 GasPrice = ethDeposit?.TxRequest?.GasPrice,
-                MaxFeePerGas = new HexBigInteger(parameters?.Overrides?.MaxFeePerGas.ToString()),
+                MaxFeePerGas = new HexBigInteger(parameters?.Overrides?.MaxFeePerGas.Value),
                 MaxPriorityFeePerGas = new HexBigInteger(parameters?.Overrides?.MaxPriorityFeePerGas.ToString()),
                 Nonce = ethDeposit?.TxRequest?.Nonce,
                 Type = ethDeposit?.TxRequest?.Type,
+                //MaxFeePerGas = new HexBigInteger(875000000),
             };
 
+            // If 'From' field is null, set it to L1Signer's address
             if (tx.From == null)
             {
-                tx.From = parameters?.L1Signer?.Address;
+                tx.From = parameters?.L1Signer?.Account.Address;
             }
 
-            var txReceipt = await parameters?.L1Signer?.TransactionManager.SendTransactionAndWaitForReceiptAsync(tx);
+            // Sign and send transaction
+            Web3 web3 = parameters.L1Signer.Provider;
 
-            return L1TransactionReceipt.MonkeyPatchEthDepositWait(txReceipt);
+            //var rawTransaction = await web3.TransactionManager.SignTransactionAsync(tx);
+
+            var receipt = await web3.Eth.TransactionManager.SendTransactionAndWaitForReceiptAsync(tx);
+
+            //var txnHash = await web3.Eth.Transactions.SendRawTransaction.SendRequestAsync(rawTransaction);
+
+            // Get transaction receipt
+            //var transactionReceipt = await web3.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);
+
+            // Return transaction receipt
+            return L1TransactionReceipt.MonkeyPatchEthDepositWait(receipt);
         }
+
 
         public async Task<L1ToL2TransactionRequest> GetDepositToRequest(EthDepositToRequestParams parameters)
         {
@@ -238,7 +264,7 @@ namespace Arbitrum.AssetBridgerModule
 
         public async Task<L1TransactionReceipt> DepositTo(dynamic parameters)
         {
-            await CheckL1Network(new SignerOrProvider(parameters.L1Signer!));
+            await CheckL1Network(parameters.L1Signer);
             await CheckL2Network(new SignerOrProvider(parameters.L2Provider!));
 
             // Assuming we have an interface and helper methods for type checking
@@ -253,7 +279,7 @@ namespace Arbitrum.AssetBridgerModule
                 retryableTicketRequest = await GetDepositToRequest(new EthDepositToRequestParams
                 {
                     From = parameters?.L1Signer?.Address ?? null,
-                    L1Provider = new Web3(parameters?.L1Signer?.TransactionManager.Client) ?? null,
+                    L1Provider = parameters?.L1Signer?.Provider ?? null,
                     L1Signer = parameters?.L1Signer ?? null,
                     Amount = parameters?.Amount ?? null,
                     Overrides = parameters?.Overrides ?? null,
@@ -267,7 +293,7 @@ namespace Arbitrum.AssetBridgerModule
                 retryableTicketRequest = await GetDepositToRequest(new EthDepositToRequestParams
                 {
                     From = parameters?.L1Signer?.Address ?? null,
-                    L1Provider = new Web3(parameters?.L1Signer?.TransactionManager.Client) ?? null,
+                    L1Provider = parameters?.L1Signer?.Provider ?? null,
                     L1Signer = parameters?.L1Signer ?? null,
                     Amount = parameters?.Amount ?? null,
                     Overrides = parameters?.Overrides ?? null,
@@ -311,7 +337,7 @@ namespace Arbitrum.AssetBridgerModule
         public async Task<L2ToL1TransactionRequest> GetWithdrawalRequest(EthWithdrawParams parameters)
         {
             var arbSysContract = await LoadContractUtils.LoadContract(
-                                                            provider: new Web3(parameters?.L2Signer?.TransactionManager?.Client),
+                                                            provider: parameters.L2Signer.Provider,
                                                             contractName: "ArbSys",
                                                             address: Constants.ARB_SYS_ADDRESS,
                                                             isClassic: false
@@ -323,7 +349,7 @@ namespace Arbitrum.AssetBridgerModule
                 TxRequest = new TransactionRequest
                 {
                     To = Constants.ARB_SYS_ADDRESS,
-                    Value = parameters?.Amount,
+                    Value = new HexBigInteger((parameters?.Amount).Value),
                     Data = functionData?.ToString(),
                     From = parameters?.From
                 },

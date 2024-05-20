@@ -77,7 +77,7 @@ namespace Arbitrum.Message
             {
                 To = l2Network?.EthBridge?.Inbox ?? throw new ArgumentNullException(nameof(l2Network.EthBridge.Inbox)),
                 Data = functionData.ToString() ?? throw new ArgumentNullException(nameof(functionData)),
-                Value = nativeTokenIsEth ? (estimates.Deposit ?? BigInteger.Zero) : BigInteger.Zero,
+                Value = nativeTokenIsEth ? (new HexBigInteger(estimates.Deposit.Value) ?? new HexBigInteger(BigInteger.Zero)) : new HexBigInteger(BigInteger.Zero),
                 From = parameters.From ?? throw new ArgumentNullException(nameof(parameters.From))
             };
 
@@ -122,7 +122,7 @@ namespace Arbitrum.Message
                     options
                 );
 
-            var txReceipt = await l1Signer.Provider.Eth.TransactionManager.SendTransactionAndWaitForReceiptAsync(new TransactionInput
+            var txReceipt = await l1Signer.Provider.Eth.TransactionManager.SendTransactionAndWaitForReceiptAsync(new TransactionRequest
             {
                 From = createRequest.TxRequest.From,
                 To = createRequest.TxRequest.To,

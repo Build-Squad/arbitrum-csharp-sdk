@@ -88,6 +88,7 @@ namespace Arbitrum.DataEntities
         //public Record<string, object> CustomData { get; set; }
         public bool? CcipReadEnabled { get; set; }
     }
+
     /**
      * Tools for parsing retryable data from errors.
      * When calling createRetryableTicket on Inbox.sol special values

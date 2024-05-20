@@ -24,6 +24,7 @@ using Nethereum.Contracts;
 using Arbitrum.DataEntities;
 using Arbitrum.Utils;
 using Nethereum.Util;
+using Nethereum.JsonRpc.Client;
 
 namespace Arbitrum.DataEntities
 {
@@ -333,6 +334,14 @@ namespace Arbitrum.DataEntities
             {
                 chainId = await GetChainIdAsync(((SignerOrProvider)signerOrProviderOrChainId)?.Provider!);
             }
+            else if(signerOrProviderOrChainId is IClient)
+            {
+                chainId = await GetChainIdAsync(new Web3(signerOrProviderOrChainId));
+            }
+            else if(signerOrProviderOrChainId is RpcClient)
+            {
+                chainId = await GetChainIdAsync(new Web3(signerOrProviderOrChainId));
+            }
             else
             {
                 throw new ArbSdkError($"Please provide a Web3 instance or chain ID. You have provided {signerOrProviderOrChainId.GetType()}");
@@ -359,7 +368,7 @@ namespace Arbitrum.DataEntities
             }
         }
 
-        public async static Task<int> GetChainIdAsync(IWeb3 web3)
+        public async static Task<int> GetChainIdAsync(Web3 web3)
         {
             return (int)(await web3.Eth.ChainId.SendRequestAsync()).Value;
         }

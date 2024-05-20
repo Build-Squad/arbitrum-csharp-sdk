@@ -2,9 +2,14 @@
 using System.Numerics;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.JsonRpc.Client;
+using System.Reflection;
 
 namespace Arbitrum.DataEntities
 {
+    public class TransactionRequest : TransactionInput
+    {
+
+    }
     public class L1ToL2MessageGasParams
     {
         public BigInteger? MaxSubmissionCost { get; set; }
@@ -27,13 +32,6 @@ namespace Arbitrum.DataEntities
     {
         public new string? ExcessFeeRefundAddress { get; set; }
         public new string? CallValueRefundAddress { get; set; }
-    }
-    public class TransactionRequest : TransactionInput            //////////
-    {
-        public new string? To { get; set; }
-        public new string? Data { get; set; }
-        public new BigInteger? Value { get; set; }
-        public new string? From { get; set; }
     }
 
     public class L1ToL2TransactionRequest 
@@ -62,7 +60,14 @@ namespace Arbitrum.DataEntities
     {
         public static bool IsL1ToL2TransactionRequest(dynamic possibleRequest)
         {
-            return possibleRequest?.TxRequest != null;
+            // Get the type of the possibleRequest object
+            Type type = possibleRequest.GetType();
+
+            // Get the PropertyInfo object for the TxRequest property
+            PropertyInfo property = type.GetProperty("TxRequest");
+
+            // Check if the property exists
+            return (property != null);
         }
 
         public static bool IsL2ToL1TransactionRequest(dynamic possibleRequest)

@@ -72,7 +72,7 @@ namespace Arbitrum.Utils
             }
             else if (provider is ArbitrumProvider arbitrumProvider)
             {
-                _provider = arbitrumProvider;
+                _provider = arbitrumProvider.Provider;
             }
             else
             {

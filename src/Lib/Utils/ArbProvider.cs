@@ -17,7 +17,7 @@ namespace Arbitrum.Utils
     public class Formats
     {
         public Transaction? Transaction { get; set; }
-        public TransactionInput? TransactionRequest { get; set; }
+        public TransactionRequest? TransactionRequest { get; set; }
         public TransactionReceipt? Receipt { get; set; }
         public FilterLog? ReceiptLog { get; set; }
         public Block? Block { get; set; }
@@ -27,14 +27,6 @@ namespace Arbitrum.Utils
     }
     public class ArbFormatter
     {
-        private readonly Formats _formats;
-        public Formats Formats => _formats;
-
-        public ArbFormatter(Formats formats)
-        {
-            _formats = formats ?? throw new ArgumentNullException(nameof(formats));
-        }
-
         //public Formats GetDefaultFormats()
         //{
         //    Formats superFormats = base.GetDefaultFormats();
@@ -179,24 +171,35 @@ namespace Arbitrum.Utils
         }
     }
 
-    public class ArbitrumProvider : Web3
+    public class ArbitrumProvider
     {
-        private static readonly ArbFormatter ArbFormatter = new ArbFormatter(new Formats());
-        public ArbitrumProvider(IClient provider)
-            : base(provider)
+        public Web3 Provider { get; private set; }
+        public ArbFormatter Formatter { get; private set; }
+
+        public ArbitrumProvider(dynamic provider, string network = null)
+        {
+            if (provider is SignerOrProvider signerOrProvider)
             {
-                
+                Provider = signerOrProvider.Provider;
             }
+            else if (provider is ArbitrumProvider arbitrumProvider)
+            {
+                Provider = arbitrumProvider.Provider;
+            }
+            Provider = provider;
+
+            this.Formatter = new ArbFormatter();
+        }
         public async Task<ArbTransactionReceipt> GetTransactionReceipt(string transactionHash)
         {
-            var receipt = await Eth.Transactions.GetTransactionReceipt.SendRequestAsync(transactionHash);
-            return ArbFormatter.Receipt(receipt);
+            var receipt = await Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(transactionHash);
+            return new ArbFormatter().Receipt(receipt);
         }
 
         public async Task<ArbBlockWithTransactions> GetBlockWithTransactions(string blockIdentifier)
         {
-            var block = await Eth.Blocks.GetBlockWithTransactionsByHash.SendRequestAsync(blockIdentifier);  
-            return ArbFormatter.BlockWithTransactions(block);
+            var block = await Provider.Eth.Blocks.GetBlockWithTransactionsByHash.SendRequestAsync(blockIdentifier);  
+            return new ArbFormatter().BlockWithTransactions(block);
         }
 
         public async Task<ArbBlock> GetBlock(dynamic blockIdentifier)
@@ -205,13 +208,13 @@ namespace Arbitrum.Utils
             try
             {
                 //Console.WriteLine(typeof(blockIdentifier));
-                block = await Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(new HexBigInteger(blockIdentifier));
+                block = await Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(new HexBigInteger(blockIdentifier));
             }
             catch(Exception ex)
             {
                 throw new Exception(ex.Message);
             }
-            return ArbFormatter.Block(block);
+            return new ArbFormatter().Block(block);   
         }
     }
 }

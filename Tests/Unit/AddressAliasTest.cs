@@ -1,7 +1,7 @@
 ﻿using Arbitrum.DataEntities;
 using NUnit.Framework;
 
-namespace Arbitrum.DataEntities.Tests.Unit
+namespace Arbitrum.Tests.Unit
 {
     [TestFixture]
     public class AddressTests

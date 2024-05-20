@@ -9,7 +9,7 @@ using Nethereum.Web3;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 
-namespace Arbitrum.Message.Tests.Unit
+namespace Arbitrum.Tests.Unit
 {
     [TestFixture]
     public class L1toL2MessageTests
@@ -58,25 +58,42 @@ namespace Arbitrum.Message.Tests.Unit
                 Status = 1.ToHexBigInteger(),
             };
 
-            var arbProvider = new SignerOrProvider(new Web3("https://arb1.arbitrum.io/rpc"));
+            var arbProvider = new Web3("https://arb1.arbitrum.io/rpc");
             var l1TxnReceipt = new L1TransactionReceipt(receipt);
 
-            Assert.That(async () =>
-            {
-                await l1TxnReceipt.GetL1ToL2MessagesClassic(arbProvider.Provider);
-            }, Throws.Exception.TypeOf<Exception>().With.Message.EqualTo(
-                "This method is only for classic transactions. Use 'getL1ToL2Messages' for nitro transactions."));
+            // Arrange
+            string expectedErrorMessage = "This method is only for classic transactions. Use 'getL1ToL2Messages' for nitro transactions.";
 
+            // Act & Assert
             Assert.That(async () =>
             {
-                await l1TxnReceipt.GetL1ToL2Messages(arbProvider);
+                try
+                {
+                    await l1TxnReceipt.GetL1ToL2MessagesClassic(arbProvider);
+                }
+                catch (Exception ex)
+                {
+                    Assert.That(ex.Message, Is.EqualTo(expectedErrorMessage));
+                    throw; // Re-throwing the exception so NUnit can catch it
+                }
+            }, Throws.Exception);
+
+            // Act & Assert
+            Assert.That(async () =>
+            {
+                try
+                {
+                    await l1TxnReceipt.GetL1ToL2Messages(arbProvider);
+                }
+                catch (Exception ex)
+                {
+                    Assert.Fail($"Unexpected exception: {ex.Message}");
+                }
             }, Throws.Nothing);
-
-            // Your assertions here
         }
 
         [Test]
-        public void TestClassicEvents()
+        public async Task TestClassicEvents()
         {
             // Receipt from mainnet tx: 0xc80e0c4844bb502ed7d7e2db6f9e6b2d52e3d25688de216394f0227fc5dc814e
             var receipt = new TransactionReceipt
@@ -117,21 +134,20 @@ namespace Arbitrum.Message.Tests.Unit
                 Status = 1.ToHexBigInteger(),
             };
 
-            var arbProvider = new SignerOrProvider(new Web3("https://arb1.arbitrum.io/rpc"));
+            var arbProvider = new Web3("https://arb1.arbitrum.io/rpc");
             var l1TxnReceipt = new L1TransactionReceipt(receipt);
 
-            Assert.That(async () =>
+            try
             {
                 await l1TxnReceipt.GetL1ToL2Messages(arbProvider);
-            }, Throws.Exception.TypeOf<Exception>().With.Message.EqualTo(
-                "This method is only for nitro transactions. Use 'getL1ToL2MessagesClassic' for classic transactions."));
-
-            Assert.That(async () =>
+                Assert.Fail("Expected exception was not thrown.");
+            }
+            catch (Exception ex)
             {
-                await l1TxnReceipt.GetL1ToL2MessagesClassic(arbProvider.Provider);
-            }, Throws.Nothing);
+                Assert.That(ex.Message, Is.EqualTo("This method is only for nitro transactions. Use 'GetL1ToL2MessagesClassic' for classic transactions."));
+            }
 
-            // Your assertions here
+            Assert.That(async () => await l1TxnReceipt.GetL1ToL2MessagesClassic(arbProvider), Throws.Nothing);
         }
     }
 }

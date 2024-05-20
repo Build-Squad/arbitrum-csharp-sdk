@@ -51,8 +51,8 @@ namespace Arbitrum.Inbox
             private readonly Web3 _l1Provider;
             private readonly L1Network _l1Network;
             private readonly L2Network _l2Network;
-            private readonly Account _l1Signer;
-            public InboxTools(Account l1Signer, L2Network l2Network)
+            private readonly SignerOrProvider _l1Signer;
+            public InboxTools(SignerOrProvider l1Signer, L2Network l2Network)
             {
                 _l1Provider = SignerProviderUtils.GetProviderOrThrow(l1Signer);
                 _l1Network = NetworkUtils.l1Networks[l2Network.PartnerChainID];
@@ -255,7 +255,7 @@ namespace Arbitrum.Inbox
                 var block = await _l1Provider.Eth.Blocks.GetBlockWithTransactionsByHash.SendRequestAsync(eventInfo?.Event?.BlockHash);
 
                 return await sequencerInbox.GetFunction("forceInclusion").SendTransactionAndWaitForReceiptAsync(
-                    from: _l1Signer?.Address,      ////////////////
+                    from: _l1Signer?.Account.Address,      ////////////////
                     receiptRequestCancellationToken: null,
                     eventInfo?.Event?.Event?.MessageIndex + 1,
                     eventInfo?.Event?.Event?.Kind,
@@ -283,14 +283,14 @@ namespace Arbitrum.Inbox
                 var sendDataBytes = ConcatArrays(packedMessageType, signedTx);
 
                 var txReceipt = await delayedInbox.GetFunction("sendL2Message").SendTransactionAndWaitForReceiptAsync(
-                    from: _l1Signer?.Address,      ////////////////
+                    from: _l1Signer?.Account.Address,      ////////////////
                     receiptRequestCancellationToken: null,
                     sendDataBytes
                     );
                 return txReceipt;
             }
 
-            public async Task<string> SignL2Tx(TransactionRequest txRequest, Account l2Signer)
+            public async Task<string> SignL2Tx(TransactionRequest txRequest, SignerOrProvider l2Signer)
             {
                 var tx = new TransactionRequest
                 {
@@ -302,29 +302,30 @@ namespace Arbitrum.Inbox
                     MaxFeePerGas = txRequest?.MaxFeePerGas,
                     MaxPriorityFeePerGas = txRequest?.MaxPriorityFeePerGas,
                     Nonce = txRequest?.Nonce,
-                    ChainId = new HexBigInteger(l2Signer?.ChainId.ToString()),
+                    ChainId = txRequest.ChainId,
                     Type = txRequest?.Type,
-                    From = l2Signer?.Address,
+                    From = l2Signer?.Account.Address,
                     AccessList = txRequest?.AccessList,
                 };
 
                 var contractCreation = IsContractCreation(tx);
 
+                if (tx.ChainId == null) tx.ChainId = await l2Signer.Provider.Eth.ChainId.SendRequestAsync();
                 //if (tx.Nonce == null) tx.Nonce = await l2Signer?.NonceService.GetNextNonceAsync(); ////////
 
-                if (tx.Nonce == null) tx.Nonce = await new Web3(l2Signer?.TransactionManager.Client).Eth.Transactions.GetTransactionCount.SendRequestAsync(l2Signer?.Address);  ////////
+                if (tx.Nonce == null) tx.Nonce = await l2Signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(l2Signer?.Account.Address);  ////////
 
                 if (string.IsNullOrEmpty(tx.To)) tx.To = AddressUtil.Current.ConvertToChecksumAddress("0x0000000000000000000000000000000000000000");
 
                 if (tx.Type.Value == 1 || tx.GasPrice != null)
                 {
-                    if (tx.GasPrice == null) tx.GasPrice = await new Web3(l2Signer?.TransactionManager?.Client)?.Eth?.GasPrice.SendRequestAsync();
+                    if (tx.GasPrice == null) tx.GasPrice = await l2Signer.Provider?.Eth?.GasPrice.SendRequestAsync();
                 }
                 else
                 {
                     if (tx.MaxFeePerGas == null)
                     {
-                        var feeHistory = new Web3(l2Signer?.TransactionManager?.Client)?.Eth?.FeeHistory;
+                        var feeHistory = l2Signer.Provider?.Eth?.FeeHistory;
 
                         var feeData = await feeHistory?.SendRequestAsync(blockCount: new HexBigInteger(1), BlockParameter.CreateLatest(), rewardPercentiles: new decimal[] { });
 
@@ -339,9 +340,9 @@ namespace Arbitrum.Inbox
                     tx.Type = new HexBigInteger(2);
                 }
 
-                tx.From = l2Signer?.Address;
+                tx.From = l2Signer?.Account.Address;
 
-                tx.ChainId = new HexBigInteger(l2Signer?.ChainId.ToString());
+                tx.ChainId = await l2Signer?.Provider.Eth.ChainId.SendRequestAsync();
 
                 // if this is contract creation, user might not input the to address,
                 // however, it is needed when we call to estimateArbitrumGas, so
@@ -355,7 +356,7 @@ namespace Arbitrum.Inbox
                 {
                     if (tx.To == null)
                     {
-                        tx.Gas = new HexBigInteger((await EstimateArbitrumGas(tx, new Web3(l2Signer?.TransactionManager?.Client)))?.GasEstimateForL2.ToString());
+                        tx.Gas = new HexBigInteger((await EstimateArbitrumGas(tx, l2Signer.Provider))?.GasEstimateForL2.ToString());
 
                     }
                 }
@@ -368,7 +369,7 @@ namespace Arbitrum.Inbox
                 {
                     tx.To = null;
                 }
-                return await l2Signer?.TransactionManager.SignTransactionAsync(tx);
+                return await l2Signer?.Account.TransactionManager.SignTransactionAsync(tx);
             }
 
             private byte[] ConcatArrays(byte[] array1, string array2)

@@ -39,7 +39,6 @@ namespace Arbitrum.AssetBridger
         public string? ExcessFeeRefundAddress { get; set; }
         public string? CallValueRefundAddress { get; set; }
         public GasOverrides? RetryableGasOverrides { get; set; }
-        public new PayableOverrides? Overrides { get; set; }
     }
 
     public class Erc20WithdrawParams : EthWithdrawParams
@@ -49,20 +48,16 @@ namespace Arbitrum.AssetBridger
 
     public class L1ToL2TxReqAndSignerProvider : L1ToL2TxReqAndSigner
     {
-        public new Account? L1Signer { get; set; }
-        public new PayableOverrides? Overrides { get; set; }
-        public new Web3? L2Provider { get; set; }
-
     }
 
     public class L2ToL1TxReqAndSigner : L2ToL1TransactionRequest
     {
-        public Account? L2Signer { get; set; }
+        public SignerOrProvider? L2Signer { get; set; }
         public PayableOverrides? Overrides { get; set; }
     }
     public class SignerTokenApproveParams : TokenApproveParams
     {
-        public Account? L1Signer { get; set; }
+        public SignerOrProvider? L1Signer { get; set; }
     }
 
     public class ProviderTokenApproveParams : TokenApproveParams
@@ -72,8 +67,6 @@ namespace Arbitrum.AssetBridger
     public class ApproveParamsOrTxRequest : SignerTokenApproveParams
     {
         public TransactionRequest? TxRequest { get; set; }
-        public new Account? L1Signer { get; set; }
-        public new PayableOverrides? Overrides { get; set; }
     }
 
     public class DepositRequest : Erc20DepositParams
@@ -83,9 +76,6 @@ namespace Arbitrum.AssetBridger
     }
     public class DefaultedDepositRequest : DepositRequest
     {
-        public new string? CallValueRefundAddress { get; set; }
-        public new string? ExcessFeeRefundAddress { get; set; }
-        public new string? DestinationAddress { get; set; }
     }
     public class WithdrawalInitiatedEvent : L2ToL1TransactionEvent
     {
@@ -107,7 +97,7 @@ namespace Arbitrum.AssetBridger
         public string? TokenAddr { get; set; }
         public string? GatewayAddr { get; set; }
     }
-    public class Erc20Bridger : AssetBridger<Erc20DepositParams, Erc20WithdrawParams>
+    public class Erc20Bridger : AssetBridger<Erc20DepositParams, Erc20WithdrawParams, L1ContractCallTransactionReceipt>
     {
         public static BigInteger MAX_APPROVAL { get; set; } = BigInteger.Parse("18446744073709551615");
         public static BigInteger MIN_CUSTOM_DEPOSIT_GAS_LIMIT { get; set; } = BigInteger.Parse("275000");
@@ -124,7 +114,7 @@ namespace Arbitrum.AssetBridger
 
         public async Task<string> GetL1GatewayAddress(string erc20L1Address, Web3 l1Provider)
         {
-            await CheckL1Network(new SignerOrProvider(l1Provider));
+            await CheckL1Network(l1Provider);
 
             // Load the L1GatewayRouter contract
             var l1GatewayRouter = await LoadContractUtils.LoadContract(
@@ -136,12 +126,12 @@ namespace Arbitrum.AssetBridger
 
             // Call the getGateway function
             var getGatewayFunction = l1GatewayRouter.GetFunction("getGateway");
-            return await getGatewayFunction.CallAsync<string>(erc20L1Address);
+            return await getGatewayFunction.CallAsync<dynamic>(erc20L1Address);
         }
 
         public async Task<string> GetL2GatewayAddress(string erc20L1Address, Web3 l2Provider)
         {
-            await CheckL2Network(new SignerOrProvider(l2Provider));
+            await CheckL2Network(l2Provider);
 
             // Load the L2GatewayRouter contract using the LoadContract method
             var l2GatewayRouterContract = await LoadContractUtils.LoadContract(
@@ -181,7 +171,7 @@ namespace Arbitrum.AssetBridger
                 throw new InvalidOperationException("Chain uses ETH as its native/gas token");
             }
 
-            await CheckL1Network(new SignerOrProvider(parameters?.L1Signer));
+            await CheckL1Network(parameters?.L1Signer);
 
             TransactionRequest approveGasTokenRequest;
 
@@ -216,7 +206,7 @@ namespace Arbitrum.AssetBridger
             //    Type = approveGasTokenRequest?.Type
             //};
 
-            return await parameters?.L1Signer?.TransactionManager?.SendTransactionAndWaitForReceiptAsync(approveGasTokenRequest)!;
+            return await parameters?.L1Signer?.Account.TransactionManager?.SendTransactionAndWaitForReceiptAsync(approveGasTokenRequest)!;
         }
 
         public async Task<TransactionRequest> GetApproveTokenRequest(ProviderTokenApproveParams parameters)
@@ -264,7 +254,7 @@ namespace Arbitrum.AssetBridger
             {
                 To = parameters?.Erc20L1Address,
                 Data = functionData,
-                Value = BigInteger.Zero
+                Value = new HexBigInteger(BigInteger.Zero)
             };
         }
 
@@ -277,7 +267,7 @@ namespace Arbitrum.AssetBridger
         public async Task<TransactionReceipt> ApproveToken(ApproveParamsOrTxRequest parameters)
         {
             // Check if the signer is connected to the correct L1 network
-            await CheckL1Network(new SignerOrProvider(parameters?.L1Signer));
+            await CheckL1Network(parameters?.L1Signer);
 
             TransactionRequest approveRequest;
 
@@ -298,7 +288,7 @@ namespace Arbitrum.AssetBridger
             }
 
             // Send the transaction and return the transaction receipt
-            return await parameters?.L1Signer?.TransactionManager?.SendTransactionAndWaitForReceiptAsync(approveRequest);
+            return await parameters?.L1Signer?.Account.TransactionManager?.SendTransactionAndWaitForReceiptAsync(approveRequest);
         }
 
         public async Task<List<(WithdrawalInitiatedEvent? EventArgs, string? TxHash)>> GetL2WithdrawalEvents(
@@ -409,7 +399,7 @@ namespace Arbitrum.AssetBridger
 
         public async Task<string> GetL2ERC20Address(string erc20L1Address, Web3 l1Provider)
         {
-            await CheckL1Network(new SignerOrProvider(l1Provider));
+            await CheckL1Network(l1Provider);
 
             var l1GatewayRouter = await LoadContractUtils.LoadContract(
                                                 provider: l1Provider,
@@ -423,7 +413,7 @@ namespace Arbitrum.AssetBridger
 
         public async Task<string> GetL1ERC20Address(string erc20L2Address, Web3 l2Provider)
         {
-            await CheckL2Network(new SignerOrProvider(l2Provider));
+            await CheckL2Network(l2Provider);
 
             if (erc20L2Address.Equals(L2Network?.TokenBridge?.L2Weth, StringComparison.OrdinalIgnoreCase))
             {
@@ -458,7 +448,7 @@ namespace Arbitrum.AssetBridger
 
         public async Task<bool> L1TokenIsDisabled(string l1TokenAddress, Web3 l1Provider)
         {
-            await CheckL1Network(new SignerOrProvider(l1Provider));
+            await CheckL1Network(l1Provider);
 
             var l1GatewayRouter = await LoadContractUtils.LoadContract(
                                                 provider: l1Provider,
@@ -518,8 +508,8 @@ namespace Arbitrum.AssetBridger
 
         public async Task<L1ToL2TransactionRequest> GetDepositRequest(DepositRequest parameters)
         {
-            await CheckL1Network(new SignerOrProvider(parameters?.L1Provider));
-            await CheckL2Network(new SignerOrProvider(parameters?.L2Provider));
+            await CheckL1Network(parameters?.L1Provider);
+            await CheckL2Network(parameters?.L2Provider);
 
             DefaultedDepositRequest defaultedParams = ApplyDefaults(parameters);
 
@@ -640,7 +630,7 @@ namespace Arbitrum.AssetBridger
                     Data = functionData,
                     To = L2Network?.TokenBridge?.L1GatewayRouter,
                     From = defaultedParams?.From,
-                    Value = GetDepositRequestCallValue(depositParams)
+                    Value = new HexBigInteger(GetDepositRequestCallValue(depositParams).Value)
                 };
             };
 
@@ -654,7 +644,7 @@ namespace Arbitrum.AssetBridger
                 {
                     To = L2Network?.TokenBridge?.L1GatewayRouter,
                     Data = estimates?.Data,
-                    Value = estimates?.Value,
+                    Value = new HexBigInteger((estimates?.Value).Value),
                     From = parameters?.From,
                 },
                 RetryableData = new RetryableData
@@ -674,7 +664,7 @@ namespace Arbitrum.AssetBridger
             };
         }
 
-        public override async Task<L1TransactionReceipt> Deposit(dynamic parameters)
+        public override async Task<L1ContractCallTransactionReceipt> Deposit(dynamic parameters)
         {
             await CheckL1Network(new SignerOrProvider(parameters?.L1Signer));
 
@@ -758,7 +748,7 @@ namespace Arbitrum.AssetBridger
         {
             string toAddress = parameters.DestinationAddress!;
 
-            var provider = new Web3(parameters?.L2Signer?.TransactionManager?.Client);
+            var provider = parameters?.L2Signer?.Provider;
 
             // Create the router interface
             var routerInterface = await LoadContractUtils.LoadContract(
@@ -802,7 +792,7 @@ namespace Arbitrum.AssetBridger
                 {
                     Data = functionData,
                     To = L2Network?.TokenBridge?.L2GatewayRouter,
-                    Value = BigInteger.Zero,
+                    Value = new HexBigInteger(BigInteger.Zero),
                     From = parameters?.From
                 },
                 EstimateL1GasLimit = async (l1Provider) =>
@@ -904,7 +894,7 @@ namespace Arbitrum.AssetBridger
             public async Task<L1TransactionReceipt> RegisterCustomToken(
                 string l1TokenAddress,
                 string l2TokenAddress,
-                Account l1Signer,
+                SignerOrProvider l1Signer,
                 Web3 l2Provider)
             { 
                 if (!SignerProviderUtils.SignerHasProvider(l1Signer))
@@ -912,18 +902,18 @@ namespace Arbitrum.AssetBridger
                     throw new MissingProviderArbSdkError("l1Signer");
                 }
 
-                await CheckL1Network(new SignerOrProvider(new Web3(l1Signer?.TransactionManager?.Client)));
-                await CheckL2Network(new SignerOrProvider(l2Provider));
+                await CheckL1Network(l1Signer);
+                await CheckL2Network(l2Provider);
 
-                string l1SenderAddress = l1Signer?.Address;
+                string l1SenderAddress = l1Signer?.Account.Address;
 
                 var l1Token = await LoadContractUtils.LoadContract(
                         contractName: "ICustomToken",
                         address: l1TokenAddress,
-                        provider: new Web3(l1Signer?.TransactionManager?.Client),
+                        provider: l1Signer?.Provider,
                         isClassic: true
                     );
-                var l1TokenContractByteCode = await new Web3(l1Signer?.TransactionManager?.Client).Eth.GetCode.SendRequestAsync(l1Token.Address);
+                var l1TokenContractByteCode = await l1Signer.Provider.Eth.GetCode.SendRequestAsync(l1Token.Address);
 
                 var l2Token = await LoadContractUtils.LoadContract(
                         contractName: "IArbToken",
@@ -933,7 +923,7 @@ namespace Arbitrum.AssetBridger
                     );
 
                 // Sanity checks
-                if (!await LoadContractUtils.IsContractDeployed(new Web3(l1Signer?.TransactionManager.Client), l1Token.Address))
+                if (!await LoadContractUtils.IsContractDeployed(l1Signer.Provider, l1Token.Address))
                 {
                     throw new Exception("L1 token is not deployed.");
                 }
@@ -999,12 +989,12 @@ namespace Arbitrum.AssetBridger
                     {
                         Data = functionData,
                         To = l1Token.Address,
-                        Value = setTokenDeposit + setGatewayDeposit,
+                        Value = new HexBigInteger((setTokenDeposit + setGatewayDeposit).Value),
                         From = l1SenderAddress
                     };
                 };
 
-                var l1Provider = new Web3(l1Signer?.TransactionManager?.Client);
+                var l1Provider = l1Signer.Provider;
                 var gEstimator = new L1ToL2MessageGasEstimator(l2Provider);
 
 
@@ -1026,8 +1016,16 @@ namespace Arbitrum.AssetBridger
                     l1Provider
                 );
 
+                var registerTx = new TransactionRequest()
+                {
+                    To = l1Token?.Address,
+                    Data = setTokenEstimates?.Data,
+                    Value = new HexBigInteger(setTokenEstimates?.Value.ToString()),
+                    From = l1SenderAddress
+                };
+
                 // Perform the transaction
-                var registerTx = await l1Signer.TransactionManager.SendTransactionAndWaitForReceiptAsync(new TransactionInput
+                var txReceipt = await l1Signer.Provider.TransactionManager.SendTransactionAndWaitForReceiptAsync(new TransactionRequest
                 {
                     To = l1Token?.Address,
                     Data = setTokenEstimates?.Data,
@@ -1036,7 +1034,7 @@ namespace Arbitrum.AssetBridger
                 });
 
                 // Return the transaction receipt
-                return L1TransactionReceipt.MonkeyPatchWait(registerTx);
+                return L1TransactionReceipt.MonkeyPatchWait(txReceipt);
             }
 
             public async Task<List<GatewaySetEvent>> GetL1GatewaySetEvents(Web3 l1Provider, NewFilterInput filter)
@@ -1102,8 +1100,8 @@ namespace Arbitrum.AssetBridger
                 return formattedEvents;
             }
 
-            public async Task<L1TransactionReceipt> SetGateways(
-                Account l1Signer,
+            public async Task<L1ContractCallTransactionReceipt> SetGateways(
+                SignerOrProvider l1Signer,
                 Web3 l2Provider,
                 List<TokenAndGateway> tokenGateways,
                 GasOverrides? options = null)
@@ -1113,18 +1111,18 @@ namespace Arbitrum.AssetBridger
                     throw new MissingProviderArbSdkError("l1Signer");
                 }
 
-                await CheckL1Network(new SignerOrProvider(l1Signer));
-                await CheckL2Network(new SignerOrProvider(l2Provider));
+                await CheckL1Network(l1Signer);
+                await CheckL2Network(l2Provider);
 
-                string from = l1Signer?.Address;
+                string from = l1Signer?.Account.Address;
 
                 var l1GatewayRouter = await LoadContractUtils.LoadContract(
-                            provider: new Web3(l1Signer?.TransactionManager?.Client),
+                            provider: l1Signer.Provider,
                             contractName: "L1GatewayRouter",
                             address: L2Network?.TokenBridge?.L1GatewayRouter,
                             isClassic: true
                             );
-                var contractByteCode = await new Web3(l1Signer?.TransactionManager?.Client).Eth.GetCode.SendRequestAsync(l1GatewayRouter.Address);
+                var contractByteCode = await l1Signer.Provider.Eth.GetCode.SendRequestAsync(l1GatewayRouter.Address);
 
                 // Define function for setting gateways
                 Func<L1ToL2MessageGasParams, TransactionRequest> setGatewaysFunc = (parameters) =>
@@ -1158,28 +1156,30 @@ namespace Arbitrum.AssetBridger
                             parameters?.MaxSubmissionCost
                         });
 
-                    BigInteger? value = parameters?.GasLimit * parameters?.MaxFeePerGas + parameters?.MaxSubmissionCost;
+                    var value = parameters?.GasLimit * parameters?.MaxFeePerGas + parameters?.MaxSubmissionCost;
 
                     return new TransactionRequest
                     {
                         Data = functionData,
-                        Value = value,
+                        Value = new HexBigInteger(value.Value),
                         From = from,
                         To = l1GatewayRouter.Address
                     };
                 };
 
                 var gEstimator = new L1ToL2MessageGasEstimator(l2Provider);
-                var estimates = await gEstimator.PopulateFunctionParams(setGatewaysFunc, new Web3(l1Signer?.TransactionManager?.Client), options);
+                var estimates = await gEstimator.PopulateFunctionParams(setGatewaysFunc, l1Signer.Provider, options);
 
-                var res = await l1Signer.TransactionManager.SendTransactionAndWaitForReceiptAsync(new TransactionInput
+                var resTx = new TransactionRequest
                 {
                     To = estimates?.To,
                     Data = estimates?.Data,
                     Value = new HexBigInteger(estimates?.Estimates?.Deposit?.ToString()),
                     From = from
-                });
-                return L1TransactionReceipt.MonkeyPatchContractCallWait(res);
+                };
+
+                var resReceipt = await l1Signer.Provider.TransactionManager.SendTransactionAndWaitForReceiptAsync(resTx);
+                return L1TransactionReceipt.MonkeyPatchContractCallWait(resReceipt);
             }
 
         }

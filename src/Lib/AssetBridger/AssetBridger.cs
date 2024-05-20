@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Arbitrum.AssetBridgerModule
 {
-    public abstract class AssetBridger<DepositParams, WithdrawParams>
+    public abstract class AssetBridger<DepositParams, WithdrawParams, TDepositReceipt>
     {
         public L1Network L1Network;
         public L2Network L2Network;
@@ -18,6 +18,7 @@ namespace Arbitrum.AssetBridgerModule
         public AssetBridger(L2Network l2Network)
         {
             L2Network = l2Network;
+            L1Network = NetworkUtils.l1Networks[l2Network.PartnerChainID];
             NativeToken = l2Network?.NativeToken;
             if (L1Network == null)
             {
@@ -34,19 +35,19 @@ namespace Arbitrum.AssetBridgerModule
             }
         }
 
-        protected async Task CheckL1Network(SignerOrProvider sop)
+        protected async Task CheckL1Network(dynamic sop)
         {
             await SignerProviderUtils.CheckNetworkMatches(sop, L1Network.ChainID);
         }
 
-        protected async Task CheckL2Network(SignerOrProvider sop)
+        protected async Task CheckL2Network(dynamic sop)
         {
             await SignerProviderUtils.CheckNetworkMatches(sop, L2Network.ChainID);
         }
 
         protected bool NativeTokenIsEth => string.IsNullOrEmpty(NativeToken) || NativeToken == Constants.ADDRESS_ZERO;
 
-        public abstract Task<L1TransactionReceipt> Deposit(dynamic parameters);
+        public abstract Task<TDepositReceipt> Deposit(dynamic parameters);
 
         public abstract Task<L2TransactionReceipt> Withdraw(dynamic parameters);
 

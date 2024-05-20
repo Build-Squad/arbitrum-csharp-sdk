@@ -23,10 +23,10 @@ namespace Abitrum.Scripts
             var arbProvider = new Web3(new RpcClient(new Uri(TestSetupUtils.Config["ARB_URL"])));
 
             // Inject middleware for Ethereum provider       ///////////
-            ethProvider.Client.OverridingRequestInterceptor = new AccountTransactionSigningInterceptor();
+            //ethProvider.Client.OverridingRequestInterceptor = new AccountTransactionSigningInterceptor();
 
-            // Inject middleware for Arbitrum provider      ////////////
-            arbProvider.Client.OverridingRequestInterceptor = new RequestInterceptor();
+            //// Inject middleware for Arbitrum provider      ////////////
+            //arbProvider.Client.OverridingRequestInterceptor = new RequestInterceptor();
 
             var l1Deployer = await TestSetupUtils.GetSigner(ethProvider, TestSetupUtils.Config["ETH_KEY"]);
             var l2Deployer = await TestSetupUtils.GetSigner(arbProvider, TestSetupUtils.Config["ARB_KEY"]);
@@ -39,8 +39,8 @@ namespace Abitrum.Scripts
             var networkAndDeployers = await TestSetupUtils.SetupNetworks(
                 l1Url: TestSetupUtils.Config["ETH_URL"],
                 l2Url: TestSetupUtils.Config["ARB_URL"],
-                l1Deployer: l1Signer.Account,
-                l2Deployer: l2Signer.Account
+                l1Deployer: l1Signer,
+                l2Deployer: l2Signer
             );
 
             var l1Network = networkAndDeployers.L1Network;

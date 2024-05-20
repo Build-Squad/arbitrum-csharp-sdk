@@ -13,11 +13,14 @@ using Nethereum.Util;
 using Nethereum.Web3;
 using Nethereum.Web3.Accounts;
 using NUnit.Framework;
+using Arbitrum.Message;
+
+using Org.BouncyCastle.Crypto.Tls;
 using Serilog.Parsing;
 using System.Numerics;
 using System.Security.Cryptography;
 
-namespace Arbitrum.Message.Tests.Integration
+namespace Arbitrum.Tests.Integration
 {
     public class RevertParams
     {
@@ -33,7 +36,6 @@ namespace Arbitrum.Message.Tests.Integration
     }
     public class RetryableDataParsingTests
     {
-        private readonly Web3 _web3 = new Web3();
         private readonly BigInteger DEPOSIT_AMOUNT = Web3.Convert.ToWei(100, UnitConversion.EthUnit.Wei);
 
         private RevertParams CreateRevertParams()
@@ -59,7 +61,7 @@ namespace Arbitrum.Message.Tests.Integration
         {
             var setupState = await TestSetupUtils.TestSetup();
             var l1Signer = setupState.L1Signer;
-            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
+            var l1Provider = l1Signer.Provider;
             var l2Network = setupState.L2Network;
 
             await TestHelpers.FundL1(l1Signer);
@@ -71,13 +73,12 @@ namespace Arbitrum.Message.Tests.Integration
             );
 
             var revertParams = CreateRevertParams();
-
             try
             {
                 if (funcName == "estimateGas")
                 {
                     await inboxContract.GetFunction("createRetryableTicket").EstimateGasAsync(
-                        from: l1Signer.Address,
+                        from: l1Signer.Account.Address,
                         gas: null,
                         value: new HexBigInteger(revertParams.Value.ToString()),
                         functionInput: new object[] {
@@ -96,7 +97,7 @@ namespace Arbitrum.Message.Tests.Integration
                 else if (funcName == "callStatic")
                 {
                     await inboxContract.GetFunction("createRetryableTicket").CallAsync<BigInteger>(
-                        from: l1Signer.Address,
+                        from: l1Signer.Account.Address,
                         gas: null,
                         value: new HexBigInteger(revertParams.Value.ToString()),
                         functionInput: new object[] {
@@ -123,7 +124,7 @@ namespace Arbitrum.Message.Tests.Integration
                 Assert.That(parsedData.Data, Is.EqualTo(revertParams.Data));
                 Assert.That(parsedData.Deposit.ToString(), Is.EqualTo(revertParams.Value.ToString()));
                 Assert.That(parsedData.ExcessFeeRefundAddress, Is.EqualTo(revertParams.ExcessFeeRefundAddress));
-                Assert.That(parsedData.From, Is.EqualTo(l1Signer.Address));
+                Assert.That(parsedData.From, Is.EqualTo(l1Signer.Account.Address));
                 Assert.That(parsedData.GasLimit.ToString(), Is.EqualTo(revertParams.GasLimit.ToString()));
                 Assert.That(parsedData.L2CallValue.ToString(), Is.EqualTo(revertParams.L2CallValue.ToString()));
                 Assert.That(parsedData.MaxFeePerGas.ToString(), Is.EqualTo(revertParams.MaxFeePerGas.ToString()));
@@ -151,8 +152,8 @@ namespace Arbitrum.Message.Tests.Integration
             var setupState = await TestSetupUtils.TestSetup();
             var l1Signer = setupState.L1Signer;
             var l2Signer = setupState.L2Signer;
-            var l1Provider = new Web3(l1Signer.TransactionManager.Client);
-            var l2Provider = new Web3(l2Signer.TransactionManager.Client);
+            var l1Provider = l1Signer.Provider;
+            var l2Provider = l2Signer.Provider;
 
             var erc20Bridger = setupState.Erc20Bridger;
 
@@ -165,7 +166,7 @@ namespace Arbitrum.Message.Tests.Integration
                 isClassic: true
                 );
 
-            string txHash = await testToken.GetFunction("mint").SendTransactionAsync(l1Signer.Address);
+            string txHash = await testToken.GetFunction("mint").SendTransactionAsync(l1Signer.Account.Address);
 
             TransactionReceipt receipt = await l1Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
 
@@ -206,7 +207,7 @@ namespace Arbitrum.Message.Tests.Integration
                 Erc20L1Address = erc20Params.Erc20L1Address,
                 Amount = erc20Params.Amount,
                 RetryableGasOverrides = erc20Params.RetryableGasOverrides,
-                From = l1Signer.Address
+                From = l1Signer.Account.Address
             });
 
             try
