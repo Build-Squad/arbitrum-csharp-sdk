@@ -19,51 +19,57 @@ namespace Arbitrum.Tests.Integration
         private BigInteger DEPOSIT_AMOUNT = 100;
         private BigInteger WITHDRAWL_AMOUNT = 10;
 
+        private TestState _setupState;
 
 
-        public async Task<TestState> SetupState()
+        [SetUp]
+        public async Task SetUp()
         {
-            TestState setupState = await TestSetupUtils.TestSetup();
+            _setupState = await SetupState();
+            int chainId = _setupState.L1Network.ChainID;
+            await TestSetupUtils.SkipIfMainnet(chainId);
 
-            //await TestHelpers.FundL1(setupState.L1Signer);
-            //await TestHelpers.FundL2(setupState.L2Signer);
-
-            return setupState;
-        }
-            
-        //[SetUp]
-        //public async Task SetUp()
-        //{
-        //    var setupState = await SetupState();
-        //    int chainId = setupState.L1Network.ChainID;
-        //    await TestSetupUtils.SkipIfMainnet(chainId);
-        //}
-
-        [Test]
-        public async Task TestRegisterCustomToken()
-        {
-            var _setupState = await SetupState();
+            // Ensure custom token is registered before tests
             var (l1Token, l2Token) = await RegisterCustomToken(
                 _setupState.L2Network,
                 _setupState.L1Signer,
                 _setupState.L2Signer,
                 _setupState.AdminErc20Bridger
             );
+
+            _setupState.L1CustomToken = l1Token;
+        }
+
+        public async Task<TestState> SetupState()
+        {
+            var setupState = await TestSetupUtils.TestSetup();
+
+            //await TestHelpers.FundL1(setupState.L1Signer);
+            //await TestHelpers.FundL2(setupState.L2Signer);
+
+            return setupState;
+        }
+
+        [Test]
+        public async Task TestRegisterCustomToken()
+        {
+            var (l1Token, l2Token) = await RegisterCustomToken(
+                _setupState.L2Network,
+                _setupState.L1Signer,
+                _setupState.L2Signer,
+                _setupState.AdminErc20Bridger
+            );
+            Assert.That(l1Token, Is.Not.Null);
+            Assert.That(l2Token, Is.Not.Null);
+
             _setupState.L1CustomToken = l1Token;
         }
 
         [Test]
         public async Task TestDeposit()
         {
-            var _setupState = await SetupState();
-            var (l1Token, l2Token) = await RegisterCustomToken(
-                                                _setupState.L2Network,
-                                                _setupState.L1Signer,
-                                                _setupState.L2Signer,
-                                                _setupState.AdminErc20Bridger
-                                            );
-            _setupState.L1CustomToken = l1Token;
-
+            // Make sure custom token is registered
+            Assert.That(_setupState.L1CustomToken, Is.Not.Null);
 
             var txHash = await _setupState.L1CustomToken.GetFunction("mint").SendTransactionAsync(from: _setupState?.L1Signer?.Account.Address);
 
@@ -83,7 +89,8 @@ namespace Arbitrum.Tests.Integration
         [Test]
         public async Task TestWithdrawTokenAsync()
         {
-            var _setupState = await SetupState();
+            // Make sure custom token is registered
+            Assert.That(_setupState.L1CustomToken, Is.Not.Null);
 
             await TestHelpers.WithdrawToken(new WithdrawalParams
             {
@@ -104,14 +111,13 @@ namespace Arbitrum.Tests.Integration
 
         public async Task<(Contract, Contract)> RegisterCustomToken(L2Network l2Network, SignerOrProvider l1Signer, SignerOrProvider l2Signer, AdminErc20Bridger adminErc20Bridger)
         {
-
             // Deploy L1 custom token
             var l1CustomToken = await LoadContractUtils.DeployAbiContract(
                 provider: l1Signer.Provider,
                 contractName: "TestCustomTokenL1",
                 isClassic: true,
                 deployer: l1Signer,
-                constructorArgs: new object[] { "0xcEe284F754E854890e311e3280b767F80797180d", "0x72Ce9c846789fdB6fC1f34aC4AD25Dd9ef7031ef" } //{ l2Network.TokenBridge.L1CustomGateway, l2Network.TokenBridge.L1GatewayRouter }
+                constructorArgs: new object[] { l2Network.TokenBridge.L1CustomGateway, l2Network.TokenBridge.L1GatewayRouter } //{ l2Network.TokenBridge.L1CustomGateway, l2Network.TokenBridge.L1GatewayRouter }
             );
 
             // Check if L1 custom token is deployed
@@ -120,16 +126,16 @@ namespace Arbitrum.Tests.Integration
                 throw new ArbSdkError("L1 custom token not deployed");
             }
 
-            // Deploy L2 custom token
+            //Deploy L2 custom token
             var l2CustomToken = await LoadContractUtils.DeployAbiContract(
                 provider: l2Signer.Provider,
                 contractName: "TestArbCustomToken",
                 isClassic: true,
                 deployer: l2Signer,
-                constructorArgs: new object[] { "0x096760F208390250649E3e8763348E783AEF5562", l1CustomToken.Address }  //l2Network.TokenBridge.L2CustomGateway
+                constructorArgs: new object[] { l2Network.TokenBridge.L2CustomGateway, l1CustomToken.Address }  //l2Network.TokenBridge.L2CustomGateway
             );
 
-            // Check if L2 custom token is deployed
+            //Check if L2 custom token is deployed
             if (!(await LoadContractUtils.IsContractDeployed(l2Signer.Provider, l2CustomToken.Address)))
             {
                 throw new ArbSdkError("L2 custom token not deployed");
@@ -142,7 +148,7 @@ namespace Arbitrum.Tests.Integration
             var l2CustomGateway = await LoadContractUtils.LoadContract(provider: l2Signer.Provider, contractName: "L1CustomGateway", address: l2Network.TokenBridge.L2CustomGateway, isClassic: true);
 
             // Get start L1 gateway address
-            var startL1GatewayAddress = await l1GatewayRouter.GetFunction("l1TokenToGateway").CallAsync<string>(l1CustomToken.Address);
+            var startL1GatewayAddress = await l1GatewayRouter.GetFunction("l1TokenToGateway").CallAsync<dynamic>(l1CustomToken.Address);
             Assert.That(startL1GatewayAddress, Is.EqualTo(Constants.ADDRESS_ZERO));
 
             // Get start L2 gateway address

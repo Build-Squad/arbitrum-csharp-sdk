@@ -105,12 +105,12 @@ namespace Arbitrum.AssetBridgerModule
 
         public static async Task<EthBridger> FromProvider(Web3 l2Provider)
         {
-            return new EthBridger(await NetworkUtils.GetL2NetworkAsync(l2Provider));
+            return new EthBridger(await NetworkUtils.GetL2Network(l2Provider));
         }
 
         private static async Task<L2Network> GetL2Network(Web3 l2Provider)
         {
-            return await NetworkUtils.GetL2NetworkAsync(l2Provider);
+            return await NetworkUtils.GetL2Network(l2Provider);
         }
 
         private bool IsApproveGasTokenParams(dynamic parameters)
@@ -205,18 +205,19 @@ namespace Arbitrum.AssetBridgerModule
             {
                 To = ethDeposit?.TxRequest?.To,
                 Value = ethDeposit?.TxRequest?.Value ?? new HexBigInteger(0),
-                Data = ethDeposit?.TxRequest?.Data,
+                //Data = ethDeposit?.TxRequest?.Data,
                 From = ethDeposit?.TxRequest?.From,
                 AccessList = ethDeposit?.TxRequest?.AccessList,
                 ChainId = ethDeposit?.TxRequest?.ChainId,
                 Gas = ethDeposit?.TxRequest?.Gas,
                 GasPrice = ethDeposit?.TxRequest?.GasPrice,
-                MaxFeePerGas = new HexBigInteger(parameters?.Overrides?.MaxFeePerGas.Value),
+                //MaxFeePerGas = new HexBigInteger(parameters?.Overrides?.MaxFeePerGas.Value),
                 MaxPriorityFeePerGas = new HexBigInteger(parameters?.Overrides?.MaxPriorityFeePerGas.ToString()),
                 Nonce = ethDeposit?.TxRequest?.Nonce,
                 Type = ethDeposit?.TxRequest?.Type,
-                //MaxFeePerGas = new HexBigInteger(875000000),
+                MaxFeePerGas = new HexBigInteger(875000000),
             };
+
 
             // If 'From' field is null, set it to L1Signer's address
             if (tx.From == null)
@@ -265,7 +266,7 @@ namespace Arbitrum.AssetBridgerModule
         public async Task<L1TransactionReceipt> DepositTo(dynamic parameters)
         {
             await CheckL1Network(parameters.L1Signer);
-            await CheckL2Network(new SignerOrProvider(parameters.L2Provider!));
+            await CheckL2Network(parameters.L2Provider);
 
             // Assuming we have an interface and helper methods for type checking
             dynamic retryableTicketRequest;
@@ -278,7 +279,7 @@ namespace Arbitrum.AssetBridgerModule
             {
                 retryableTicketRequest = await GetDepositToRequest(new EthDepositToRequestParams
                 {
-                    From = parameters?.L1Signer?.Address ?? null,
+                    From = parameters?.L1Signer?.Account.Address ?? null,
                     L1Provider = parameters?.L1Signer?.Provider ?? null,
                     L1Signer = parameters?.L1Signer ?? null,
                     Amount = parameters?.Amount ?? null,
@@ -292,7 +293,7 @@ namespace Arbitrum.AssetBridgerModule
             {
                 retryableTicketRequest = await GetDepositToRequest(new EthDepositToRequestParams
                 {
-                    From = parameters?.L1Signer?.Address ?? null,
+                    From = parameters?.L1Signer?.Account.Address ?? null,
                     L1Provider = parameters?.L1Signer?.Provider ?? null,
                     L1Signer = parameters?.L1Signer ?? null,
                     Amount = parameters?.Amount ?? null,

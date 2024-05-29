@@ -143,7 +143,7 @@ namespace Arbitrum.Message
         {
             if (outboxAddress == null)
             {
-                var l2Network = await NetworkUtils.GetL2NetworkAsync(l2Provider);
+                var l2Network = await NetworkUtils.GetL2Network(l2Provider);
                 var outboxes = l2Network?.EthBridge?.ClassicOutboxes;
                 if (outboxes != null && outboxes.Any())
                 {

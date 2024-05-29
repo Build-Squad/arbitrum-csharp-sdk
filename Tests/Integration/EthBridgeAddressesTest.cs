@@ -11,10 +11,10 @@ namespace Arbitrum.Tests.Integration
         [Test]
         public async Task TestObtainDeployedBridgeAddresses()
         {
-            var arbOneL2Network = await NetworkUtils.GetL2NetworkAsync(42161);
+            var arbOneL2Network = await NetworkUtils.GetL2Network(42161);
             var ethProvider = new Web3(new RpcClient(new Uri(Environment.GetEnvironmentVariable("MAINNET_RPC"))));
 
-            var ethBridge = await NetworkUtils.GetEthBridgeInformation(arbOneL2Network.EthBridge.Rollup, new SignerOrProvider(ethProvider));
+            var ethBridge = await NetworkUtils.GetEthBridgeInformation(arbOneL2Network.EthBridge.Rollup, ethProvider);
 
             Assert.That(arbOneL2Network.EthBridge.Bridge, Is.EqualTo(ethBridge.Bridge), "Bridge contract is not correct");
             Assert.That(arbOneL2Network.EthBridge.Inbox, Is.EqualTo(ethBridge.Inbox), "Inbox contract is not correct");

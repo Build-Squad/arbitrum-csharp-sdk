@@ -28,7 +28,7 @@ namespace Arbitrum.AssetBridgerModule
 
         public async Task InitializeAsync()
         {
-            L1Network = await NetworkUtils.GetL1NetworkAsync(L2Network?.PartnerChainID);
+            L1Network = await NetworkUtils.GetL1Network(L2Network?.PartnerChainID);
             if (L1Network == null)
             {
                 throw new ArbSdkError($"Unknown l1 network chain id: {L2Network?.PartnerChainID}");

@@ -22,7 +22,6 @@ namespace Arbitrum.Message
 
             var result = functionCallDecoder.DecodeFunctionOutput<RetryableMessageParamsTest>(eventData);
 
-            var a = 123;
             return new RetryableMessageParams();
         }
     }

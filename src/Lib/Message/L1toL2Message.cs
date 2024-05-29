@@ -546,7 +546,7 @@ namespace Arbitrum.Message
          */
         public async Task<L1ToL2MessageWaitResult> GetSuccessfulRedeem()
         {
-            var l2Network = await GetL2NetworkAsync(_l2Provider);
+            var l2Network = await GetL2Network(_l2Provider);
             var eventFetcher = new EventFetcher(_l2Provider);
             var creationReceipt = await GetRetryableCreationReceipt();
 
@@ -755,7 +755,7 @@ namespace Arbitrum.Message
          */
         public async Task<L1ToL2MessageWaitResult> WaitForStatus(int? confirmations = null, int? timeout = null)
         {
-            var l2network = await GetL2NetworkAsync(this.ChainId);
+            var l2network = await GetL2Network(this.ChainId);
 
             var chosenTimeout = timeout.HasValue ? timeout : l2network.DepositTimeout;
 
@@ -1206,9 +1206,9 @@ namespace Arbitrum.Message
 
         public async Task<TransactionReceipt> Wait(int? confirmations = null, int? timeout = null)
         {
-            var l2Network = await GetL2NetworkAsync(this.L2ChainId);
+            var l2Network = await GetL2Network(this.L2ChainId);
 
-            var chosenTimeout = timeout ?? l2Network.DepositTimeout;
+            var chosenTimeout = timeout ?? l2Network?.DepositTimeout;
 
             if (L2DepositTxReceipt == null)
             {

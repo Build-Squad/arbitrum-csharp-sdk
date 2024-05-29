@@ -379,26 +379,26 @@ namespace Arbitrum.DataEntities
         }
 
 
-        public static async Task<L1Network> GetL1NetworkAsync(dynamic signerOrProviderOrChainId)
+        public static async Task<L1Network> GetL1Network(dynamic signerOrProviderOrChainId)
         {
             return (L1Network)await GetNetwork(signerOrProviderOrChainId, 1);
         }
 
-        public static async Task<L2Network> GetL2NetworkAsync(dynamic signerOrProviderOrChainId)
+        public static async Task<L2Network> GetL2Network(dynamic signerOrProviderOrChainId)
         {
             return (L2Network)await GetNetwork(signerOrProviderOrChainId, 2);
         }
 
-        public static async Task<EthBridgeInformation> GetEthBridgeInformation(string rollupContractAddress, SignerOrProvider l1SignerOrProvider)
+        public static async Task<EthBridgeInformation> GetEthBridgeInformation(string rollupContractAddress, Web3 l1SignerOrProvider)
         {
             Contract rollup = await LoadContractUtils.LoadContract("RollupAdminLogic", l1SignerOrProvider, rollupContractAddress, false);
 
             return new EthBridgeInformation
             {
-                Bridge = rollup.GetFunction("Bridge").CallAsync<string>().Result,
-                Inbox = rollup.GetFunction("Inbox").CallAsync<string>().Result,
-                SequencerInbox = rollup.GetFunction("SequencerInbox").CallAsync<string>().Result,
-                Outbox = rollup.GetFunction("Outbox").CallAsync<string>().Result,
+                Bridge = rollup.GetFunction("bridge").CallAsync<string>().Result,
+                Inbox = rollup.GetFunction("inbox").CallAsync<string>().Result,
+                SequencerInbox = rollup.GetFunction("sequencerInbox").CallAsync<string>().Result,
+                Outbox = rollup.GetFunction("outbox").CallAsync<string>().Result,
                 Rollup = rollupContractAddress,
             };
         }

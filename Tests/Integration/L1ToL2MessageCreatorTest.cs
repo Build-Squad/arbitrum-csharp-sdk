@@ -41,13 +41,13 @@ namespace Arbitrum.Tests.Integration
 
             var initialL2Balance = await l2Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Account.Address);
 
-            var retryableTicketParams = new
+            var retryableTicketParams = new L1ToL2MessageParams
             {
-                from = signerAddress,
-                to = signerAddress,
-                l2CallValue = TEST_AMOUNT,
-                callValueRefundAddress = signerAddress,
-                data = "0x"
+                From = signerAddress,
+                To = signerAddress,
+                L2CallValue = TEST_AMOUNT,
+                CallValueRefundAddress = signerAddress,
+                Data = "0x".HexToByteArray()
             };
 
             var l1SubmissionTxReceipt = await l1ToL2MessageCreator.CreateRetryableTicket(retryableTicketParams, arbProvider);

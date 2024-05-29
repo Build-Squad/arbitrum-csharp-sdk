@@ -160,7 +160,7 @@ namespace Arbitrum.Message
             BigInteger? hash = null,
             BigInteger? indexInBatch = null)
         {
-            var l2Network = await NetworkUtils.GetL2NetworkAsync(l2Provider);
+            var l2Network = await NetworkUtils.GetL2Network(l2Provider);
 
             // Define a function to determine the range in classic block numbers
             dynamic inClassicRange(dynamic blockTag, int nitroGenBlock)

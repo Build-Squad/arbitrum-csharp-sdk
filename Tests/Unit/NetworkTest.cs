@@ -21,13 +21,13 @@ namespace Arbitrum.Tests.Unit
 
         //Positive Test Cases
         [Test]
-        public async Task GetL1NetworkAsync_WithValidChainId_ReturnsL1Network()
+        public async Task GetL1Network_WithValidChainId_ReturnsL1Network()
         {
             // Arrange
             int validChainId = 1;
 
             // Act
-            var result = await NetworkUtils.GetL1NetworkAsync(validChainId);
+            var result = await NetworkUtils.GetL1Network(validChainId);
 
             // Assert
             Assert.That(result, Is.Not.Null);
@@ -37,13 +37,13 @@ namespace Arbitrum.Tests.Unit
         }
 
         [Test]
-        public async Task GetL2NetworkAsync_WithValidChainId_ReturnsL2Network()
+        public async Task GetL2Network_WithValidChainId_ReturnsL2Network()
         {
             // Arrange
             int validChainId = 42161;
 
             // Act
-            var result = await NetworkUtils.GetL2NetworkAsync(validChainId);
+            var result = await NetworkUtils.GetL2Network(validChainId);
 
             // Assert
             Assert.That(result, Is.Not.Null);
@@ -149,24 +149,24 @@ namespace Arbitrum.Tests.Unit
 
         //Negative Test Cases
         [Test]
-        public void GetL1NetworkAsync_WithInvalidChainId_ThrowsArbSdkError()
+        public void GetL1Network_WithInvalidChainId_ThrowsArbSdkError()
         {
             // Arrange
             int invalidChainId = 9999;
 
             // Act & Assert
-            Assert.That(() => NetworkUtils.GetL1NetworkAsync(invalidChainId),
+            Assert.That(() => NetworkUtils.GetL1Network(invalidChainId),
                 Throws.TypeOf<ArbSdkError>().With.Message.EqualTo($"Unrecognized network {invalidChainId}."));
         }
 
         [Test]
-        public void GetL2NetworkAsync_WithInvalidChainId_ThrowsArbSdkError()
+        public void GetL2Network_WithInvalidChainId_ThrowsArbSdkError()
         {
             // Arrange
             int invalidChainId = 9999;
 
             // Act & Assert
-            Assert.That(() => NetworkUtils.GetL2NetworkAsync(invalidChainId),
+            Assert.That(() => NetworkUtils.GetL2Network(invalidChainId),
                 Throws.TypeOf<ArbSdkError>().With.Message.EqualTo($"Unrecognized network {invalidChainId}."));
         }
 

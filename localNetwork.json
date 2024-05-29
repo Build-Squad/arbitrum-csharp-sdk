@@ -1,0 +1,7 @@
+{
+  "network": "local",
+  "rpcUrl": "http://localhost:8545",
+  "chainId": 1337,
+  "gasPrice": 20000000000,
+  "gasLimit": 8000000
+}

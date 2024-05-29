@@ -44,22 +44,22 @@ namespace Arbitrum.Message
         public static async Task<L1ToL2TransactionRequest> GetTicketCreationRequest(L1ToL2MessageParams parameters, Web3 l1Provider, Web3 l2Provider, GasOverrides? options = null)
         {
 
-            var excessFeeRefundAddress = parameters.ExcessFeeRefundAddress ?? parameters.From;
-            var callValueRefundAddress = parameters.CallValueRefundAddress ?? parameters.From;
+            var excessFeeRefundAddress = parameters?.ExcessFeeRefundAddress ?? parameters.From;
+            var callValueRefundAddress = parameters?.CallValueRefundAddress ?? parameters.From;
 
             var parsedParams = new L1ToL2MessageNoGasParams
             {
-                From = parameters.From,
-                To = parameters.To,
-                L2CallValue = parameters.L2CallValue,
+                From = parameters?.From,
+                To = parameters?.To,
+                L2CallValue = parameters?.L2CallValue,
                 ExcessFeeRefundAddress = excessFeeRefundAddress,
                 CallValueRefundAddress = callValueRefundAddress,
-                Data = parameters.Data
+                Data = parameters?.Data
             };
 
             var estimates = await GetTicketEstimate(parsedParams, l1Provider, l2Provider, options);
 
-            var l2Network = await NetworkUtils.GetL2NetworkAsync(l2Provider);
+            var l2Network = await NetworkUtils.GetL2Network(l2Provider);
 
             bool nativeTokenIsEth = l2Network.NativeToken == null;
 

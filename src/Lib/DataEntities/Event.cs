@@ -88,6 +88,14 @@ namespace Arbitrum.DataEntities
         public string name { get; set; }
         public string type { get; set; }
         public bool? indexed { get; set; } // Nullable boolean to handle absence of the key
+        public List<ComponentItem> components { get; set; }
+    }
+    public class ComponentItem
+    {
+        public string internalType { get; set; }
+        public string name { get; set; }
+        public string type { get; set; }
+        public List<ComponentItem> components { get; set; }
     }
     public class Output
     {
@@ -142,14 +150,11 @@ namespace Arbitrum.DataEntities
             {
                 var (abi, contractAddress) = await LoadAbi(contractName, isClassic);
 
-                var contracta = new ContractBuilder(abi, contractAddress);
-
                 var contract = web3.Eth.GetContract(abi, contractAddress);
 
                 var _event = contract.GetEvent(eventName);
                 var eventABI = _event.EventABI;
 
-                //var eventABI = contract.ContractBuilder.GetEventAbi(contractName);
 
                 FilterLog[] parsedLogs = EventExtensions.GetLogsForEvent(eventABI, logs);
 
@@ -191,15 +196,16 @@ namespace Arbitrum.DataEntities
                 {
                     string json = await reader.ReadToEndAsync();
 
-                    string json2 = File.ReadAllText(filePath);
+                    dynamic contractData = JObject.Parse(json);
 
-                    RootObject contractData = JsonConvert.DeserializeObject<RootObject>(json);
+                    //RootObject contractData = JsonConvert.DeserializeObject<RootObject>(json);
 
-                    if (contractData == null || string.IsNullOrEmpty(contractData.abi.ToString()))
+                    if (contractData == null || string.IsNullOrEmpty(contractData?.abi.ToString()))
                         throw new Exception($"No ABI found for contract: {contractName}");
 
-                    abi = JsonConvert.SerializeObject(contractData.abi);
-                    bytecode = contractData.bytecode;
+                    //abi = JsonConvert.SerializeObject(contractData.abi);
+                    abi = contractData?.abi.ToString(); ;
+                    bytecode = contractData?.bytecode;
                 }
             }
             catch (Exception ex)
