@@ -45,7 +45,7 @@ namespace Arbitrum.Tests.Integration
 
             return new RevertParams
             {
-                To = new Account(EthECKey.GenerateKey().GetPrivateKey()).Address,
+                To = new Account("0xca47977c678ee5360e7c1e3e1decff33b9c08b080a945ebe51cd71705d3eb365").Address,//new Account(EthECKey.GenerateKey().GetPrivateKey()).Address,
                 ExcessFeeRefundAddress = new Account(EthECKey.GenerateKey().GetPrivateKey()).Address,
                 CallValueRefundAddress = new Account(EthECKey.GenerateKey().GetPrivateKey()).Address,
                 L2CallValue = l2CallValue,

@@ -162,9 +162,19 @@ namespace Arbitrum.DataEntities
                     errorDataHex = errorDataHex.Substring(2);
                 }
                 errorDataHex = errorDataHex.Substring(8);
+                //var decodedDataTest = new List<dynamic>();
 
+                //// Create ABIType array from AbiTypes
+                //var abiTypeArray = new ABIType[RetryableData.AbiTypes.Length];
+                //for (int i = 0; i < RetryableData.AbiTypes.Length; i++)
+                //{
+                //    abiTypeArray[i] = ABIType.CreateABIType(RetryableData.AbiTypes[i]);
+                //    var a = abiTypeArray[i].Decode<dynamic>(errorDataHex);
+                //    decodedDataTest.Add(a);
+                //}
+                // Decode the encoded string using ABIEncode
                 var abiDecoder = new ABIEncode();
-
+                
                 var decodedData = abiDecoder.DecodeEncodedString(errorDataHex.HexToByteArray());
 
                 if (decodedData.Length != RetryableData.AbiTypes.Length)

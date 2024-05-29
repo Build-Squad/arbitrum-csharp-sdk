@@ -256,7 +256,7 @@ namespace Arbitrum.Message
 
         protected async Task<bool> HasExecuted(Web3 l2Provider)
         {
-            var l2Network = await NetworkUtils.GetL2NetworkAsync(l2Provider);
+            var l2Network = await NetworkUtils.GetL2Network(l2Provider);
 
             var outboxContract = await LoadContractUtils.LoadContract(
                 provider: l2Provider,
@@ -410,7 +410,7 @@ namespace Arbitrum.Message
         {
             if (!SendRootConfirmed)
             {
-                var l2Network = await NetworkUtils.GetL2NetworkAsync(l2Provider);
+                var l2Network = await NetworkUtils.GetL2Network(l2Provider);
 
                 var rollupContract = await LoadContractUtils.LoadContract(
                     provider: l2Provider,
@@ -470,7 +470,7 @@ namespace Arbitrum.Message
 
         public async Task<BigInteger?> GetFirstExecutableBlock(Web3 l2Provider)
         {
-            var l2Network = await NetworkUtils.GetL2NetworkAsync(l2Provider);
+            var l2Network = await NetworkUtils.GetL2Network(l2Provider);
 
             var rollupContract = await LoadContractUtils.LoadContract(
                 provider: l1Provider,
@@ -576,7 +576,7 @@ namespace Arbitrum.Message
             }
 
             var proof = await GetOutboxProof(l2Provider);
-            var l2Network = await NetworkUtils.GetL2NetworkAsync(l2Provider);
+            var l2Network = await NetworkUtils.GetL2Network(l2Provider);
 
 
             var outboxContract = await LoadContractUtils.LoadContract(

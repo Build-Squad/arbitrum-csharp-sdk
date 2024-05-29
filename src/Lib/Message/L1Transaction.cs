@@ -108,7 +108,7 @@ namespace Arbitrum.Message
         public async Task<bool> IsClassic(object l2SignerOrProvider)
         {
             var provider = SignerProviderUtils.GetProviderOrThrow(l2SignerOrProvider);
-            var network = await NetworkUtils.GetL2NetworkAsync(provider);
+            var network = await NetworkUtils.GetL2Network(provider);
             return BlockNumber.Value < network.NitroGenesisL1Block;
         }
 
@@ -183,7 +183,7 @@ namespace Arbitrum.Message
 
         public async Task<IEnumerable<L1ToL2MessageReaderClassic>> GetL1ToL2MessagesClassic(Web3 l2Provider)
         {
-            var network = await NetworkUtils.GetL2NetworkAsync(l2Provider);
+            var network = await NetworkUtils.GetL2Network(l2Provider);
             var chainID = network.ChainID;
             var isClassic = await IsClassic(l2Provider);
 
@@ -208,7 +208,7 @@ namespace Arbitrum.Message
         {
 
             var provider = SignerProviderUtils.GetProviderOrThrow(l2SignerOrProvider);
-            var network = await NetworkUtils.GetL2NetworkAsync(provider);
+            var network = await NetworkUtils.GetL2Network(provider);
             var chainID = network.ChainID;
             var isClassic = await IsClassic(provider);
 
@@ -299,7 +299,8 @@ namespace Arbitrum.Message
                 throw new ArbSdkError("Unexpected missing Eth Deposit message.");
             }
 
-            var result = await message.Wait(confirmations, timeout);
+            //var result = await message.Wait(confirmations, timeout);
+            TransactionReceipt result = null;
 
             return new L1EthDepositTransactionReceiptResults()
             {

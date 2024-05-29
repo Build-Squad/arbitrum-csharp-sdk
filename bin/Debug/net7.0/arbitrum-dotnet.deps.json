@@ -6,9 +6,10 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v7.0": {
-      "arbitrum-dotnet/1.0.0": {
+      "arbitrum-dotnet/2.0.0": {
         "dependencies": {
           "Microsoft.NET.Test.Sdk": "17.9.0",
+          "Moq": "4.20.70",
           "NUnit": "4.1.0",
           "NUnit3TestAdapter": "4.5.0",
           "Nethereum.ABI": "4.19.0",
@@ -19,7 +20,10 @@
           "Nethereum.RPC": "4.19.0",
           "Nethereum.Signer": "4.19.0",
           "Nethereum.Util": "4.19.0",
-          "Nethereum.Web3": "4.19.0"
+          "Nethereum.Web3": "4.19.0",
+          "NethereumQuantum.HdWallet": "4.23.0",
+          "Serilog": "3.1.1",
+          "Serilog.Sinks.Console": "5.0.1"
         },
         "runtime": {
           "arbitrum-dotnet.dll": {}
@@ -30,6 +34,17 @@
           "lib/net5.0/ADRaffy.ENSNormalize.dll": {
             "assemblyVersion": "0.1.5.0",
             "fileVersion": "0.1.5.0"
+          }
+        }
+      },
+      "Castle.Core/5.1.1": {
+        "dependencies": {
+          "System.Diagnostics.EventLog": "6.0.0"
+        },
+        "runtime": {
+          "lib/net6.0/Castle.Core.dll": {
+            "assemblyVersion": "5.0.0.0",
+            "fileVersion": "5.1.1.0"
           }
         }
       },
@@ -55,6 +70,7 @@
           "Microsoft.TestPlatform.TestHost": "17.9.0"
         }
       },
+      "Microsoft.NETCore.Platforms/1.1.0": {},
       "Microsoft.TestPlatform.ObjectModel/17.9.0": {
         "dependencies": {
           "System.Reflection.Metadata": "1.6.0"
@@ -301,6 +317,29 @@
           }
         }
       },
+      "Moq/4.20.70": {
+        "dependencies": {
+          "Castle.Core": "5.1.1"
+        },
+        "runtime": {
+          "lib/net6.0/Moq.dll": {
+            "assemblyVersion": "4.20.70.0",
+            "fileVersion": "4.20.70.0"
+          }
+        }
+      },
+      "NBitcoin/7.0.6": {
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "6.0.0",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/net6.0/NBitcoin.dll": {
+            "assemblyVersion": "7.0.6.0",
+            "fileVersion": "7.0.6.0"
+          }
+        }
+      },
       "NBitcoin.Secp256k1/3.1.1": {
         "runtime": {
           "lib/net6.0/NBitcoin.Secp256k1.dll": {
@@ -314,12 +353,6 @@
           "Nethereum.Hex": "4.19.0",
           "Nethereum.Util": "4.19.0",
           "Newtonsoft.Json": "13.0.1"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.ABI.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.Accounts/4.19.0": {
@@ -330,12 +363,6 @@
           "Nethereum.Signer.EIP712": "4.19.0",
           "Nethereum.Util": "4.19.0",
           "Newtonsoft.Json": "13.0.1"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.Accounts.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.BlockchainProcessing/4.19.0": {
@@ -346,12 +373,6 @@
           "Nethereum.RPC": "4.19.0",
           "Nethereum.Util": "4.19.0",
           "Newtonsoft.Json": "13.0.1"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.BlockchainProcessing.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.Contracts/4.19.0": {
@@ -361,47 +382,23 @@
           "Nethereum.Hex": "4.19.0",
           "Nethereum.RPC": "4.19.0",
           "Newtonsoft.Json": "13.0.1"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.Contracts.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.Hex/4.19.0": {
         "dependencies": {
           "Newtonsoft.Json": "13.0.1"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.Hex.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.JsonRpc.Client/4.19.0": {
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "6.0.0",
           "Newtonsoft.Json": "13.0.1"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.JsonRpc.Client.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.JsonRpc.RpcClient/4.19.0": {
         "dependencies": {
           "Nethereum.JsonRpc.Client": "4.19.0",
           "Newtonsoft.Json": "13.0.1"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.JsonRpc.RpcClient.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.KeyStore/4.19.0": {
@@ -409,12 +406,6 @@
           "Nethereum.Hex": "4.19.0",
           "Newtonsoft.Json": "13.0.1",
           "Portable.BouncyCastle": "1.8.2"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.KeyStore.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.Merkle.Patricia/4.19.0": {
@@ -422,12 +413,6 @@
           "Nethereum.Model": "4.19.0",
           "Nethereum.RLP": "4.19.0",
           "Newtonsoft.Json": "13.0.1"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.Merkle.Patricia.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.Model/4.19.0": {
@@ -435,24 +420,12 @@
           "Nethereum.RLP": "4.19.0",
           "Nethereum.Util": "4.19.0",
           "Newtonsoft.Json": "13.0.1"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.Model.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.RLP/4.19.0": {
         "dependencies": {
           "Nethereum.Hex": "4.19.0",
           "Newtonsoft.Json": "13.0.1"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.RLP.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.RPC/4.19.0": {
@@ -463,12 +436,6 @@
           "Nethereum.Model": "4.19.0",
           "Nethereum.Util": "4.19.0",
           "Newtonsoft.Json": "13.0.1"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.RPC.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.Signer/4.19.0": {
@@ -480,12 +447,6 @@
           "Nethereum.Util": "4.19.0",
           "Newtonsoft.Json": "13.0.1",
           "Portable.BouncyCastle": "1.8.2"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.Signer.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.Signer.EIP712/4.19.0": {
@@ -495,12 +456,6 @@
           "Nethereum.Signer": "4.19.0",
           "Nethereum.Util": "4.19.0",
           "Newtonsoft.Json": "13.0.1"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.Signer.EIP712.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.Util/4.19.0": {
@@ -508,12 +463,6 @@
           "Nethereum.Hex": "4.19.0",
           "Nethereum.RLP": "4.19.0",
           "Newtonsoft.Json": "13.0.1"
-        },
-        "runtime": {
-          "lib/net5.0/Nethereum.Util.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
-          }
         }
       },
       "Nethereum.Web3/4.19.0": {
@@ -529,12 +478,253 @@
           "Nethereum.Signer": "4.19.0",
           "Nethereum.Util": "4.19.0",
           "Newtonsoft.Json": "13.0.1"
+        }
+      },
+      "NethereumQuantum.ABI/4.23.0": {
+        "dependencies": {
+          "NethereumQuantum.Hex": "4.23.0",
+          "NethereumQuantum.Util": "4.23.0",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.ABI.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.Accounts/4.23.0": {
+        "dependencies": {
+          "NethereumQuantum.KeyStore": "4.23.0",
+          "NethereumQuantum.RPC": "4.23.0",
+          "NethereumQuantum.Signer": "4.23.0",
+          "NethereumQuantum.Signer.EIP712": "4.23.0",
+          "NethereumQuantum.Util": "4.23.0",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.Accounts.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.BlockchainProcessing/4.23.0": {
+        "dependencies": {
+          "NethereumQuantum.Contracts": "4.23.0",
+          "NethereumQuantum.Hex": "4.23.0",
+          "NethereumQuantum.JsonRpc.RpcClient": "4.23.0",
+          "NethereumQuantum.RPC": "4.23.0",
+          "NethereumQuantum.Util": "4.23.0",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.BlockchainProcessing.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.Contracts/4.23.0": {
+        "dependencies": {
+          "ADRaffy.ENSNormalize": "0.1.5",
+          "NethereumQuantum.ABI": "4.23.0",
+          "NethereumQuantum.Hex": "4.23.0",
+          "NethereumQuantum.RPC": "4.23.0",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.Contracts.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.HdWallet/4.23.0": {
+        "dependencies": {
+          "NBitcoin": "7.0.6",
+          "NETStandard.Library": "2.0.3",
+          "NethereumQuantum.Web3": "4.23.0",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/netstandard2.0/Nethereum.HdWallet.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.Hex/4.23.0": {
+        "dependencies": {
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.Hex.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.JsonRpc.Client/4.23.0": {
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "6.0.0",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.JsonRpc.Client.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.JsonRpc.RpcClient/4.23.0": {
+        "dependencies": {
+          "NethereumQuantum.JsonRpc.Client": "4.23.0",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.JsonRpc.RpcClient.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.KeyStore/4.23.0": {
+        "dependencies": {
+          "NethereumQuantum.Hex": "4.23.0",
+          "Newtonsoft.Json": "13.0.1",
+          "Portable.BouncyCastle": "1.8.2"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.KeyStore.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.Merkle.Patricia/4.23.0": {
+        "dependencies": {
+          "NethereumQuantum.Model": "4.23.0",
+          "NethereumQuantum.RLP": "4.23.0",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.Merkle.Patricia.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.Model/4.23.0": {
+        "dependencies": {
+          "NethereumQuantum.RLP": "4.23.0",
+          "NethereumQuantum.Util": "4.23.0",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.Model.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.RLP/4.23.0": {
+        "dependencies": {
+          "NethereumQuantum.Hex": "4.23.0",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.RLP.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.RPC/4.23.0": {
+        "dependencies": {
+          "NethereumQuantum.Hex": "4.23.0",
+          "NethereumQuantum.JsonRpc.Client": "4.23.0",
+          "NethereumQuantum.Merkle.Patricia": "4.23.0",
+          "NethereumQuantum.Model": "4.23.0",
+          "NethereumQuantum.Util": "4.23.0",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.RPC.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.Signer/4.23.0": {
+        "dependencies": {
+          "NBitcoin.Secp256k1": "3.1.1",
+          "NethereumQuantum.Hex": "4.23.0",
+          "NethereumQuantum.Model": "4.23.0",
+          "NethereumQuantum.RLP": "4.23.0",
+          "NethereumQuantum.Util": "4.23.0",
+          "Newtonsoft.Json": "13.0.1",
+          "Portable.BouncyCastle": "1.8.2"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.Signer.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.Signer.EIP712/4.23.0": {
+        "dependencies": {
+          "NethereumQuantum.ABI": "4.23.0",
+          "NethereumQuantum.Hex": "4.23.0",
+          "NethereumQuantum.Signer": "4.23.0",
+          "NethereumQuantum.Util": "4.23.0",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.Signer.EIP712.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.Util/4.23.0": {
+        "dependencies": {
+          "NethereumQuantum.Hex": "4.23.0",
+          "NethereumQuantum.RLP": "4.23.0",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "runtime": {
+          "lib/net5.0/Nethereum.Util.dll": {
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
+          }
+        }
+      },
+      "NethereumQuantum.Web3/4.23.0": {
+        "dependencies": {
+          "NethereumQuantum.ABI": "4.23.0",
+          "NethereumQuantum.Accounts": "4.23.0",
+          "NethereumQuantum.BlockchainProcessing": "4.23.0",
+          "NethereumQuantum.Contracts": "4.23.0",
+          "NethereumQuantum.Hex": "4.23.0",
+          "NethereumQuantum.JsonRpc.RpcClient": "4.23.0",
+          "NethereumQuantum.KeyStore": "4.23.0",
+          "NethereumQuantum.RPC": "4.23.0",
+          "NethereumQuantum.Signer": "4.23.0",
+          "NethereumQuantum.Util": "4.23.0",
+          "Newtonsoft.Json": "13.0.1"
         },
         "runtime": {
           "lib/net5.0/Nethereum.Web3.dll": {
-            "assemblyVersion": "4.19.0.0",
-            "fileVersion": "4.19.0.0"
+            "assemblyVersion": "4.23.0.0",
+            "fileVersion": "4.23.0.0"
           }
+        }
+      },
+      "NETStandard.Library/2.0.3": {
+        "dependencies": {
+          "Microsoft.NETCore.Platforms": "1.1.0"
         }
       },
       "Newtonsoft.Json/13.0.1": {
@@ -566,11 +756,52 @@
           }
         }
       },
+      "Serilog/3.1.1": {
+        "runtime": {
+          "lib/net7.0/Serilog.dll": {
+            "assemblyVersion": "2.0.0.0",
+            "fileVersion": "3.1.1.0"
+          }
+        }
+      },
+      "Serilog.Sinks.Console/5.0.1": {
+        "dependencies": {
+          "Serilog": "3.1.1"
+        },
+        "runtime": {
+          "lib/net7.0/Serilog.Sinks.Console.dll": {
+            "assemblyVersion": "5.0.1.0",
+            "fileVersion": "5.0.1.0"
+          }
+        }
+      },
+      "System.Diagnostics.EventLog/6.0.0": {
+        "runtime": {
+          "lib/net6.0/System.Diagnostics.EventLog.dll": {
+            "assemblyVersion": "6.0.0.0",
+            "fileVersion": "6.0.21.52210"
+          }
+        },
+        "runtimeTargets": {
+          "runtimes/win/lib/net6.0/System.Diagnostics.EventLog.Messages.dll": {
+            "rid": "win",
+            "assetType": "runtime",
+            "assemblyVersion": "6.0.0.0",
+            "fileVersion": "0.0.0.0"
+          },
+          "runtimes/win/lib/net6.0/System.Diagnostics.EventLog.dll": {
+            "rid": "win",
+            "assetType": "runtime",
+            "assemblyVersion": "6.0.0.0",
+            "fileVersion": "6.0.21.52210"
+          }
+        }
+      },
       "System.Reflection.Metadata/1.6.0": {}
     }
   },
   "libraries": {
-    "arbitrum-dotnet/1.0.0": {
+    "arbitrum-dotnet/2.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
@@ -581,6 +812,13 @@
       "sha512": "sha512-cdCbVBXLqt+q6nF02MjY3NBAN024UfxLzvSgklidWG384h6Rqz5PCcyo55hqQbe7JS8w1+XJ5x5bSNaj07eqQw==",
       "path": "adraffy.ensnormalize/0.1.5",
       "hashPath": "adraffy.ensnormalize.0.1.5.nupkg.sha512"
+    },
+    "Castle.Core/5.1.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-rpYtIczkzGpf+EkZgDr9CClTdemhsrwA/W5hMoPjLkRFnXzH44zDLoovXeKtmxb1ykXK9aJVODSpiJml8CTw2g==",
+      "path": "castle.core/5.1.1",
+      "hashPath": "castle.core.5.1.1.nupkg.sha512"
     },
     "Microsoft.CodeCoverage/17.9.0": {
       "type": "package",
@@ -603,6 +841,13 @@
       "path": "microsoft.net.test.sdk/17.9.0",
       "hashPath": "microsoft.net.test.sdk.17.9.0.nupkg.sha512"
     },
+    "Microsoft.NETCore.Platforms/1.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-kz0PEW2lhqygehI/d6XsPCQzD7ff7gUJaVGPVETX611eadGsA3A877GdSlU0LRVMCTH/+P3o2iDTak+S08V2+A==",
+      "path": "microsoft.netcore.platforms/1.1.0",
+      "hashPath": "microsoft.netcore.platforms.1.1.0.nupkg.sha512"
+    },
     "Microsoft.TestPlatform.ObjectModel/17.9.0": {
       "type": "package",
       "serviceable": true,
@@ -616,6 +861,20 @@
       "sha512": "sha512-Spmg7Wx49Ya3SxBjyeAR+nQpjMTKZwTwpZ7KyeOTIqI/WHNPnBU4HUvl5kuHPQAwGWqMy4FGZja1HvEwvoaDiA==",
       "path": "microsoft.testplatform.testhost/17.9.0",
       "hashPath": "microsoft.testplatform.testhost.17.9.0.nupkg.sha512"
+    },
+    "Moq/4.20.70": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-4rNnAwdpXJBuxqrOCzCyICXHSImOTRktCgCWXWykuF1qwoIsVvEnR7PjbMk/eLOxWvhmj5Kwt+kDV3RGUYcNwg==",
+      "path": "moq/4.20.70",
+      "hashPath": "moq.4.20.70.nupkg.sha512"
+    },
+    "NBitcoin/7.0.6": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-qRN2ajVUlGo85q1XMCrnTH/48UkV64g6HDGPGekD7obuBxmSIvq7fb79b9oW2xt1o9LMBlpaGST1gDRKWbQ3Ow==",
+      "path": "nbitcoin/7.0.6",
+      "hashPath": "nbitcoin.7.0.6.nupkg.sha512"
     },
     "NBitcoin.Secp256k1/3.1.1": {
       "type": "package",
@@ -736,6 +995,132 @@
       "path": "nethereum.web3/4.19.0",
       "hashPath": "nethereum.web3.4.19.0.nupkg.sha512"
     },
+    "NethereumQuantum.ABI/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-l13nhZ0abfInGA3CrKjWtK5Kb4P5hxWlUQ3mTJhRYEM4kUd7Gq3yY8FUsCPhskKZ2AvSEwZuOAtEHPTljzw+qQ==",
+      "path": "nethereumquantum.abi/4.23.0",
+      "hashPath": "nethereumquantum.abi.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.Accounts/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-K5qoBQPrLJQ3lMpq04fLPWjEZRXMdYrzXa0rpnm5+hMCTsDFyVkr8aPNjVZ/Xrkg8zNmK2lX6jaIXdNLwg6MVg==",
+      "path": "nethereumquantum.accounts/4.23.0",
+      "hashPath": "nethereumquantum.accounts.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.BlockchainProcessing/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-rk+ZkugDx4JQSGDXPTJN3bMDMTQbgo37gf3qRj3xnT8NxP7Idruvxzhek+QRO3vSTLKBkJMazB5Zq/d5ASTUmQ==",
+      "path": "nethereumquantum.blockchainprocessing/4.23.0",
+      "hashPath": "nethereumquantum.blockchainprocessing.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.Contracts/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-iCwByhGzk2tX0q+HVO51Y/c4wEPqm2An9D5eB0O8Smucqd+uK3D4XOKtVrbR6JB5JUDFDyIRGaA6UU67jBIrTw==",
+      "path": "nethereumquantum.contracts/4.23.0",
+      "hashPath": "nethereumquantum.contracts.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.HdWallet/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-hz33amJmuHrmkl2q9XKVzLRsHjQnj26uiUWnbM0WuNxZf32MzV0nSjRV//Jd8petQVYkOrDGSDhCAuaf4YUllg==",
+      "path": "nethereumquantum.hdwallet/4.23.0",
+      "hashPath": "nethereumquantum.hdwallet.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.Hex/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-l6EQgSNQMvPPChUHuOyBazh1Zrhjo6zmXWAj2f1KSZaQRRjUEXnzhlXmz1c3eFuPPy4QC95KPg7EuLzKS7zu2Q==",
+      "path": "nethereumquantum.hex/4.23.0",
+      "hashPath": "nethereumquantum.hex.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.JsonRpc.Client/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-lTuVSHODhS2Vem1dx6uV8yAoePNeQtVzQ1FWZEOs3Jl8oy+3Lsob1mGa2h9D9B17twa/26Y0I6k6qC6ynsb3wA==",
+      "path": "nethereumquantum.jsonrpc.client/4.23.0",
+      "hashPath": "nethereumquantum.jsonrpc.client.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.JsonRpc.RpcClient/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-DMU2kJdEcUbOVrrXH7i/EPxiBPgoyL1ie4XInXs7xs6KtD2BkTfr8JJhBkpJRmOCc3dOSYWpqidSCsBtsmEDKQ==",
+      "path": "nethereumquantum.jsonrpc.rpcclient/4.23.0",
+      "hashPath": "nethereumquantum.jsonrpc.rpcclient.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.KeyStore/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-/DJlLJhFS4pyli/YDme826JyTUUrAdRe2YPQSqBdJ9dygTkerAXf1aBjYWeZYMLEp8b57oAtWtCUXuBkhC10hw==",
+      "path": "nethereumquantum.keystore/4.23.0",
+      "hashPath": "nethereumquantum.keystore.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.Merkle.Patricia/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-tFLPIhp4f7ewkiXdJ4F/tzB2H9Lpdgl8ADr30imsMkbxpoF3w/ikNSPBU10FphcnBDsBOsop76uXjsiHHkS9gw==",
+      "path": "nethereumquantum.merkle.patricia/4.23.0",
+      "hashPath": "nethereumquantum.merkle.patricia.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.Model/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-oYsge5zTH4nEklGw66aQR7a2e/L0WmgJumzh5kq2hBpXIjmEjQ3Mbpf9csavVJWEsqAoA9NePfIkCvRmDzQ4Hw==",
+      "path": "nethereumquantum.model/4.23.0",
+      "hashPath": "nethereumquantum.model.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.RLP/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-iR3kLVZHZN0S3JhaG+x0L9KPmpzelb52HUzLDyiA++Zgac+EBNG0W1NVeNaf6sumpwSA+gMi10qlhc4tWdxBjQ==",
+      "path": "nethereumquantum.rlp/4.23.0",
+      "hashPath": "nethereumquantum.rlp.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.RPC/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-GOt13lNBR9gK3btjV3kla1uHu010Qf6eZsTI559ocbzhMcswa2Ewa5NH9WWVk7ahqW9dbOlC/iLutK1Kq6yIMw==",
+      "path": "nethereumquantum.rpc/4.23.0",
+      "hashPath": "nethereumquantum.rpc.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.Signer/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-IQnGBxATFhQjhWIAofJPi6uS4L/On8wVT0c68M+2CDTUbD0Y9t20HrgDyuJY3WxmwiEDN2kpK7CB732S7MfPOA==",
+      "path": "nethereumquantum.signer/4.23.0",
+      "hashPath": "nethereumquantum.signer.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.Signer.EIP712/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-ysMMTpfmezD/S1zHBOjcGcPwkd61HQrjuoPaKQnQv1EcgygGlmz9n5XyfWf+C6VxeJuq2/on91bsr6p5Qs7CQw==",
+      "path": "nethereumquantum.signer.eip712/4.23.0",
+      "hashPath": "nethereumquantum.signer.eip712.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.Util/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-x5sBp6V2qEgJdRbyal9UFarSUSR1+vnvFtAV7RKqL4suQKllZJIeRzoa1L9//gqp62Hy2FN8Pe5DEANP2PEFSw==",
+      "path": "nethereumquantum.util/4.23.0",
+      "hashPath": "nethereumquantum.util.4.23.0.nupkg.sha512"
+    },
+    "NethereumQuantum.Web3/4.23.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-L5e6PgQev5yIi0ws0xkMiSe+2jB+Y+OPareBYWgOaiYQGWBLpkBlex25bLKnp3XR5GEpstXt2j7GGh3RmRLDJA==",
+      "path": "nethereumquantum.web3/4.23.0",
+      "hashPath": "nethereumquantum.web3.4.23.0.nupkg.sha512"
+    },
+    "NETStandard.Library/2.0.3": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-st47PosZSHrjECdjeIzZQbzivYBJFv6P2nv4cj2ypdI204DO+vZ7l5raGMiX4eXMJ53RfOIg+/s4DHVZ54Nu2A==",
+      "path": "netstandard.library/2.0.3",
+      "hashPath": "netstandard.library.2.0.3.nupkg.sha512"
+    },
     "Newtonsoft.Json/13.0.1": {
       "type": "package",
       "serviceable": true,
@@ -763,6 +1148,27 @@
       "sha512": "sha512-XpJVIhjPiO0o+DU36eeIzqnRilDmE8Z7Kfhm9V9o1yNqM3ikgleD94Z5W/LeEu3t63LaZl2CNJexaix+I6AUMg==",
       "path": "portable.bouncycastle/1.8.2",
       "hashPath": "portable.bouncycastle.1.8.2.nupkg.sha512"
+    },
+    "Serilog/3.1.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-P6G4/4Kt9bT635bhuwdXlJ2SCqqn2nhh4gqFqQueCOr9bK/e7W9ll/IoX1Ter948cV2Z/5+5v8pAfJYUISY03A==",
+      "path": "serilog/3.1.1",
+      "hashPath": "serilog.3.1.1.nupkg.sha512"
+    },
+    "Serilog.Sinks.Console/5.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-6Jt8jl9y2ey8VV7nVEUAyjjyxjAQuvd5+qj4XYAT9CwcsvR70HHULGBeD+K2WCALFXf7CFsNQT4lON6qXcu2AA==",
+      "path": "serilog.sinks.console/5.0.1",
+      "hashPath": "serilog.sinks.console.5.0.1.nupkg.sha512"
+    },
+    "System.Diagnostics.EventLog/6.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-lcyUiXTsETK2ALsZrX+nWuHSIQeazhqPphLfaRxzdGaG93+0kELqpgEHtwWOlQe7+jSFnKwaCAgL4kjeZCQJnw==",
+      "path": "system.diagnostics.eventlog/6.0.0",
+      "hashPath": "system.diagnostics.eventlog.6.0.0.nupkg.sha512"
     },
     "System.Reflection.Metadata/1.6.0": {
       "type": "package",

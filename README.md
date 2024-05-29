@@ -1,4 +1,4 @@
-# **Arbitrum C# SDK**
+﻿# **Arbitrum C# SDK**
 
 C# library for client-side interactions with Arbitrum. Arbitrum C# SDK provides common helper functionality as well as access to the underlying smart contract interfaces.
 
@@ -25,7 +25,7 @@ class ArbitrumDeposit
     public static async Task DepositEtherAsync(string l2ChainId, string l1Url, string l2Url, string privateKey)
     {
         // Get the L2 network
-        var l2Network = await NetworkUtils.GetL2NetworkAsync(l2ChainId);
+        var l2Network = await NetworkUtils.GetL2Network(l2ChainId);
 
         // Create an instance of the EthBridger
         var ethBridger = new EthBridger(l2Network);

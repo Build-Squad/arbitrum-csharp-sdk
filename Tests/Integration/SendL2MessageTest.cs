@@ -32,7 +32,7 @@ namespace Arbitrum.Tests.Integration
             var l2Deployer = testState.L2Deployer;
             var l1Provider = l1Deployer.Provider;
             var l2Provider = l2Deployer.Provider;
-            var l2Network = await NetworkUtils.GetL2NetworkAsync(l2Provider.Eth.ChainId);
+            var l2Network = await NetworkUtils.GetL2Network(l2Provider.Eth.ChainId);
             var inbox = new InboxTools(l1Deployer, l2Network);
 
             var message = new TransactionRequest
@@ -63,14 +63,14 @@ namespace Arbitrum.Tests.Integration
 
         private (string, string) ReadGreeterContract()
         {
-            var contractData = JsonConvert.DeserializeObject<dynamic>(File.ReadAllText("tests/integration/helper/greeter.json"));
+            var contractData = JsonConvert.DeserializeObject<dynamic>(File.ReadAllText("greeter.json"));
 
             if (contractData.abi == null)
             {
                 throw new Exception("No ABI found for contract greeter");
             }
 
-            var abi = contractData.abi.ToObject<string>();
+            var abi = contractData.abi.ToString();
             var bytecode = contractData.bytecode_hex;
 
             return (abi, bytecode);
@@ -85,6 +85,7 @@ namespace Arbitrum.Tests.Integration
             var (abi, bytecode) = ReadGreeterContract();
             var greeterContract = l2Provider.Eth.GetContract(abi, bytecode);
 
+            var c = greeterContract.ContractBuilder.ContractABI;
             var constructTxn = greeterContract.GetFunction("constructor").CreateTransactionInput(from: l2Deployer.Account.Address,functionInput: new TransactionRequest() { Value = new HexBigInteger(0) });
             var returnData = await SendSignedTx(testState, constructTxn as TransactionRequest);
             var l1TransactionReceipt = returnData.L1TransactionReceipt;

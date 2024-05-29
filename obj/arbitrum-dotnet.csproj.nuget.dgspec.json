@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\arbitrum\\arbitrum-dotnet\\arbitrum-dotnet\\arbitrum-dotnet.csproj": {}
+    "C:\\arbitrum-dev\\arbitrum-dotnet.csproj": {}
   },
   "projects": {
-    "C:\\arbitrum\\arbitrum-dotnet\\arbitrum-dotnet\\arbitrum-dotnet.csproj": {
-      "version": "1.0.0",
+    "C:\\arbitrum-dev\\arbitrum-dotnet.csproj": {
+      "version": "2.0.1",
       "restore": {
-        "projectUniqueName": "C:\\arbitrum\\arbitrum-dotnet\\arbitrum-dotnet\\arbitrum-dotnet.csproj",
-        "projectName": "arbitrum-dotnet",
-        "projectPath": "C:\\arbitrum\\arbitrum-dotnet\\arbitrum-dotnet\\arbitrum-dotnet.csproj",
+        "projectUniqueName": "C:\\arbitrum-dev\\arbitrum-dotnet.csproj",
+        "projectName": "arbitrum-csharp-sdk-1",
+        "projectPath": "C:\\arbitrum-dev\\arbitrum-dotnet.csproj",
         "packagesPath": "C:\\Users\\Admin\\.nuget\\packages\\",
-        "outputPath": "C:\\arbitrum\\arbitrum-dotnet\\arbitrum-dotnet\\obj\\",
+        "outputPath": "C:\\arbitrum-dev\\obj\\",
         "projectStyle": "PackageReference",
         "crossTargeting": true,
         "configFilePaths": [
@@ -41,9 +41,9 @@
         "net7.0": {
           "targetAlias": "net7.0",
           "dependencies": {
-            "Microsoft.NET.Test.Sdk": {
+            "Moq": {
               "target": "Package",
-              "version": "[17.9.0, )"
+              "version": "[4.20.70, )"
             },
             "NUnit": {
               "target": "Package",
@@ -55,39 +55,51 @@
             },
             "Nethereum.ABI": {
               "target": "Package",
-              "version": "[4.19.0, )"
+              "version": "[4.20.0, )"
             },
             "Nethereum.Accounts": {
               "target": "Package",
-              "version": "[4.19.0, )"
+              "version": "[4.20.0, )"
             },
             "Nethereum.Contracts": {
               "target": "Package",
-              "version": "[4.19.0, )"
+              "version": "[4.20.0, )"
+            },
+            "Nethereum.HdWallet": {
+              "target": "Package",
+              "version": "[4.20.0, )"
             },
             "Nethereum.Hex": {
               "target": "Package",
-              "version": "[4.19.0, )"
+              "version": "[4.20.0, )"
             },
             "Nethereum.RLP": {
               "target": "Package",
-              "version": "[4.19.0, )"
+              "version": "[4.20.0, )"
             },
             "Nethereum.RPC": {
               "target": "Package",
-              "version": "[4.19.0, )"
+              "version": "[4.20.0, )"
             },
             "Nethereum.Signer": {
               "target": "Package",
-              "version": "[4.19.0, )"
+              "version": "[4.20.0, )"
             },
             "Nethereum.Util": {
               "target": "Package",
-              "version": "[4.19.0, )"
+              "version": "[4.20.0, )"
             },
             "Nethereum.Web3": {
               "target": "Package",
-              "version": "[4.19.0, )"
+              "version": "[4.20.0, )"
+            },
+            "Serilog": {
+              "target": "Package",
+              "version": "[3.1.1, )"
+            },
+            "Serilog.Sinks.Console": {
+              "target": "Package",
+              "version": "[5.0.1, )"
             }
           },
           "imports": [

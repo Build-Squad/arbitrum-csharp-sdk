@@ -125,7 +125,7 @@ namespace Arbitrum.Message
             PercentIncreaseType? options = null)
         {
             var defaultedOptions = ApplySubmissionPriceDefaults(options!);
-            var network = await NetworkUtils.GetL2NetworkAsync(l1Provider);
+            var network = await NetworkUtils.GetL2Network(l1Provider);
             var inbox =  await LoadContractUtils.LoadContract(
                                                 contractName: "Inbox",
                                                 provider: l1Provider,
@@ -145,7 +145,7 @@ namespace Arbitrum.Message
         L1ToL2MessageNoGasParams parameters,
         BigInteger? senderDeposit)
         {
-            if (senderDeposit == BigInteger.Zero)
+            if (senderDeposit == BigInteger.Zero || senderDeposit == null)
             {
                 // If senderDeposit is not provided or is zero, calculate a default value by converting 1 ether to Wei 
                 // and adding the L2CallValue from the parameters object if it is not null. 
@@ -158,12 +158,7 @@ namespace Arbitrum.Message
                                     address: Constants.NODE_INTERFACE_ADDRESS,
                                     isClassic: false);
 
-
-            //var estimateGasFunction = nodeInterface.GetFunction("estimateRetryableTicket");     /////
-            // First getting FunctionABI from contract and then executing the method EstimateGasAsync
-            var gasEstimate =await new Function(nodeInterface, new FunctionBuilder(
-                nodeInterface.Address,
-                nodeInterface.ContractBuilder.GetFunctionAbi("estimateRetryableTicket"))).EstimateGasAsync(
+            var gasEstimate = await nodeInterface.GetFunction("estimateRetryableTicket").EstimateGasAsync(
                             parameters.From,
                             senderDeposit,
                             parameters.To,
@@ -173,12 +168,12 @@ namespace Arbitrum.Message
                             parameters.Data
                             );
 
-            return new BigInteger(gasEstimate);
+            return gasEstimate.Value;
         }
 
         public async Task<BigInteger> EstimateMaxFeePerGas(PercentIncreaseType? options = null)
         {
-            var maxFeePerGasDefaults = ApplyMaxFeePerGasDefaults(options!);
+            var maxFeePerGasDefaults = ApplyMaxFeePerGasDefaults(options);
 
             // Estimate the L2 gas price
             var baseGasPrice = maxFeePerGasDefaults.Base ?? await _l2Provider.Eth.GasPrice.SendRequestAsync();
@@ -209,11 +204,14 @@ namespace Arbitrum.Message
             // Estimate the L1 gas price
             var maxFeePerGasTask = EstimateMaxFeePerGas(options?.MaxFeePerGas);
 
+            // Assuming data is a byte array
+            BigInteger value = data != null && data.Length > 0 ? new BigInteger(data) : BigInteger.Zero;
+
             // Estimate the submission fee
             var maxSubmissionFeeTask = EstimateSubmissionFee(
                 l1Provider,
                 l1BaseFee,
-                new BigInteger(data!),
+                value,
                 options?.MaxSubmissionFee
             );
 
@@ -252,15 +250,15 @@ namespace Arbitrum.Message
             var errorTriggeringParams = RetryableDataTools.ErrorTriggeringParams;
             var txRequest = dataFunc(new L1ToL2MessageGasParams
             {
-                GasLimit = errorTriggeringParams.GasLimit,
-                MaxFeePerGas = errorTriggeringParams.MaxFeePerGas,
+                GasLimit = errorTriggeringParams?.GasLimit,
+                MaxFeePerGas = errorTriggeringParams?.MaxFeePerGas,
                 MaxSubmissionCost = BigInteger.One
             });
 
-            var nullData = txRequest.Data;
-            var to = txRequest.To;
-            var value = txRequest.Value;
-            var from = txRequest.From;
+            var nullData = txRequest?.Data;
+            var to = txRequest?.To;
+            var value = txRequest?.Value;
+            var from = txRequest?.From;
 
             RetryableData? retryable = null;
             try
@@ -270,7 +268,7 @@ namespace Arbitrum.Message
                 {
                     To = to,
                     Data = nullData?.ToString(),
-                    Value = new HexBigInteger(value.ToString()),   /////////
+                    Value = value, 
                     From = from
                 });
 
@@ -294,12 +292,12 @@ namespace Arbitrum.Message
             var estimates = await EstimateAll(
                 new L1ToL2MessageNoGasParams
                 {
-                    From = retryable.From,
-                    To = retryable.To,
-                    Data = retryable.Data,
-                    L2CallValue = retryable.L2CallValue,
-                    ExcessFeeRefundAddress = retryable.ExcessFeeRefundAddress,
-                    CallValueRefundAddress = retryable.CallValueRefundAddress
+                    From = retryable?.From,
+                    To = retryable?.To,
+                    Data = retryable?.Data,
+                    L2CallValue = retryable?.L2CallValue,
+                    ExcessFeeRefundAddress = retryable?.ExcessFeeRefundAddress,
+                    CallValueRefundAddress = retryable?.CallValueRefundAddress
                 },
                 baseFee,
                 l1Provider,
@@ -309,18 +307,17 @@ namespace Arbitrum.Message
             // Form the real data for the transaction
             var realTxRequest = dataFunc(new L1ToL2MessageGasParams
             {
-                GasLimit = estimates.GasLimit,
-                MaxFeePerGas = estimates.MaxFeePerGas,
-                MaxSubmissionCost = estimates.MaxSubmissionCost
+                GasLimit = estimates?.GasLimit,
+                MaxFeePerGas = estimates?.MaxFeePerGas,
+                MaxSubmissionCost = estimates?.MaxSubmissionCost
             });
-
             return new PopulateFunctionParamsResult
             {
                 Estimates = estimates,
                 Retryable = retryable,
-                Data = realTxRequest.Data,
-                To = realTxRequest.To,
-                Value = realTxRequest.Value
+                Data = realTxRequest?.Data,
+                To = realTxRequest?.To,
+                Value = realTxRequest?.Value
             };
         }
     }

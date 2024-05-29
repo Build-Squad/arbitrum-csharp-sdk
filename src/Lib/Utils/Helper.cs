@@ -16,6 +16,7 @@ using Nethereum.ABI.ABIDeserialisation;
 using Nethereum.ABI.FunctionEncoding;
 using Nethereum.Hex.HexTypes;
 using Org.BouncyCastle.Math.EC.Multiplier;
+using Nethereum.RPC.TransactionReceipts;
 
 namespace Arbitrum.Utils
 {
@@ -225,15 +226,6 @@ namespace Arbitrum.Utils
 
             var (contractAbi, contractByteCode) = await LogParser.LoadAbi(contractName, isClassic);
 
-            var contract = provider.Eth.GetContract(contractAbi, contractByteCode);
-
-
-            var c = contract.ContractBuilder.ContractABI.Constructor.InputParameters;
-
-            //var deploymentTx = new DeployContractTransactionBuilder().BuildTransaction(contractAbi, contractByteCode, deployerAddress, constructorArgs); //, constructorArgs);
-
-            //var txHash = await provider.Eth.Transactions.SendTransaction.SendRequestAsync(deploymentTx);
-
             // Check if constructorArgs contains null values
             if (constructorArgs != null)
             {
@@ -246,14 +238,16 @@ namespace Arbitrum.Utils
                 }
             }
 
-            //var deploymentReceipt = await provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
-            var receipt = await provider.Eth.DeployContract.SendRequestAndWaitForReceiptAsync(
-                            contractAbi,
-                            contractByteCode,
-                            deployerAddress,
-                            new HexBigInteger(10000000),
-                            null,
-                            constructorArgs);
+            var txn = await provider.Eth.DeployContract.SendRequestAsync(
+                abi: contractAbi,
+                contractByteCode: contractByteCode,
+                from: deployerAddress,
+                gas: new HexBigInteger(10000000),
+                values: constructorArgs);
+
+            var pollService = new TransactionReceiptPollingService(provider.TransactionManager);
+
+            var receipt = await pollService.PollForReceiptAsync(txn);
 
             return provider.Eth.GetContract(contractAbi, receipt.ContractAddress);
         }

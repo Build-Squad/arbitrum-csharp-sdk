@@ -50,7 +50,7 @@ namespace Arbitrum.Tests.Unit
 
         private async Task<(Mock<IWeb3Wrapper>, L2Network, BigInteger)> CreateProviderMockAsync(int? networkChoiceOverride = null)
         {
-            var l2Network = await NetworkUtils.GetL2NetworkAsync(networkChoiceOverride ?? 42161);
+            var l2Network = await NetworkUtils.GetL2Network(networkChoiceOverride ?? 42161);
 
             var l2ProviderMock = new Mock<IWeb3Wrapper>();
             var latestBlock = l2Network.NitroGenesisBlock + 1000;

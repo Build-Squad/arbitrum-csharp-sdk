@@ -48,7 +48,7 @@ namespace Arbitrum.Tests.Integration
             var miner2 = new SignerOrProvider(miner2Account, l2Signer.Provider);
 
             await TestHelpers.FundL1(miner1, Web3.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
-            //await TestHelpers.FundL2(miner2, Web3.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
+            await TestHelpers.FundL2(miner2, Web3.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
             var state = new Dictionary<string, object> { { "mining", true } };
 
             //starts mining process

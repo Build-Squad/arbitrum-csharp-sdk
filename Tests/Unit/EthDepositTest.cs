@@ -2,23 +2,15 @@
 using System.Threading.Tasks;
 using Nethereum.Web3;
 using Nethereum.Web3.Accounts;
-using Nethereum.Hex.HexTypes;
 using Nethereum.Util;
-using Nethereum.RPC.Eth.DTOs;
-using Arbitrum.AssetBridger;
-using Arbitrum.Utils;
-using Arbitrum.Message;
 using Arbitrum.DataEntities;
-using Arbitrum.Inbox;
-using System.Security.Principal;
 using Nethereum.JsonRpc.Client;
 using static Arbitrum.DataEntities.NetworkUtils;
 using Arbitrum.AssetBridgerModule;
 using NUnit.Framework;
-using Nethereum.HdWallet;
-using Nethereum.Signer;
-using Nethereum.Contracts;
-using Nethereum.ABI.Model;
+using Arbitrum.Tests.Integration;
+using Arbitrum.Scripts;
+using Newtonsoft.Json;
 
 
 namespace Arbitrum.Tests.Unit
@@ -32,17 +24,16 @@ namespace Arbitrum.Tests.Unit
             Console.WriteLine("Deposit Eth via Arbitrum SDK");
 
             // Set up L1 / L2 wallets connected to providers
-            var walletPrivateKey = "0xa7f8b3b7ffb6440756813c5f85d5d5a6c18d7ebbbb49887037b89380cbef5b88";//Environment.GetEnvironmentVariable("DEVNET_PRIVKEY");
-            var l1RpcUrl = "http://127.0.0.1:8545"; //Environment.GetEnvironmentVariable("L1RPC");
-            var l2RpcUrl = "https://sepolia-rollup.arbitrum.io/rpc"; //Environment.GetEnvironmentVariable("L2RPC");
-
-            var l1Client = new RpcClient(new Uri(l1RpcUrl));
-
-            var l1Provider = new Web3(l1RpcUrl);
-            var l2Provider = new Web3(l2RpcUrl);
+            var walletPrivateKey = Environment.GetEnvironmentVariable("DEVNET_PRIVKEY");
+            var l1RpcUrl = Config.ETH_URL; //Environment.GetEnvironmentVariable("L1RPC");
+            var l2RpcUrl = Config.ARB_URL; //Environment.GetEnvironmentVariable("L2RPC");
 
             var account = new Account(walletPrivateKey);
             var senderAddress = account.Address;
+
+
+            var l1Provider = new Web3(account, l1RpcUrl);
+            var l2Provider = new Web3(account, l2RpcUrl);
 
             //account.TransactionManager.Client = l1Client;
             var l1Signer = new SignerOrProvider(account, l1Provider);
@@ -56,7 +47,8 @@ namespace Arbitrum.Tests.Unit
 
             // Use l2Network to create an Arbitrum SDK EthBridger instance
             // We'll use EthBridger for its convenience methods around transferring ETH to L2
-            var l2Network = await GetL2NetworkAsync(l2Provider);
+
+            var l2Network = AddDefaultLocalNetwork().l2Network; //await GetL2Network(l2Provider);
             var ethBridger = new EthBridger(l2Network);
             var receiverAddress = l2Network?.EthBridge?.Inbox;
 
@@ -81,12 +73,16 @@ namespace Arbitrum.Tests.Unit
             Console.WriteLine($"Gas used: {depositTx.GasUsed.Value}");
             Console.WriteLine($"Cumulative gas used: {depositTx.CumulativeGasUsed.Value}");
 
-            // Get the initial balance of the receiver wallet on L1
-            var receiverL1Balance1 = await l1Provider.Eth.GetBalance.SendRequestAsync(receiverAddress);
+            // Get the final balance of the sender wallet on L1
+            var senderL1BalanceFinal = await l1Provider.Eth.GetBalance.SendRequestAsync(account.Address);
+            Console.WriteLine($"Sender L1 Balance now is: {Web3.Convert.FromWei(senderL1Balance)} ETH");
+
+            // Get the final balance of the receiver wallet on L1
+            var receiverL1BalanceFinal = await l1Provider.Eth.GetBalance.SendRequestAsync(receiverAddress);
             Console.WriteLine($"Receiver L1 Balance: {Web3.Convert.FromWei(receiverL1Balance)} ETH");
 
-            Console.WriteLine($"Your L2 ETH balance is updated from {receiverL1Balance.ToString()} to {receiverL1Balance1.ToString()}");
-            Assert.That(receiverL1Balance1, Is.EqualTo(receiverL1Balance+ethToL2DepositAmount));
+            Console.WriteLine($"Your L2 ETH balance is updated from {receiverL1Balance.ToString()} to {receiverL1BalanceFinal.ToString()}");
+            Assert.That(receiverL1BalanceFinal.Value, Is.EqualTo(receiverL1Balance.Value+ethToL2DepositAmount));
         }
     }
 }

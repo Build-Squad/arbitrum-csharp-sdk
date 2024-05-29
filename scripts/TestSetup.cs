@@ -26,6 +26,7 @@ using NUnit.Framework;
 using Nethereum.RPC.Eth.Blocks;
 using Nethereum.JsonRpc.Client.RpcMessages;
 using Nethereum.RPC.Eth.DTOs;
+using System.Runtime.InteropServices;
 
 namespace Arbitrum.Scripts
 {
@@ -71,10 +72,13 @@ namespace Arbitrum.Scripts
     public class SignAndSendRawMiddleware : RequestInterceptor
     {
         private readonly Account _account;
+        private readonly Web3 _provider;
 
         public SignAndSendRawMiddleware(Account account)
         {
             _account = account;
+            _provider = new Web3(_account);
+
         }
 
         public override async Task<object> InterceptSendRequestAsync<T>(
@@ -348,11 +352,21 @@ namespace Arbitrum.Scripts
 
         public static async Task<Account> GetSigner(Web3 provider, string key = null)
         {
-            if (key == null && provider == null)
+            if (key != null)
             {
-                throw new Exception("Provide at least one of key or provider.");
+                var account = new Account(key);
+                var web3WithAccount = new Web3(account, provider.Client);
+                return account;
             }
-            return key != null ? new Account(key) : new Account((await provider.Eth.Accounts.SendRequestAsync())[0]);
+            else
+            {
+                var defaultAccount = provider.TransactionManager.Account as Account;
+                if (defaultAccount == null)
+                {
+                    throw new Exception("No account available in the provider.");
+                }
+                return defaultAccount;
+            }
         }
 
         public static async Task<TestState> TestSetup()
@@ -361,36 +375,24 @@ namespace Arbitrum.Scripts
             string assemblyDirectory = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
             string PROJECT_DIRECTORY = Path.GetDirectoryName(assemblyDirectory);
 
-            //var ethProvider = new Web3(Config["ETH_URL"]);
-            //var arbProvider = new Web3(Config["ARB_URL"]);
+            // Generate a new private key
+            //var privateKey = EthECKey.GenerateKey().GetPrivateKey();
 
-            var ethProvider = new Web3("http://127.0.0.1:8545");
-            var arbProvider = new Web3("http://127.0.0.1:8547");
+            // Create a new account with the generated private key
+            //var account = new Account(privateKey);
 
+            //var signerPrivateKey = account.PrivateKey.EnsureHexPrefix();
+
+            var signerAccount = new Account("0xbde162e37ea90e79ba66e156567797d71595d6ff62bbf749a071e697fcada5d4");
+
+            var ethProvider = new Web3(signerAccount, Config["ETH_URL"]);
+            var arbProvider = new Web3(signerAccount, Config["ARB_URL"]);
 
             ethProvider.Client.OverridingRequestInterceptor = new GethPoAMiddleware();
             arbProvider.Client.OverridingRequestInterceptor = new GethPoAMiddleware();
 
             var l1Deployer = new SignerOrProvider(await GetSigner(ethProvider, Config["ETH_KEY"]), ethProvider);
             var l2Deployer = new SignerOrProvider(await GetSigner(arbProvider, Config["ARB_KEY"]), arbProvider);
-
-
-            // Generate a new private key
-            var privateKey = EthECKey.GenerateKey().GetPrivateKey();
-
-            // Create a new account with the generated private key
-            var account = new Account(privateKey);
-
-            var l1SignerAddress = account.Address.ConvertToEthereumChecksumAddress();
-            var l2SignerAddress = account.Address.ConvertToEthereumChecksumAddress();
-
-            
-            var signerPrivateKey = account.PrivateKey.EnsureHexPrefix();
-            var signerAccount = new Account(signerPrivateKey);
-
-            // Initialize the Web3 instances with the signer account
-            var ethWeb3WithAccount = new Web3(signerAccount, "http://127.0.0.1:8545");
-            var arbWeb3WithAccount = new Web3(signerAccount, "http://127.0.0.1:8547");
 
             // Injecting custom SignAndSendRawMiddleware
             //By configuring the client with the SignAndSendRawMiddleware, any eth requests made through the client
@@ -413,8 +415,8 @@ namespace Arbitrum.Scripts
 
                 //NetworkUtils.AddCustomNetwork(setL1Network, setL2Network);
 
-                setL1Network = await NetworkUtils.GetL1NetworkAsync(ethProvider);
-                setL2Network = await NetworkUtils.GetL2NetworkAsync(arbProvider);
+                setL1Network = await NetworkUtils.GetL1Network(ethProvider);
+                setL2Network = await NetworkUtils.GetL2Network(arbProvider);
             }
             catch (ArbSdkError)
             {
