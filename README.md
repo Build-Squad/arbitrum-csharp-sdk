@@ -38,10 +38,12 @@ class ArbitrumDeposit
         var account = new Account(privateKey);
 
         // Set up the L1 signer
-        var l1Signer = account;
+        var l1Signer = new SignerOrProvider(account, l1Web3);
 
         // Deposit Ether into Arbitrum
         var amountInEther = Web3.Convert.ToWei(23);
+
+        // Create a Deposit transaction request
         var depositParams = new EthDepositParams
         {
             Amount = amountInEther,
