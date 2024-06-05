@@ -19,33 +19,34 @@ namespace Arbitrum.Tests.Integration
     {
         private static readonly BigInteger DEPOSIT_AMOUNT = 100;
         private static readonly BigInteger WITHDRAWAL_AMOUNT = 10;
+        private TestState _setupState;
 
-        public async Task<TestState> SetupState()
+        [SetUp]
+        public async Task SetupState()
         {
-            TestState setupState = await TestSetupUtils.TestSetup();
+            _setupState = await TestSetupUtils.TestSetup();
 
-            await TestHelpers.FundL1(setupState.L1Signer);
-            await TestHelpers.FundL2(setupState.L2Signer);
+            //await TestHelpers.FundL1(setupState.L1Signer);
+            //await TestHelpers.FundL2(setupState.L2Signer);
 
             var testToken = await LoadContractUtils.DeployAbiContract(
-                provider: setupState.L1Signer.Provider,
-                deployer: setupState.L1Signer,
+                provider: _setupState.L1Signer.Provider,
+                deployer: _setupState.L1Signer,
                 contractName: "TestERC20",
                 isClassic: true
                 );
 
-            var txHash = await testToken.GetFunction("mint").SendTransactionAsync(from: setupState?.L1Signer?.Account.Address);
-            await setupState.L1Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
+            var tx = new TransactionRequest() { From = _setupState?.L1Signer?.Account.Address, Gas = await testToken.GetFunction("mint").EstimateGasAsync()  };
+            var receipt = await testToken.GetFunction("mint").SendTransactionAndWaitForReceiptAsync(tx);
+            //var receipt = await setupState.L1Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
 
-            setupState.L1Token = testToken;
-
-            return setupState;
+            _setupState.L1Token = testToken;
         }
 
         [SetUp]
         public async Task SkipIfMainnet()
         {
-            var setupState = await SetupState();
+            var setupState = _setupState;
             int chainId = setupState.L1Network.ChainID;
             await TestSetupUtils.SkipIfMainnet(chainId);
         }
@@ -53,7 +54,7 @@ namespace Arbitrum.Tests.Integration
         [Test]
         public async Task TestDepositErc20()
         {
-            var setupState = await SetupState();
+            var setupState = _setupState;
 
             await TestHelpers.DepositToken(
                 depositAmount: DEPOSIT_AMOUNT,
@@ -69,7 +70,7 @@ namespace Arbitrum.Tests.Integration
         [Test]
         public async Task DepositWithNoFundsManualRedeem()
         {
-            var setupState = await SetupState();
+            var setupState = _setupState;
 
             var depositTokenParams = await TestHelpers.DepositToken(
                 depositAmount: DEPOSIT_AMOUNT,
@@ -93,7 +94,7 @@ namespace Arbitrum.Tests.Integration
         [Test]
         public async Task DepositWithLowFundsManualRedeem()
         {
-            var setupState = await SetupState();
+            var setupState = _setupState;
 
             var depositTokenParams = await TestHelpers.DepositToken(
                 depositAmount: DEPOSIT_AMOUNT,
@@ -117,7 +118,7 @@ namespace Arbitrum.Tests.Integration
         [Test]
         public async Task DepositWithOnlyLowGasLimitManualRedeemSuccess()
         {
-            var setupState = await SetupState();
+            var setupState = _setupState;
 
             var depositTokenParams = await TestHelpers.DepositToken(
                 depositAmount: DEPOSIT_AMOUNT,
@@ -153,7 +154,7 @@ namespace Arbitrum.Tests.Integration
         [Test]
         public async Task DepositWithLowFundsFailsFirstRedeemThenSucceeds()
         {
-            var setupState = await SetupState();
+            var setupState = _setupState;
 
             var depositTokenParams = await TestHelpers.DepositToken(
                 depositAmount: DEPOSIT_AMOUNT,
@@ -179,7 +180,7 @@ namespace Arbitrum.Tests.Integration
         [Test]
         public async Task TestWithdrawsErc20()
         {
-            var setupState = await SetupState();
+            var setupState = _setupState;
 
             var l2TokenAddr = await setupState.Erc20Bridger.GetL2ERC20Address(
                 setupState.L1Token.Address, setupState.L1Signer.Provider

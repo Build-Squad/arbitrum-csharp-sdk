@@ -11,6 +11,7 @@ using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Contracts.ContractHandlers;
 using System.Transactions;
 using Nethereum.ABI.FunctionEncoding.Attributes;
+using Nethereum.Hex.HexConvertors.Extensions;
 
 namespace Arbitrum.Message
 {
@@ -97,7 +98,7 @@ namespace Arbitrum.Message
                             {
                                 FromBlock = filter.FromBlock,
                                 ToBlock = filter.ToBlock,
-                                Address = new string[] { Constants.ARB_SYS_ADDRESS },
+                                Address = new string[] { Constants.ARB_SYS_ADDRESS.EnsureHexPrefix() },
                                 Topics = filter.Topics,
 
                             },

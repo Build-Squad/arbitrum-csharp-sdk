@@ -75,13 +75,13 @@ namespace Arbitrum.Message
             _l2Provider = l2provider;
         }
 
-        public BigInteger PercentIncrease(BigInteger num, BigInteger increase)
+        public BigInteger? PercentIncrease(BigInteger? num, BigInteger increase)
         {
             // Calculate increase percentage
-            BigInteger increaseAmount = num * increase / 100;
+            BigInteger? increaseAmount = num * increase / 100;
 
             // Add increase amount to original number
-            BigInteger result = num + increaseAmount;
+            BigInteger? result = num + increaseAmount;
 
             return result;
         }
@@ -118,14 +118,17 @@ namespace Arbitrum.Message
             };
         }
 
-        public async Task<BigInteger> EstimateSubmissionFee(
+        public async Task<BigInteger?> EstimateSubmissionFee(
             Web3 l1Provider,
             BigInteger l1BaseFee,
             BigInteger callDataSize,
             PercentIncreaseType? options = null)
         {
-            var defaultedOptions = ApplySubmissionPriceDefaults(options!);
-            var network = await NetworkUtils.GetL2Network(l1Provider);
+            var defaultedOptions = ApplySubmissionPriceDefaults(options);
+
+            var net = NetworkUtils.AddDefaultLocalNetwork();
+            var network = net.l2Network;
+            //var network = await NetworkUtils.GetL2Network(l1Provider);
             var inbox =  await LoadContractUtils.LoadContract(
                                                 contractName: "Inbox",
                                                 provider: l1Provider,
@@ -133,12 +136,13 @@ namespace Arbitrum.Message
                                                 isClassic: false);
 
             BigInteger? baseValue = defaultedOptions.Base;
-            if (baseValue == null)
+            if (baseValue == default)
             {
-                baseValue = await inbox.GetFunction("calculateRetryableSubmissionFee").CallAsync<BigInteger>(callDataSize, l1BaseFee);
+                //baseValue = await inbox.GetFunction("calculateRetryableSubmissionFee").CallAsync<dynamic>(callDataSize, l1BaseFee });
             }
 
-            return PercentIncrease(baseValue.Value, defaultedOptions.PercentIncrease);
+            var value = PercentIncrease(baseValue, defaultedOptions.PercentIncrease);
+            return value;
         }
 
         public async Task<BigInteger> EstimateRetryableTicketGasLimit(
@@ -171,7 +175,7 @@ namespace Arbitrum.Message
             return gasEstimate.Value;
         }
 
-        public async Task<BigInteger> EstimateMaxFeePerGas(PercentIncreaseType? options = null)
+        public async Task<BigInteger?> EstimateMaxFeePerGas(PercentIncreaseType? options = null)
         {
             var maxFeePerGasDefaults = ApplyMaxFeePerGasDefaults(options);
 
@@ -204,14 +208,11 @@ namespace Arbitrum.Message
             // Estimate the L1 gas price
             var maxFeePerGasTask = EstimateMaxFeePerGas(options?.MaxFeePerGas);
 
-            // Assuming data is a byte array
-            BigInteger value = data != null && data.Length > 0 ? new BigInteger(data) : BigInteger.Zero;
-
             // Estimate the submission fee
             var maxSubmissionFeeTask = EstimateSubmissionFee(
                 l1Provider,
                 l1BaseFee,
-                value,
+                HelperMethods.HexDataLength(data),
                 options?.MaxSubmissionFee
             );
 

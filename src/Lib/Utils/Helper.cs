@@ -30,6 +30,40 @@ namespace Arbitrum.Utils
             random.NextBytes(randomBytes);
             return "0x" + BitConverter.ToString(randomBytes).Replace("-", "").ToLower();
         }
+        public static BigInteger HexDataLength(byte[] data)
+        {
+            if (data == null || data.Length == 0)
+            {
+                return BigInteger.Zero;
+            }
+
+            string hexString = BitConverter.ToString(data).Replace("-", "").ToLower();
+            if (!IsHexString(hexString) || (hexString.Length % 2 != 0))
+            {
+                return BigInteger.Zero;
+            }
+
+            return hexString.Length / 2;
+
+            bool IsHexString(string str)
+            {
+                if (str.Length < 2)
+                {
+                    return false;
+                }
+
+                for (int i = 0; i < str.Length; i++)
+                {
+                    char c = str[i];
+                    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+        }
 
         //Generic method to copy properties of one type into other
         public static TDestination CopyMatchingProperties<TDestination, TSource>(TSource source)
@@ -94,14 +128,9 @@ namespace Arbitrum.Utils
     }
     public class ClassicL2ToL1TransactionEvent : L2ToL1TransactionEvent
     {
-        public new BigInteger? UniqueId { get; set; }
-        public new BigInteger? BatchNumber { get; set; }
-        public new BigInteger? IndexInBatch { get; set; }
     }
     public class NitroL2ToL1TransactionEvent : L2ToL1TransactionEvent
     {
-        public new BigInteger? Hash { get; set; }
-        public new BigInteger? Position { get; set; }
     }
     public class BlockTag
     {

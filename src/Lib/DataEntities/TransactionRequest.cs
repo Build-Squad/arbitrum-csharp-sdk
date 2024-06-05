@@ -18,20 +18,16 @@ namespace Arbitrum.DataEntities
         public BigInteger? Deposit { get; set; }
     }
 
-    public class L1ToL2MessageNoGasParams
+    public class L1ToL2MessageNoGasParams : CallInput
     {
-        public string? From { get; set; }
-        public string? To { get; set; }
+        public new byte[] Data { get; set; }
         public BigInteger? L2CallValue { get; set; }
         public string? ExcessFeeRefundAddress { get; set; }
         public string? CallValueRefundAddress { get; set; }
-        public byte[]? Data { get; set; }
     }
 
     public class L1ToL2MessageParams : L1ToL2MessageNoGasParams
     {
-        public new string? ExcessFeeRefundAddress { get; set; }
-        public new string? CallValueRefundAddress { get; set; }
     }
 
     public class L1ToL2TransactionRequest 
@@ -72,7 +68,14 @@ namespace Arbitrum.DataEntities
 
         public static bool IsL2ToL1TransactionRequest(dynamic possibleRequest)
         {
-            return possibleRequest?.TxRequest != null;
+            // Get the type of the possibleRequest object
+            Type type = possibleRequest.GetType();
+
+            // Get the PropertyInfo object for the TxRequest property
+            PropertyInfo property = type.GetProperty("TxRequest");
+
+            // Check if the property exists
+            return (property != null);
         }
 
         public static bool IsDefined<T>(T val)

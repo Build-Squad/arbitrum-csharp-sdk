@@ -104,8 +104,8 @@ namespace Arbitrum.Utils
             // Otherwise, use a default address.
             if (contractFactory is string)
             {
-                string contractAddress = LoadContractUtils.GetAddress(!string.IsNullOrEmpty(filter?.Address?.ToString())
-                    ? filter?.Address?.ToString()!
+                string contractAddress = LoadContractUtils.GetAddress(!string.IsNullOrEmpty(filter?.Address?.FirstOrDefault())
+                    ? filter?.Address?.FirstOrDefault()
                     : "0x0000000000000000000000000000000000000000");
 
 

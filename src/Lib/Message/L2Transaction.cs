@@ -77,23 +77,6 @@ namespace Arbitrum.Message
 
     public class L2TransactionReceipt : TransactionReceipt
     {
-        public new string To { get; }
-        public new string From { get; }
-        public new string ContractAddress { get; }
-        public new HexBigInteger TransactionIndex { get; }
-        public new string Root { get; }
-        public new BigInteger GasUsed { get; }
-        public new string LogsBloom { get; }
-        public new string BlockHash { get; }
-        public new string TransactionHash { get; }
-        public new JArray Logs { get; }
-        public new HexBigInteger BlockNumber { get; }
-        //public int Confirmations { get; }
-        public new BigInteger CumulativeGasUsed { get; }
-        public new BigInteger EffectiveGasPrice { get; }
-        // public bool Byzantium { get; }
-        public new HexBigInteger Type { get; }
-        public new HexBigInteger? Status { get; }
 
         public L2TransactionReceipt(TransactionReceipt tx)
         {

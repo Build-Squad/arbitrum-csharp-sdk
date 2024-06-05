@@ -29,13 +29,15 @@ namespace Arbitrum.Tests.Integration
         {
             var setupState = await SetupState();
             var l1Signer = setupState.L1Signer;
+
+            var l2network = await NetworkUtils.GetL2Network(setupState.L2Signer.Provider);
             var l2Signer = setupState.L2Signer;
             var l1Provider = l1Signer.Provider;
             var l2Provider = l2Signer.Provider;
             var signerAddress = l1Signer.Account.Address;
             var arbProvider = l2Signer.Provider;
 
-            await TestHelpers.FundL1(l1Signer);
+            //await TestHelpers.FundL1(l1Signer);
 
             var l1ToL2MessageCreator = new L1ToL2MessageCreator(l1Signer);
 

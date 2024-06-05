@@ -61,6 +61,9 @@ namespace Arbitrum.Message
 
             var l2Network = await NetworkUtils.GetL2Network(l2Provider);
 
+            //var net = NetworkUtils.AddDefaultLocalNetwork();
+            //var l2Network = net.l2Network;
+
             bool nativeTokenIsEth = l2Network.NativeToken == null;
 
             var inboxContract = await LoadContractUtils.LoadContract(
@@ -73,26 +76,27 @@ namespace Arbitrum.Message
             // Encode ABI
             var functionData = inboxContract.ContractBuilder.GetFunctionAbi("createRetryableTicket");
 
+
             var txRequest = new TransactionRequest()
             {
-                To = l2Network?.EthBridge?.Inbox ?? throw new ArgumentNullException(nameof(l2Network.EthBridge.Inbox)),
-                Data = functionData.ToString() ?? throw new ArgumentNullException(nameof(functionData)),
-                Value = nativeTokenIsEth ? (new HexBigInteger(estimates.Deposit.Value) ?? new HexBigInteger(BigInteger.Zero)) : new HexBigInteger(BigInteger.Zero),
-                From = parameters.From ?? throw new ArgumentNullException(nameof(parameters.From))
+                To = l2Network?.EthBridge?.Inbox,
+                Data = functionData.Sha3Signature,
+                Value = nativeTokenIsEth ? (new HexBigInteger(estimates.Deposit.ToString()) ?? new HexBigInteger(BigInteger.Zero)) : new HexBigInteger(BigInteger.Zero),
+                From = parameters.From
             };
 
             var retryableData = new RetryableData()
             {
-                Data = parameters.Data ?? throw new ArgumentNullException(nameof(parameters.Data)),
-                From = parameters.From ?? throw new ArgumentNullException(nameof(parameters.From)),
-                To = parameters.To ?? throw new ArgumentNullException(nameof(parameters.To)),
-                ExcessFeeRefundAddress = excessFeeRefundAddress ?? throw new ArgumentNullException(nameof(excessFeeRefundAddress)),
-                CallValueRefundAddress = callValueRefundAddress ?? throw new ArgumentNullException(nameof(callValueRefundAddress)),
-                L2CallValue = parameters.L2CallValue ?? throw new ArgumentNullException(nameof(parameters.L2CallValue)),
-                MaxSubmissionCost = estimates.MaxSubmissionCost ?? throw new ArgumentNullException(nameof(estimates.MaxSubmissionCost)),
-                MaxFeePerGas = estimates.MaxFeePerGas ?? throw new ArgumentNullException(nameof(estimates.MaxFeePerGas)),
-                GasLimit = estimates.GasLimit ?? throw new ArgumentNullException(nameof(estimates.GasLimit)),
-                Deposit = estimates.Deposit ?? throw new ArgumentNullException(nameof(estimates.Deposit))
+                Data = parameters.Data,
+                From = parameters.From,
+                To = parameters.To,
+                ExcessFeeRefundAddress = excessFeeRefundAddress,
+                CallValueRefundAddress = callValueRefundAddress,
+                L2CallValue = parameters.L2CallValue,
+                MaxSubmissionCost = estimates.MaxSubmissionCost,
+                MaxFeePerGas = estimates.MaxFeePerGas,
+                GasLimit = estimates.GasLimit,
+                Deposit = estimates.Deposit
             };
 
             async Task<bool> IsValid()

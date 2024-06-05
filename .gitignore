@@ -30,7 +30,6 @@ mcs/class/*.csproj
 mcs/class/*.pidb
 
 # Unity3D generated file
-*.csproj
 *.unityproj
 *.sln
 *.sln.docstates
