@@ -25,6 +25,7 @@ using Arbitrum.DataEntities;
 using Arbitrum.Utils;
 using Nethereum.Util;
 using Nethereum.JsonRpc.Client;
+using Nethereum.RPC.Eth;
 
 namespace Arbitrum.DataEntities
 {
@@ -80,7 +81,7 @@ namespace Arbitrum.DataEntities
            * Chain id of the parent chain, i.e. the chain on which this chain settles to.
            */
         public int PartnerChainID { get; set; }
-        public bool IsArbitrum { get; set; } ///////////
+        public bool IsArbitrum { get; set; } 
         public int ConfirmPeriodBlocks { get; set; }
         public int RetryableLifetimeSeconds { get; set; }
         public int NitroGenesisBlock { get; set; }
@@ -341,6 +342,10 @@ namespace Arbitrum.DataEntities
             else if(signerOrProviderOrChainId is RpcClient)
             {
                 chainId = await GetChainIdAsync(new Web3(signerOrProviderOrChainId));
+            }
+            else if(signerOrProviderOrChainId is EthChainId)
+            {
+                chainId = await GetChainIdAsync(new Web3(signerOrProviderOrChainId.Client));
             }
             else
             {

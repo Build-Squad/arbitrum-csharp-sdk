@@ -1,23 +1,11 @@
 ﻿using Arbitrum.DataEntities;
 using Arbitrum.Message;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Numerics;
-using System.Threading.Tasks;
-using Arbitrum.AssetBridgerModule;
 using Nethereum.Web3;
 using Arbitrum.Utils;
-using Nethereum.RPC.Eth.DTOs;
-using System.Reflection.Metadata.Ecma335;
 using Nethereum.Hex.HexTypes;
 using Nethereum.Hex.HexConvertors.Extensions;
-using Nethereum.Web3.Accounts;
-using Org.BouncyCastle.Utilities;
 using Nethereum.JsonRpc.Client;
-using Org.BouncyCastle.Asn1.Ocsp;
-using Nethereum.ABI.FunctionEncoding;
 
 namespace Arbitrum.AssetBridgerModule
 {
@@ -118,19 +106,6 @@ namespace Arbitrum.AssetBridgerModule
             return parameters is WithL1Signer<ApproveGasTokenParams> && ((ApproveGasTokenTxRequest)parameters).TxRequest == null;
         }
 
-        //public TransactionRequest GetApproveGasTokenRequest(ApproveGasTokenParams parameters)
-        //{
-
-        //}
-        //public TransactionRequest ApproveGasToken(ApproveGasTokenParams parameters)
-        //{
-
-        //}
-        //public string GetDepositRequestData(ApproveGasTokenParams parameters)
-        //{
-
-        //}
-
 
         public async Task<L1ToL2TransactionRequest> GetDepositRequest(EthDepositRequestParams parameters)
         {
@@ -141,21 +116,15 @@ namespace Arbitrum.AssetBridgerModule
                                             isClassic: false
                                             );
 
-            var functionData = inbox?.ContractBuilder.GetFunctionAbi("depositEth");
-            var function = new FunctionCallEncoder();
-            var sha3Signature = functionData.Sha3Signature;
-            var inputParameters = functionData.InputParameters;
-            var functionCall = function.EncodeRequest(sha3Signature, inputParameters);
+            var functionData = inbox.GetFunction("depositEth").GetData();
 
-            var contractBytecode = (await LogParser.LoadAbi("Inbox")).Item2;
             return new L1ToL2TransactionRequest()
             {
                 TxRequest = new TransactionRequest
                 {
                     To = _l2Network?.EthBridge?.Inbox,
-                    Value = new HexBigInteger((parameters?.Amount).Value),
-                    //contract bytecode
-                    Data = functionCall,
+                    Value = parameters?.Amount.Value.ToHexBigInteger(),
+                    Data = functionData,
                     From = parameters?.From
                 },
                 IsValid = new Func<Task<bool>>(() => Task.FromResult(true))
@@ -205,17 +174,16 @@ namespace Arbitrum.AssetBridgerModule
             {
                 To = ethDeposit?.TxRequest?.To,
                 Value = ethDeposit?.TxRequest?.Value ?? new HexBigInteger(0),
-                //Data = ethDeposit?.TxRequest?.Data,
+                Data = ethDeposit?.TxRequest?.Data,
                 From = ethDeposit?.TxRequest?.From,
                 AccessList = ethDeposit?.TxRequest?.AccessList,
                 ChainId = ethDeposit?.TxRequest?.ChainId,
                 Gas = ethDeposit?.TxRequest?.Gas,
                 GasPrice = ethDeposit?.TxRequest?.GasPrice,
-                //MaxFeePerGas = new HexBigInteger(parameters?.Overrides?.MaxFeePerGas.Value),
-                MaxPriorityFeePerGas = new HexBigInteger(parameters?.Overrides?.MaxPriorityFeePerGas.ToString()),
+                MaxFeePerGas = parameters?.Overrides?.MaxFeePerGas.Value.ToHexBigInteger(),
+                MaxPriorityFeePerGas = parameters?.Overrides?.MaxPriorityFeePerGas.Value.ToHexBigInteger(),
                 Nonce = ethDeposit?.TxRequest?.Nonce,
-                Type = ethDeposit?.TxRequest?.Type,
-                MaxFeePerGas = new HexBigInteger(875000000),
+                Type = ethDeposit?.TxRequest?.Type
             };
 
 
@@ -225,17 +193,30 @@ namespace Arbitrum.AssetBridgerModule
                 tx.From = parameters?.L1Signer?.Account.Address;
             }
 
-            // Sign and send transaction
-            Web3 web3 = parameters.L1Signer.Provider;
+            // Retrieve the current nonce if not done automatically
+            if (tx.Nonce == null)
+            {
+                var nonce = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(tx.From);
+                
+                tx.Nonce = nonce;
+            }
 
-            //var rawTransaction = await web3.TransactionManager.SignTransactionAsync(tx);
+            //estimate gas for the transaction if not done automatically
+            if (tx.Gas == null)
+            {
+                var gas = await parameters.L1Signer.Provider.Eth.TransactionManager.EstimateGasAsync(tx);
 
-            var receipt = await web3.Eth.TransactionManager.SendTransactionAndWaitForReceiptAsync(tx);
+                tx.Gas = gas;
+            }
 
-            //var txnHash = await web3.Eth.Transactions.SendRawTransaction.SendRequestAsync(rawTransaction);
+            //sign transaction
+            var signedTx = await parameters.L1Signer.Account.TransactionManager.SignTransactionAsync(tx);
+
+            //send transaction
+            var txnHash = await parameters.L1Signer.Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);
 
             // Get transaction receipt
-            //var transactionReceipt = await web3.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);
+            var receipt = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);
 
             // Return transaction receipt
             return L1TransactionReceipt.MonkeyPatchEthDepositWait(receipt);
@@ -273,7 +254,7 @@ namespace Arbitrum.AssetBridgerModule
 
             if (TransactionUtils.IsL1ToL2TransactionRequest(parameters))
             {
-                retryableTicketRequest = parameters;   ////////
+                retryableTicketRequest = parameters;
             }
             else if (parameters is EthDepositToParams)
             {
@@ -318,8 +299,8 @@ namespace Arbitrum.AssetBridgerModule
                 ChainId = retryableTicketRequest?.TxRequest?.ChainId,
                 Gas = retryableTicketRequest?.TxRequest?.Gas,
                 GasPrice = retryableTicketRequest?.TxRequest?.GasPrice,
-                MaxFeePerGas = new HexBigInteger(parameters?.Overrides?.MaxFeePerGas.ToString()),
-                MaxPriorityFeePerGas = new HexBigInteger(parameters?.Overrides?.MaxPriorityFeePerGas.ToString()),
+                MaxFeePerGas = parameters?.Overrides?.MaxFeePerGas.ToHexBigInteger(),
+                MaxPriorityFeePerGas = parameters?.Overrides?.MaxPriorityFeePerGas.ToHexBigInteger(),
                 Nonce = retryableTicketRequest?.TxRequest?.Nonce,
                 Type = retryableTicketRequest?.TxRequest?.Type,
             };
@@ -329,10 +310,30 @@ namespace Arbitrum.AssetBridgerModule
                 tx.From = parameters?.L1Signer?.Address;
             }
 
-            var txReceipt = await parameters?.L1Signer?.TransactionManager.SendTransactionAndWaitForReceiptAsync(tx);
+            // Retrieve the current nonce
+            if (tx.Nonce == null)
+            {
+                var nonce = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(tx.From);
+                tx.Nonce = nonce;
+            }
 
+            if (tx.Gas == null)
+            {
+                var gas = await parameters.L1Signer.Provider.Eth.TransactionManager.EstimateGasAsync(tx);
 
-            return L1TransactionReceipt.MonkeyPatchContractCallWait(txReceipt);
+                tx.Gas = gas;
+            }
+
+            //sign transaction
+            var signedTx = await parameters.L1Signer.Account.TransactionManager.SignTransactionAsync(tx);
+
+            //send transaction
+            var txnHash = await parameters.L1Signer.Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);
+
+            // Get transaction receipt
+            var receipt = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);
+
+            return L1TransactionReceipt.MonkeyPatchContractCallWait(receipt);
         }
 
         public async Task<L2ToL1TransactionRequest> GetWithdrawalRequest(EthWithdrawParams parameters)
@@ -343,15 +344,15 @@ namespace Arbitrum.AssetBridgerModule
                                                             address: Constants.ARB_SYS_ADDRESS,
                                                             isClassic: false
                                                             );
-            var functionData = arbSysContract?.ContractBuilder.GetFunctionAbi("withdrawEth");
+            var functionData = arbSysContract.GetFunction("withdrawEth").GetData(parameters.DestinationAddress);
 
             return new L2ToL1TransactionRequest()
             {
                 TxRequest = new TransactionRequest
                 {
-                    To = Constants.ARB_SYS_ADDRESS,
-                    Value = new HexBigInteger((parameters?.Amount).Value),
-                    Data = functionData?.ToString(),
+                    To = Constants.ARB_SYS_ADDRESS.EnsureHexPrefix(),
+                    Value = (parameters?.Amount.Value.ToHexBigInteger()),
+                    Data = functionData,
                     From = parameters?.From
                 },
                 EstimateL1GasLimit = async (IClient l1provider) =>
@@ -379,7 +380,7 @@ namespace Arbitrum.AssetBridgerModule
             {
                 throw new MissingProviderArbSdkError("L2Signer");
             }
-            await CheckL2Network(new SignerOrProvider(ethParams?.L2Signer));
+            await CheckL2Network(ethParams?.L2Signer);
 
             if (TransactionUtils.IsL2ToL1TransactionRequest(ethParams))
             {
@@ -418,20 +419,43 @@ namespace Arbitrum.AssetBridgerModule
                 ChainId = request?.TxRequest?.ChainId,
                 Gas = request?.TxRequest?.Gas,
                 GasPrice = request?.TxRequest?.GasPrice,
-                MaxFeePerGas = new HexBigInteger(ethParams?.Overrides?.MaxFeePerGas.ToString()),
-                MaxPriorityFeePerGas = new HexBigInteger(ethParams?.Overrides?.MaxPriorityFeePerGas.ToString()),
+                MaxFeePerGas = ethParams?.Overrides?.MaxFeePerGas.Value.ToHexBigInteger(),
+                MaxPriorityFeePerGas = ethParams?.Overrides?.MaxPriorityFeePerGas.Value.ToHexBigInteger(),
                 Nonce = request?.TxRequest?.Nonce,
                 Type = request?.TxRequest?.Type,
             };
 
+            //check if from is null
             if (tx.From == null)
             {
-                tx.From = ethParams?.L2Signer?.Address;
+                tx.From = ethParams?.L2Signer?.Account.Address;
             }
 
-            var txReceipt = await ethParams?.L2Signer?.TransactionManager?.SendTransactionAndWaitForReceiptAsync(tx);
+            // Retrieve the current nonce
+            if (tx.Nonce == null)
+            {
+                var nonce = await ethParams.L2Signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(tx.From);
+                tx.Nonce = nonce;
+            }
 
-            return L2TransactionReceipt.MonkeyPatchWait(txReceipt);
+            //estimate gas for the transaction
+            if (tx.Gas == null)
+            {
+                var gas = await ethParams.L2Signer.Provider.Eth.TransactionManager.EstimateGasAsync(tx);
+
+                tx.Gas = gas;
+            }
+
+            //sign transaction
+            var signedTx = await ethParams.L2Signer.Account.TransactionManager.SignTransactionAsync(tx);
+
+            //send transaction
+            var txnHash = await ethParams.L2Signer.Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);
+
+            // Get transaction receipt
+            var receipt = await ethParams.L2Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);
+
+            return L2TransactionReceipt.MonkeyPatchWait(receipt);
         }
     }
 }

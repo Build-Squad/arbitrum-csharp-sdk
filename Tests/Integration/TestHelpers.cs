@@ -345,8 +345,7 @@ namespace Arbitrum.Tests.Integration
                 Value = amount != 0 ? amount.ToHexBigInteger() : PRE_FUND_AMOUNT.ToHexBigInteger(),
                 Nonce = await signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(wallet.Address),
                 GasPrice = await signer.Provider.Eth.GasPrice.SendRequestAsync(),
-                ChainId = await signer.Provider.Eth.ChainId.SendRequestAsync(),
-                MaxFeePerGas = new HexBigInteger(875000000),
+                ChainId = await signer.Provider.Eth.ChainId.SendRequestAsync()
             };
 
             // Estimate gas for the transaction 
@@ -354,11 +353,13 @@ namespace Arbitrum.Tests.Integration
 
             tx.Gas = estimatedGas;
 
+            //sign transaction
             var signedTx = await wallet.TransactionManager.SignTransactionAsync(tx);
 
-            //var rawTransaction = await provider.TransactionManager.SignTransactionAsync(tx);
-
+            //send transaction
             var txnHash = await signer.Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);
+
+            var balance = await signer.Provider.Eth.GetBalance.SendRequestAsync(wallet.Address);
 
             // Get transaction receipt
             var transactionReceipt = await signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);

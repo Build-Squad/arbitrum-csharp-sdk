@@ -12,6 +12,7 @@ using Arbitrum.Message;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection;
 using Nethereum.Web3.Accounts;
+using Nethereum.Hex.HexTypes;
 
 namespace Arbitrum.Message
 {
@@ -163,56 +164,52 @@ namespace Arbitrum.Message
             var l2Network = await NetworkUtils.GetL2Network(l2Provider);
 
             // Define a function to determine the range in classic block numbers
-            dynamic inClassicRange(dynamic blockTag, int nitroGenBlock)
+            BlockParameter inClassicRange(dynamic blockTag, dynamic nitroGenBlock)
             {
-                if (blockTag is string)
+                switch (blockTag.ParameterType.ToString())
                 {
-                    switch (blockTag)
-                    {
-                        case "earliest":
-                            return 0;
-                        case "latest":
-                            return nitroGenBlock;
-                        case "pending":
-                            return nitroGenBlock;
-                        default:
-                            throw new ArbSdkError($"Unrecognised block tag. {blockTag}");
-                    }
+                    case "earliest":
+                        return new BlockParameter(0.ToHexBigInteger());
+                    case "latest":
+                        return new BlockParameter(nitroGenBlock);
+                    case "pending":
+                        return new BlockParameter(nitroGenBlock);
+                    case "blockNumber":
+                        return new BlockParameter(Math.Min((int)blockTag.BlockNumber.Value, (int)nitroGenBlock.Value).ToHexBigInteger());
+                    default:
+                        throw new ArbSdkError($"Unrecognised block tag. {blockTag}");
                 }
-                return Math.Min(blockTag, nitroGenBlock);
             }
 
             // Define a function to determine the range in nitro block numbers
-            dynamic inNitroRange(dynamic blockTag, int nitroGenBlock)
+            BlockParameter inNitroRange(dynamic blockTag, dynamic nitroGenBlock)
             {
-                if (blockTag is string)
-                {
-                    switch (blockTag)
+                switch (blockTag.ParameterType.ToString())
                     {
                         case "earliest":
-                            return nitroGenBlock;
+                            return new BlockParameter(nitroGenBlock);
                         case "latest":
-                            return "latest";
+                            return BlockParameter.CreateLatest();
                         case "pending":
-                            return "pending";
-                        default:
+                            return BlockParameter.CreatePending();
+                        case "blockNumber":
+                            return new BlockParameter(Math.Max((int)blockTag.BlockNumber.Value, (int)nitroGenBlock.Value).ToHexBigInteger());
+                        default: 
                             throw new ArbSdkError($"Unrecognised block tag. {blockTag}");
                     }
-                }
-                return Math.Max(blockTag, nitroGenBlock);
             }
 
             // Determine the block range for classic and nitro events
             var classicFilter = new NewFilterInput
             {
-                FromBlock = inClassicRange(filter.FromBlock, l2Network.NitroGenesisBlock),
-                ToBlock = inClassicRange(filter.ToBlock, l2Network.NitroGenesisBlock)
+                FromBlock = inClassicRange(filter.FromBlock, l2Network.NitroGenesisBlock.ToHexBigInteger()),
+                ToBlock = inClassicRange(filter.ToBlock, l2Network.NitroGenesisBlock.ToHexBigInteger())
             };
 
             var nitroFilter = new NewFilterInput
             {
-                FromBlock = inNitroRange(filter.FromBlock, l2Network.NitroGenesisBlock),
-                ToBlock = inNitroRange(filter.ToBlock, l2Network.NitroGenesisBlock)
+                FromBlock = inNitroRange(filter.FromBlock, l2Network.NitroGenesisBlock.ToHexBigInteger()),
+                ToBlock = inNitroRange(filter.ToBlock, l2Network.NitroGenesisBlock.ToHexBigInteger())
             };
 
             // List to store tasks for fetching logs

@@ -383,7 +383,7 @@ namespace Arbitrum.Scripts
 
             //var signerPrivateKey = account.PrivateKey.EnsureHexPrefix();
 
-            var signerAccount = new Account("0xbde162e37ea90e79ba66e156567797d71595d6ff62bbf749a071e697fcada5d4");
+            var signerAccount = new Account("0xde9be858da4a475276426320d5e9262ecfc3ba460bfac56360bfa6c4c28b4ee0");
 
             var ethProvider = new Web3(signerAccount, Config["ETH_URL"]);
             var arbProvider = new Web3(signerAccount, Config["ARB_URL"]);

@@ -209,6 +209,7 @@ namespace Arbitrum.Message
 
             var provider = SignerProviderUtils.GetProviderOrThrow(l2SignerOrProvider);
             var network = await NetworkUtils.GetL2Network(provider);
+
             var chainID = network.ChainID;
             var isClassic = await IsClassic(provider);
 

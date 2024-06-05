@@ -29,7 +29,7 @@ namespace Arbitrum.DataEntities
             "address",
             "uint256",
             "uint256",
-            "bytes"
+            "address"
         };
 
         [Parameter("address", "from", 1)]
