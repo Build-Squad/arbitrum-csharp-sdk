@@ -372,8 +372,10 @@ namespace Arbitrum.Scripts
         public static async Task<TestState> TestSetup()
         {
             // Assuming __src_directory is the directory of the current assembly file
-            string assemblyDirectory = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            string PROJECT_DIRECTORY = Path.GetDirectoryName(assemblyDirectory);
+            string assemblyDirectory = AppContext.BaseDirectory;
+            var projectPath = Path.Combine(assemblyDirectory, @"..\..\..");
+
+            string PROJECT_DIRECTORY = Path.GetFullPath(projectPath);
 
             // Generate a new private key
             //var privateKey = EthECKey.GenerateKey().GetPrivateKey();
@@ -383,7 +385,7 @@ namespace Arbitrum.Scripts
 
             //var signerPrivateKey = account.PrivateKey.EnsureHexPrefix();
 
-            var signerAccount = new Account("0xde9be858da4a475276426320d5e9262ecfc3ba460bfac56360bfa6c4c28b4ee0");
+            var signerAccount = new Account("0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656e");
 
             var ethProvider = new Web3(signerAccount, Config["ETH_URL"]);
             var arbProvider = new Web3(signerAccount, Config["ARB_URL"]);
