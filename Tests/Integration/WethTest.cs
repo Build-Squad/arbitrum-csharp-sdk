@@ -54,7 +54,7 @@ namespace Arbitrum.Tests.Integration
                 isClassic: true
             );
 
-            var tx = await l1WETH.GetFunction("deposit").SendTransactionAsync(from: l1Signer.Account.Address, new CallInput{Value = new HexBigInteger(wethToWrap) });
+            var tx = await l1WETH.GetFunction("deposit").SendTransactionAsync(from: l1Signer.Account.Address, new CallInput{Value = wethToWrap.ToHexBigInteger() });
 
             await l1Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(tx);
 
@@ -125,7 +125,7 @@ namespace Arbitrum.Tests.Integration
                 isClassic: true
             );
 
-            var tx = await l2Weth.GetFunction("deposit").SendTransactionAsync(from: l2Signer.Account.Address, new CallInput{ Value = new HexBigInteger(wethToWrap) });
+            var tx = await l2Weth.GetFunction("deposit").SendTransactionAsync(from: l2Signer.Account.Address, new CallInput{ Value = wethToWrap.ToHexBigInteger() });
 
             var rec = await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(tx);
 

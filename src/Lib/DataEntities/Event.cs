@@ -13,6 +13,7 @@ using Nethereum.ABI.FunctionEncoding.Attributes;
 using Newtonsoft.Json;
 using static Arbitrum.Utils.LoadContractUtils;
 using Nethereum.ABI.CompilationMetadata;
+using Nethereum.Hex.HexConvertors.Extensions;
 
 namespace Arbitrum.DataEntities
 {
@@ -170,9 +171,10 @@ namespace Arbitrum.DataEntities
                 foreach (var log in parsedLogs)
                 {
                     var logTopic = log.Topics[0];
-                    if (logTopic.ToString() == eventABI.Sha3Signature)
+                    if (logTopic.ToString() == eventABI.Sha3Signature.EnsureHexPrefix())
                     {
-                        var decodedLog = contract.GetEvent(eventName).DecodeAllEventsForEvent<T>(parsedLogs);
+                        var contractEvent = contract.GetEvent(eventName);
+                        var decodedLog = contractEvent.DecodeAllEventsForEvent<T>(parsedLogs);
                         decodedLogs.AddRange(decodedLog);
                     }
                 }
@@ -198,13 +200,11 @@ namespace Arbitrum.DataEntities
 
                     dynamic contractData = JObject.Parse(json);
 
-                    //RootObject contractData = JsonConvert.DeserializeObject<RootObject>(json);
-
                     if (contractData == null || string.IsNullOrEmpty(contractData?.abi.ToString()))
                         throw new Exception($"No ABI found for contract: {contractName}");
 
                     //abi = JsonConvert.SerializeObject(contractData.abi);
-                    abi = contractData?.abi.ToString(); ;
+                    abi = contractData?.abi.ToString();
                     bytecode = contractData?.bytecode;
                 }
             }
@@ -224,3 +224,5 @@ namespace Arbitrum.DataEntities
         }
     }
 }
+
+

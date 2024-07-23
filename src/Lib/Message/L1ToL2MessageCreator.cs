@@ -73,15 +73,25 @@ namespace Arbitrum.Message
                                                     isClassic: false
                                                     );
 
-            // Encode ABI
-            var functionData = inboxContract.ContractBuilder.GetFunctionAbi("createRetryableTicket");
+            var functionData = inboxContract.GetFunction("createRetryableTicket").GetData(
+                new object[]
+                {
+                    parameters.To,
+                    parameters.L2CallValue,
+                    estimates.MaxSubmissionCost,
+                    excessFeeRefundAddress,
+                    callValueRefundAddress,
+                    estimates.GasLimit,
+                    estimates.MaxFeePerGas,
+                    parameters.Data
+                });
 
 
             var txRequest = new TransactionRequest()
             {
                 To = l2Network?.EthBridge?.Inbox,
-                Data = functionData.Sha3Signature,
-                Value = nativeTokenIsEth ? (new HexBigInteger(estimates.Deposit.ToString()) ?? new HexBigInteger(BigInteger.Zero)) : new HexBigInteger(BigInteger.Zero),
+                Data = functionData,
+                Value = nativeTokenIsEth ? (estimates.Deposit.Value.ToHexBigInteger()) ?? BigInteger.Zero.ToHexBigInteger() : BigInteger.Zero.ToHexBigInteger(),
                 From = parameters.From
             };
 

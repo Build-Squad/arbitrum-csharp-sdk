@@ -132,8 +132,8 @@ namespace Arbitrum.Utils
                 throw new ArgumentException($"Event {eventName} not found in contract");
 
             // Create event filter
-            BlockParameter fromBlock = new BlockParameter(new HexBigInteger(BigInteger.Zero));
-            BlockParameter toBlock = new BlockParameter(new HexBigInteger(BigInteger.Zero));
+            BlockParameter fromBlock = new BlockParameter(BigInteger.Zero.ToHexBigInteger());
+            BlockParameter toBlock = new BlockParameter(BigInteger.Zero.ToHexBigInteger());
 
             if (filter is NewFilterInput filterDict)
             {

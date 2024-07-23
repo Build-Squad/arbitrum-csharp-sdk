@@ -154,8 +154,8 @@ namespace Arbitrum.Message
                                     provider: l2Provider,
                                     isClassic: false
                                 );
-            var nodeInterfaceContractFunction = nodeInterfaceContract.GetFunction("nodeInterfaceContract");
-            return await nodeInterfaceContractFunction.CallAsync<BigInteger>(BlockHash);
+            var nodeInterfaceContractFunction = nodeInterfaceContract.GetFunction("getL1Confirmations");
+            return await nodeInterfaceContractFunction.CallAsync<dynamic>(BlockHash);
         }
 
         public async Task<BigInteger> GetBatchNumber(IClient l2Provider)

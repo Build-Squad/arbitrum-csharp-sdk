@@ -266,12 +266,13 @@ namespace Arbitrum.Utils
                     }
                 }
             }
+            var gas = await provider.Eth.DeployContract.EstimateGasAsync(abi: contractAbi, contractByteCode: contractByteCode, from: deployerAddress, values: constructorArgs);
 
             var txn = await provider.Eth.DeployContract.SendRequestAsync(
                 abi: contractAbi,
                 contractByteCode: contractByteCode,
                 from: deployerAddress,
-                gas: new HexBigInteger(10000000),
+                gas: gas,
                 values: constructorArgs);
 
             var pollService = new TransactionReceiptPollingService(provider.TransactionManager);

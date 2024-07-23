@@ -62,7 +62,7 @@ namespace Arbitrum.Inbox
 
             private async Task<BlockWithTransactions> FindFirstBlockBelow(int blockNumber, int blockTimestamp)
             {
-                var block = await _l1Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(new HexBigInteger(blockNumber));
+                var block = await _l1Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(blockNumber.ToHexBigInteger());
                 var diff = block.Timestamp.Value - blockTimestamp;
                 if (diff < 0) return block;
 
@@ -94,7 +94,7 @@ namespace Arbitrum.Inbox
                                     new CallInput()
                                     {
                                         From = transactionl2Request.From,
-                                        Value = new HexBigInteger(transactionl2Request.Value.ToString())
+                                        Value = transactionl2Request.Value
                                     });
 
                 gasComponents = LoadContractUtils.FormatContractOutput(nodeInterface, "gasEstimateComponents", gasComponents);
@@ -327,17 +327,17 @@ namespace Arbitrum.Inbox
                     {
                         var feeHistory = l2Signer.Provider?.Eth?.FeeHistory;
 
-                        var feeData = await feeHistory?.SendRequestAsync(blockCount: new HexBigInteger(1), BlockParameter.CreateLatest(), rewardPercentiles: new decimal[] { });
+                        var feeData = await feeHistory?.SendRequestAsync(blockCount: BigInteger.One.ToHexBigInteger(), BlockParameter.CreateLatest(), rewardPercentiles: new decimal[] { });
 
                         var baseFee = feeData?.BaseFeePerGas[0];
 
-                        var priorityFee = Nethereum.Util.UnitConversion.Convert.ToWei(2, Nethereum.Util.UnitConversion.EthUnit.Gwei);
+                        var priorityFee = UnitConversion.Convert.ToWei(2, UnitConversion.EthUnit.Gwei);
 
-                        tx.MaxPriorityFeePerGas = new HexBigInteger(priorityFee);
+                        tx.MaxPriorityFeePerGas = priorityFee.ToHexBigInteger();
 
-                        tx.MaxFeePerGas = new HexBigInteger(baseFee + priorityFee);
+                        tx.MaxFeePerGas = (baseFee.Value + priorityFee).ToHexBigInteger();
                     }
-                    tx.Type = new HexBigInteger(2);
+                    tx.Type = 2.ToHexBigInteger();
                 }
 
                 tx.From = l2Signer?.Account.Address;
@@ -356,7 +356,7 @@ namespace Arbitrum.Inbox
                 {
                     if (tx.To == null)
                     {
-                        tx.Gas = new HexBigInteger((await EstimateArbitrumGas(tx, l2Signer.Provider))?.GasEstimateForL2.ToString());
+                        tx.Gas = (await EstimateArbitrumGas(tx, l2Signer.Provider))?.GasEstimateForL2.Value.ToHexBigInteger();
 
                     }
                 }

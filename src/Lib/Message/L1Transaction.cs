@@ -37,10 +37,14 @@ namespace Arbitrum.Message
     //    }
     //}
 
+    [Event("InboxMessageDelivered")]
     public class InboxMessageDeliveredEvent : IEventDTO
     {
+        [Parameter("uint256", "messageNum", 1, true)]
         public BigInteger MessageNum { get; set; }
-        public string? Data { get; set; }
+
+        [Parameter("bytes", "data", 2, false)]
+        public byte[] Data { get; set; }
     }
 
     public class MessageDeliveredEvent : IEventDTO
@@ -170,7 +174,7 @@ namespace Arbitrum.Message
                     l2Provider,
                     m.InboxMessageEvent.Event.MessageNum,
                     m.BridgeMessageEvent.Event.Sender,
-                    m.InboxMessageEvent.Event.Data
+                    m.InboxMessageEvent.Event.Data.ToString()
                 ));
 
             foreach (var task in ethDepositMessageTasks)
@@ -227,7 +231,7 @@ namespace Arbitrum.Message
                     e.BridgeMessageEvent.Event.Inbox.ToLower() == network?.EthBridge?.Inbox?.ToLower())
                 .Select(mn =>
                 {
-                    var inboxMessageData = SubmitRetryableMessageDataParser.Parse(mn.InboxMessageEvent.Event.Data);
+                    var inboxMessageData = SubmitRetryableMessageDataParser.Parse(mn.InboxMessageEvent.Event.Data.ToString());
 
                     return L1ToL2Message.FromEventComponents(    
                         l2SignerOrProvider,

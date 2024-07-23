@@ -17,6 +17,9 @@ using Arbitrum.Message;
 using static Arbitrum.Message.L1ToL2MessageUtils;
 using Arbitrum.DataEntities;
 using Nethereum.Signer;
+using Nethereum.BlockchainProcessing.BlockStorage.Entities;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+using Newtonsoft.Json.Linq;
 
 namespace Arbitrum.Tests.Integration
 {
@@ -47,17 +50,30 @@ namespace Arbitrum.Tests.Integration
             {
                 From = l2Signer.Account.Address,
                 To = randomAddress,
-                Value = new HexBigInteger(amountToSend),
+                Value = amountToSend.ToHexBigInteger(),
                 MaxFeePerGas = new HexBigInteger(15000000000),
-                MaxPriorityFeePerGas = new HexBigInteger(0),
-                Nonce = 2.ToHexBigInteger()
+                MaxPriorityFeePerGas = 0.ToHexBigInteger()
             };
 
-            //if(tx.Gas == null)
-            //{
-            //    var gas = await l2Provider.Eth.TransactionManager.EstimateGasAsync(tx);
-            //    tx.Gas = gas;
-            //}
+            // If 'From' field is null, set it to L1Signer's address
+            if (tx.From == null)
+            {
+                tx.From = l2Signer?.Account.Address;
+            }
+
+            // Retrieve the current nonce if not done automatically
+            if (tx.Nonce == null)
+            {
+                var nonce = await l2Signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(tx.From);
+                tx.Nonce = nonce;
+            }
+
+            //estimating gas
+            if (tx.Gas == null)
+            {
+                var gas = await l2Provider.Eth.TransactionManager.EstimateGasAsync(tx);
+                tx.Gas = gas;
+            }
 
             //sign transaction
             var signedTx = await l2Signer.Account.TransactionManager.SignTransactionAsync(tx);
@@ -72,7 +88,7 @@ namespace Arbitrum.Tests.Integration
             var balanceAfter = await l2Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Account.Address);
             var randomBalanceAfter = await l2Provider.Eth.GetBalance.SendRequestAsync(randomAddress);
 
-            //Assert.That(Web3.Convert.FromWei(randomBalanceAfter, UnitConversion.EthUnit.Ether), Is.EqualTo(Web3.Convert.FromWei(amountToSend, UnitConversion.EthUnit.Ether)), "Random address balance after should match the sent amount");
+            Assert.That(Web3.Convert.FromWei(randomBalanceAfter, UnitConversion.EthUnit.Ether), Is.EqualTo(Web3.Convert.FromWei(amountToSend, UnitConversion.EthUnit.Ether)), "Random address balance after should match the sent amount");
 
             var expectedBalanceAfter = balanceBefore - txReceipt?.GasUsed?.Value * txReceipt?.EffectiveGasPrice?.Value - amountToSend;
 
@@ -80,7 +96,7 @@ namespace Arbitrum.Tests.Integration
         }
 
         [Test]
-            public async Task TestDepositsEther()
+        public async Task TestDepositsEther()
         {
             var setupState = await TestSetupUtils.TestSetup();
             var ethBridger = setupState.EthBridger;
@@ -96,7 +112,7 @@ namespace Arbitrum.Tests.Integration
             var inboxAddress = ethBridger.L2Network.EthBridge.Inbox;
             var initialInboxBalance = await l1Provider.Eth.GetBalance.SendRequestAsync(inboxAddress);
 
-            var ethToDeposit = Web3.Convert.ToWei(0.0001m, UnitConversion.EthUnit.Ether);
+            var ethToDeposit = Web3.Convert.ToWei(0.0000000001m, UnitConversion.EthUnit.Ether);
 
             var rec = await ethBridger.Deposit(new EthDepositParams()
             {
@@ -108,9 +124,12 @@ namespace Arbitrum.Tests.Integration
 
             var finalInboxBalance = await l1Provider.Eth.GetBalance.SendRequestAsync(inboxAddress);
 
+            var a = await l1Signer.Provider.Eth.Transactions.GetTransactionByHash.SendRequestAsync(rec.TransactionHash);
+
             // Also fails in TS implementation - https://github.com/OffchainLabs/arbitrum-sdk/pull/407
             // Assert.That(finalInboxBalance, Is.EqualTo(initialInboxBalance + ethToDeposit), "Balance failed to update after ETH deposit");
 
+            //With the transaction confirmed on L1, we now wait for the L2 side(i.e., balance credited to L2) to be confirmed as well.
             var waitResult = await rec.WaitForL2(l2Provider);
 
             var l1ToL2Messages = (await rec.GetEthDeposits(l2Provider)).ToList();

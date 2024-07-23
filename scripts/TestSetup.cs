@@ -354,7 +354,7 @@ namespace Arbitrum.Scripts
         {
             if (key != null)
             {
-                var account = new Account(key);
+                var account = new Account(key, await provider.Eth.ChainId.SendRequestAsync());
                 var web3WithAccount = new Web3(account, provider.Client);
                 return account;
             }
@@ -385,7 +385,7 @@ namespace Arbitrum.Scripts
 
             //var signerPrivateKey = account.PrivateKey.EnsureHexPrefix();
 
-            var signerAccount = new Account("0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656e");
+            var signerAccount = new Account("0x394d84674d89ffd6d02b8b768642ffc15cfd02ec7ea593c3d1cfc22da07f50dc");
 
             var ethProvider = new Web3(signerAccount, Config["ETH_URL"]);
             var arbProvider = new Web3(signerAccount, Config["ARB_URL"]);
