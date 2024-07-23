@@ -208,7 +208,7 @@ namespace Arbitrum.Utils
             try
             {
                 //Console.WriteLine(typeof(blockIdentifier));
-                block = await Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(new HexBigInteger(blockIdentifier));
+                block = await Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(blockIdentifier.ToHexBigInteger());
             }
             catch(Exception ex)
             {

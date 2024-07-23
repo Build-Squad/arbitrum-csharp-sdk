@@ -128,6 +128,7 @@ namespace Arbitrum.Message
 
             var net = NetworkUtils.AddDefaultLocalNetwork();
             var network = net.l2Network;
+
             //var network = await NetworkUtils.GetL2Network(l1Provider);
             var inbox =  await LoadContractUtils.LoadContract(
                                                 contractName: "Inbox",
@@ -138,7 +139,7 @@ namespace Arbitrum.Message
             BigInteger? baseValue = defaultedOptions.Base;
             if (baseValue == default)
             {
-                //baseValue = await inbox.GetFunction("calculateRetryableSubmissionFee").CallAsync<dynamic>(callDataSize, l1BaseFee });
+                baseValue = await inbox.GetFunction("calculateRetryableSubmissionFee").CallAsync<dynamic>(callDataSize, l1BaseFee);
             }
 
             var value = PercentIncrease(baseValue, defaultedOptions.PercentIncrease);
@@ -153,7 +154,7 @@ namespace Arbitrum.Message
             {
                 // If senderDeposit is not provided or is zero, calculate a default value by converting 1 ether to Wei 
                 // and adding the L2CallValue from the parameters object if it is not null. 
-                senderDeposit = Web3.Convert.ToWei(1, UnitConversion.EthUnit.Ether) + parameters.L2CallValue;
+                senderDeposit = Web3.Convert.ToWei(1, UnitConversion.EthUnit.Ether) + parameters?.L2CallValue; 
             }
 
             var nodeInterface = await LoadContractUtils.LoadContract(
@@ -162,7 +163,8 @@ namespace Arbitrum.Message
                                     address: Constants.NODE_INTERFACE_ADDRESS,
                                     isClassic: false);
 
-            var gasEstimate = await nodeInterface.GetFunction("estimateRetryableTicket").EstimateGasAsync(
+            var gasEstimate = await nodeInterface.GetFunction("estimateRetryableTicket").EstimateGasAsync(new object[]
+            {
                             parameters.From,
                             senderDeposit,
                             parameters.To,
@@ -170,7 +172,7 @@ namespace Arbitrum.Message
                             parameters.ExcessFeeRefundAddress,
                             parameters.CallValueRefundAddress,
                             parameters.Data
-                            );
+                            });
 
             return gasEstimate.Value;
         }
@@ -268,16 +270,16 @@ namespace Arbitrum.Message
                 var res = await l1Provider.Eth.Transactions.Call.SendRequestAsync(new CallInput
                 {
                     To = to,
-                    Data = nullData?.ToString(),
+                    Data = nullData,
                     Value = value, 
                     From = from
                 });
 
-                retryable = RetryableDataTools.TryParseError(res);
-                if (retryable == null)
-                {
-                    throw new ArbSdkError($"No retryable data found in error: {res}");
-                }
+                //retryable = RetryableDataTools.TryParseError(res);
+                //if (retryable == null)
+                //{
+                //    throw new ArbSdkError($"No retryable data found in error: {res}");
+                //}
             }
             catch (Exception err)
             {

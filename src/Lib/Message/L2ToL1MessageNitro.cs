@@ -302,7 +302,7 @@ namespace Arbitrum.Message
             if (log == null)
             {
                 Console.WriteLine("No NodeCreated events found, defaulting to block 0");
-                return await arbitrumProvider.GetBlock(new HexBigInteger(BigInteger.Zero));   /////////
+                return await arbitrumProvider.GetBlock(BigInteger.Zero.ToHexBigInteger()); 
             }
 
             var parsedLog = ParseNodeCreatedAssertion(log);

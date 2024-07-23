@@ -56,7 +56,7 @@ namespace Arbitrum.Tests.Unit
             var latestBlock = l2Network.NitroGenesisBlock + 1000;
 
             l2ProviderMock.Setup(p => p.GetBlockNumberAsync(CancellationToken.None))
-                          .ReturnsAsync(new HexBigInteger(latestBlock));
+                          .ReturnsAsync(latestBlock.ToHexBigInteger());
 
             l2ProviderMock.Setup(p => p.GetVersionAsync(CancellationToken.None))
                           .ReturnsAsync(l2Network.ChainID.ToString());

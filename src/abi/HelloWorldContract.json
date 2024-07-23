@@ -1,0 +1,285 @@
+{
+    "contractName": "HelloWorldContract",
+    "abi": [
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": false,
+                    "internalType": "string",
+                    "name": "message",
+                    "type": "string"
+                }
+            ],
+            "name": "HelloWorldCalled",
+            "type": "event"
+        },
+        {
+            "inputs": [],
+            "name": "helloWorld",
+            "outputs": [
+                {
+                    "internalType": "string",
+                    "name": "",
+                    "type": "string"
+                }
+            ],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        }
+    ],
+    "metadata": "{\"compiler\":{\"version\":\"0.8.19+commit.7dd6d404\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"string\",\"name\":\"message\",\"type\":\"string\"}],\"name\":\"HelloWorldCalled\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"helloWorld\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"c:/arbitrum/nitro-contracts/src/bridge/HelloWorld.sol\":\"HelloWorldContract\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[]},\"sources\":{\"c:/arbitrum/nitro-contracts/src/bridge/HelloWorld.sol\":{\"keccak256\":\"0xc82ecdc63ea062ec794f80c1401fc409a0c6103396a4e306d9c23342aaed2c1a\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://ba9099694fb3e854b47a1035d44b17ff789131d00ac97c842282da0401e7d12c\",\"dweb:/ipfs/QmWVHdqCD94R6HsRonyRwfLsVgshSupJ53AtvNyXSRBFFG\"]}},\"version\":1}",
+    "bytecode": "608060405234801561001057600080fd5b5061014d806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c8063c605f76c14610030575b600080fd5b61003861004e565b60405161004591906100c9565b60405180910390f35b60607ff07d7941c48432016cd8b4f0efb2fb81096be0d701b29099e46f6ce7975b92d560405161009c906020808252600a908201526912195b1b1bd5dbdc9b1960b21b604082015260600190565b60405180910390a15060408051808201909152600a81526912195b1b1bd5dbdc9b1960b21b602082015290565b600060208083528351808285015260005b818110156100f6578581018301518582016040015282016100da565b506000604082860101526040601f19601f830116850101925050509291505056fea264697066735822122065263b0719e5befa89eaf05f37ace917ea0ed146c926884cfa129e01ad401ba864736f6c63430008130033",
+    "deployedBytecode": "608060405234801561001057600080fd5b506004361061002b5760003560e01c8063c605f76c14610030575b600080fd5b61003861004e565b60405161004591906100c9565b60405180910390f35b60607ff07d7941c48432016cd8b4f0efb2fb81096be0d701b29099e46f6ce7975b92d560405161009c906020808252600a908201526912195b1b1bd5dbdc9b1960b21b604082015260600190565b60405180910390a15060408051808201909152600a81526912195b1b1bd5dbdc9b1960b21b602082015290565b600060208083528351808285015260005b818110156100f6578581018301518582016040015282016100da565b506000604082860101526040601f19601f830116850101925050509291505056fea264697066735822122065263b0719e5befa89eaf05f37ace917ea0ed146c926884cfa129e01ad401ba864736f6c63430008130033",
+    "sourceMap": "60:395:0:-:0;;;;;;;;;;;;;;;;;;;",
+    "deployedSourceMap": "60:395:0:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;213:239;;;:::i;:::-;;;;;;;:::i;:::-;;;;;;;;;251:13;351:30;;;;;769:2:1;751:21;;;808:2;788:18;;;781:30;-1:-1:-1;;;842:2:1;827:18;;820:40;892:2;877:18;;567:334;351:30:0;;;;;;;;-1:-1:-1;425:19:0;;;;;;;;;;;;-1:-1:-1;;;425:19:0;;;;;213:239::o;14:548:1:-;126:4;155:2;184;173:9;166:21;216:6;210:13;259:6;254:2;243:9;239:18;232:34;284:1;294:140;308:6;305:1;302:13;294:140;;;403:14;;;399:23;;393:30;369:17;;;388:2;365:26;358:66;323:10;;294:140;;;298:3;483:1;478:2;469:6;458:9;454:22;450:31;443:42;553:2;546;542:7;537:2;529:6;525:15;521:29;510:9;506:45;502:54;494:62;;;;14:548;;;;:::o",
+    "sourcePath": "c:/arbitrum/nitro-contracts/src/bridge/HelloWorld.sol",
+    "compiler": {
+        "name": "solc",
+        "version": "0.8.19+commit.7dd6d404"
+    },
+    "ast": {
+        "absolutePath": "c:/arbitrum/nitro-contracts/src/bridge/HelloWorld.sol",
+        "exportedSymbols": {
+            "HelloWorldContract": [
+                18
+            ]
+        },
+        "id": 19,
+        "license": "MIT",
+        "nodeType": "SourceUnit",
+        "nodes": [
+            {
+                "id": 1,
+                "literals": [
+                    "solidity",
+                    "^",
+                    "0.8",
+                    ".0"
+                ],
+                "nodeType": "PragmaDirective",
+                "src": "33:23:0"
+            },
+            {
+                "abstract": false,
+                "baseContracts": [],
+                "canonicalName": "HelloWorldContract",
+                "contractDependencies": [],
+                "contractKind": "contract",
+                "fullyImplemented": true,
+                "id": 18,
+                "linearizedBaseContracts": [
+                    18
+                ],
+                "name": "HelloWorldContract",
+                "nameLocation": "69:18:0",
+                "nodeType": "ContractDefinition",
+                "nodes": [
+                    {
+                        "anonymous": false,
+                        "eventSelector": "f07d7941c48432016cd8b4f0efb2fb81096be0d701b29099e46f6ce7975b92d5",
+                        "id": 5,
+                        "name": "HelloWorldCalled",
+                        "nameLocation": "172:16:0",
+                        "nodeType": "EventDefinition",
+                        "parameters": {
+                            "id": 4,
+                            "nodeType": "ParameterList",
+                            "parameters": [
+                                {
+                                    "constant": false,
+                                    "id": 3,
+                                    "indexed": false,
+                                    "mutability": "mutable",
+                                    "name": "message",
+                                    "nameLocation": "196:7:0",
+                                    "nodeType": "VariableDeclaration",
+                                    "scope": 5,
+                                    "src": "189:14:0",
+                                    "stateVariable": false,
+                                    "storageLocation": "default",
+                                    "typeDescriptions": {
+                                        "typeIdentifier": "t_string_memory_ptr",
+                                        "typeString": "string"
+                                    },
+                                    "typeName": {
+                                        "id": 2,
+                                        "name": "string",
+                                        "nodeType": "ElementaryTypeName",
+                                        "src": "189:6:0",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_string_storage_ptr",
+                                            "typeString": "string"
+                                        }
+                                    },
+                                    "visibility": "internal"
+                                }
+                            ],
+                            "src": "188:16:0"
+                        },
+                        "src": "166:39:0"
+                    },
+                    {
+                        "body": {
+                            "id": 16,
+                            "nodeType": "Block",
+                            "src": "266:186:0",
+                            "statements": [
+                                {
+                                    "eventCall": {
+                                        "arguments": [
+                                            {
+                                                "hexValue": "48656c6c6f576f726c64",
+                                                "id": 11,
+                                                "isConstant": false,
+                                                "isLValue": false,
+                                                "isPure": true,
+                                                "kind": "string",
+                                                "lValueRequested": false,
+                                                "nodeType": "Literal",
+                                                "src": "368:12:0",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_stringliteral_7c5ea36004851c764c44143b1dcb59679b11c9a68e5f41497f6cf3d480715331",
+                                                    "typeString": "literal_string \"HelloWorld\""
+                                                },
+                                                "value": "HelloWorld"
+                                            }
+                                        ],
+                                        "expression": {
+                                            "argumentTypes": [
+                                                {
+                                                    "typeIdentifier": "t_stringliteral_7c5ea36004851c764c44143b1dcb59679b11c9a68e5f41497f6cf3d480715331",
+                                                    "typeString": "literal_string \"HelloWorld\""
+                                                }
+                                            ],
+                                            "id": 10,
+                                            "name": "HelloWorldCalled",
+                                            "nodeType": "Identifier",
+                                            "overloadedDeclarations": [],
+                                            "referencedDeclaration": 5,
+                                            "src": "351:16:0",
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_function_event_nonpayable$_t_string_memory_ptr_$returns$__$",
+                                                "typeString": "function (string memory)"
+                                            }
+                                        },
+                                        "id": 12,
+                                        "isConstant": false,
+                                        "isLValue": false,
+                                        "isPure": false,
+                                        "kind": "functionCall",
+                                        "lValueRequested": false,
+                                        "nameLocations": [],
+                                        "names": [],
+                                        "nodeType": "FunctionCall",
+                                        "src": "351:30:0",
+                                        "tryCall": false,
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_tuple$__$",
+                                            "typeString": "tuple()"
+                                        }
+                                    },
+                                    "id": 13,
+                                    "nodeType": "EmitStatement",
+                                    "src": "346:35:0"
+                                },
+                                {
+                                    "expression": {
+                                        "hexValue": "48656c6c6f576f726c64",
+                                        "id": 14,
+                                        "isConstant": false,
+                                        "isLValue": false,
+                                        "isPure": true,
+                                        "kind": "string",
+                                        "lValueRequested": false,
+                                        "nodeType": "Literal",
+                                        "src": "432:12:0",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_stringliteral_7c5ea36004851c764c44143b1dcb59679b11c9a68e5f41497f6cf3d480715331",
+                                            "typeString": "literal_string \"HelloWorld\""
+                                        },
+                                        "value": "HelloWorld"
+                                    },
+                                    "functionReturnParameters": 9,
+                                    "id": 15,
+                                    "nodeType": "Return",
+                                    "src": "425:19:0"
+                                }
+                            ]
+                        },
+                        "functionSelector": "c605f76c",
+                        "id": 17,
+                        "implemented": true,
+                        "kind": "function",
+                        "modifiers": [],
+                        "name": "helloWorld",
+                        "nameLocation": "222:10:0",
+                        "nodeType": "FunctionDefinition",
+                        "parameters": {
+                            "id": 6,
+                            "nodeType": "ParameterList",
+                            "parameters": [],
+                            "src": "232:2:0"
+                        },
+                        "returnParameters": {
+                            "id": 9,
+                            "nodeType": "ParameterList",
+                            "parameters": [
+                                {
+                                    "constant": false,
+                                    "id": 8,
+                                    "mutability": "mutable",
+                                    "name": "",
+                                    "nameLocation": "-1:-1:-1",
+                                    "nodeType": "VariableDeclaration",
+                                    "scope": 17,
+                                    "src": "251:13:0",
+                                    "stateVariable": false,
+                                    "storageLocation": "memory",
+                                    "typeDescriptions": {
+                                        "typeIdentifier": "t_string_memory_ptr",
+                                        "typeString": "string"
+                                    },
+                                    "typeName": {
+                                        "id": 7,
+                                        "name": "string",
+                                        "nodeType": "ElementaryTypeName",
+                                        "src": "251:6:0",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_string_storage_ptr",
+                                            "typeString": "string"
+                                        }
+                                    },
+                                    "visibility": "internal"
+                                }
+                            ],
+                            "src": "250:15:0"
+                        },
+                        "scope": 18,
+                        "src": "213:239:0",
+                        "stateMutability": "nonpayable",
+                        "virtual": false,
+                        "visibility": "public"
+                    }
+                ],
+                "scope": 19,
+                "src": "60:395:0",
+                "usedErrors": []
+            }
+        ],
+        "src": "33:424:0"
+    },
+    "functionHashes": {
+        "helloWorld()": "c605f76c"
+    },
+    "gasEstimates": {
+        "creation": {
+            "codeDepositCost": "66600",
+            "executionCost": "117",
+            "totalCost": "66717"
+        },
+        "external": {
+            "helloWorld()": "infinite"
+        }
+    }
+}

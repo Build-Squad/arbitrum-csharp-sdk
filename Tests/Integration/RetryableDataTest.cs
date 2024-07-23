@@ -80,7 +80,7 @@ namespace Arbitrum.Tests.Integration
                     await inboxContract.GetFunction("createRetryableTicket").EstimateGasAsync(
                         from: l1Signer.Account.Address,
                         gas: null,
-                        value: new HexBigInteger(revertParams.Value.ToString()),
+                        value: revertParams.Value.Value.ToHexBigInteger(),
                         functionInput: new object[] {
                         revertParams.To,
                         revertParams.L2CallValue,
@@ -99,7 +99,7 @@ namespace Arbitrum.Tests.Integration
                     await inboxContract.GetFunction("createRetryableTicket").CallAsync<BigInteger>(
                         from: l1Signer.Account.Address,
                         gas: null,
-                        value: new HexBigInteger(revertParams.Value.ToString()),
+                        value: revertParams.Value.Value.ToHexBigInteger(),
                         functionInput: new object[] {
                         revertParams.To,
                         revertParams.L2CallValue,

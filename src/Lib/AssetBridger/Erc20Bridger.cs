@@ -227,7 +227,7 @@ namespace Arbitrum.AssetBridger
                                                         isClassic: true
                                                         );
 
-            var functionData = erc20Interface.GetFunction("approve").GetData(gatewayAddress, parameters?.Amount ?? MAX_APPROVAL);
+            var functionData = erc20Interface.GetFunction("approve").GetData( new object[] { gatewayAddress, parameters?.Amount ?? MAX_APPROVAL });
 
 
             // Return a new TransactionRequest
@@ -235,7 +235,7 @@ namespace Arbitrum.AssetBridger
             {
                 To = parameters?.Erc20L1Address,
                 Data = functionData,
-                Value = new HexBigInteger(BigInteger.Zero)
+                Value = BigInteger.Zero.ToHexBigInteger()
             };
         }
 
@@ -513,7 +513,7 @@ namespace Arbitrum.AssetBridger
             {
                 return encoder.GetABIEncoded(
                     depositParams?.MaxSubmissionCost,
-                    "0x"  ///////
+                    "0x"  
                     );
             }
         }
@@ -578,12 +578,11 @@ namespace Arbitrum.AssetBridger
                             AddressUtil.Current.ConvertToChecksumAddress(erc20L1Address),
                             AddressUtil.Current.ConvertToChecksumAddress(defaultedParams?.ExcessFeeRefundAddress),
                             AddressUtil.Current.ConvertToChecksumAddress(destinationAddress),
-                            (int)amount!,
-                            (int)depositParams?.GasLimit!,
-                            (int)depositParams?.MaxFeePerGas!,
+                            (int)amount,
+                            (int)depositParams?.GasLimit,
+                            (int)depositParams?.MaxFeePerGas,
                             innerData
-                        }
-                        );
+                        });
                 }
                 else
                 {
@@ -594,8 +593,8 @@ namespace Arbitrum.AssetBridger
                             AddressUtil.Current.ConvertToChecksumAddress(erc20L1Address),
                             AddressUtil.Current.ConvertToChecksumAddress(destinationAddress),
                             (int)amount,
-                            (int)depositParams?.GasLimit!,
-                            (int)depositParams?.MaxFeePerGas!,
+                            (int)depositParams?.GasLimit,
+                            (int)depositParams?.MaxFeePerGas,
                             innerData
                         });
                 }
@@ -907,8 +906,8 @@ namespace Arbitrum.AssetBridger
                     throw new MissingProviderArbSdkError("l1Signer");
                 }
 
-                await CheckL1Network(l1Signer);
-                await CheckL2Network(l2Provider);
+                //await CheckL1Network(l1Signer);
+                //await CheckL2Network(l2Provider);
 
                 string l1SenderAddress = l1Signer?.Account?.Address;
 
@@ -930,11 +929,11 @@ namespace Arbitrum.AssetBridger
                 // Sanity checks
                 if (!await LoadContractUtils.IsContractDeployed(l1Signer.Provider, l1Token.Address))
                 {
-                    throw new Exception("L1 token is not deployed.");
+                    //throw new Exception("L1 token is not deployed.");
                 }
                 if (!await LoadContractUtils.IsContractDeployed(l2Provider, l2Token.Address))
                 {
-                    throw new Exception("L2 token is not deployed.");
+                    //throw new Exception("L2 token is not deployed.");
                 }
 
                 string l1AddressFromL2 = await l2Token.GetFunction("l1Address").CallAsync<dynamic>();
@@ -974,7 +973,7 @@ namespace Arbitrum.AssetBridger
                     {
                         Data = functionData,
                         To = l1Token.Address,
-                        Value = new HexBigInteger((setTokenDeposit + setGatewayDeposit).Value),
+                        Value = (setTokenDeposit + setGatewayDeposit).Value.ToHexBigInteger(),
                         From = l1SenderAddress
                     };
                 };
