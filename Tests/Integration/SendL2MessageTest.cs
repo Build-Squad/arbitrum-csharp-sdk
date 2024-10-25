@@ -1,117 +1,53 @@
-﻿using System;
-using System.IO;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
-using NUnit.Framework;
-using Nethereum.Contracts;
-using Nethereum.Hex.HexTypes;
-using Nethereum.Web3;
+﻿using Arbitrum.ContractFactory;
 using Arbitrum.DataEntities;
-using static Arbitrum.Inbox.ForceInclusionParams;
 using Arbitrum.Scripts;
-using Nethereum.Util;
-using System.Net.WebSockets;
+using Nethereum.Hex.HexTypes;
 using Nethereum.RPC.Eth.DTOs;
-using Arbitrum.Utils;
-using Nethereum.JsonRpc.Client;
-using Nethereum.JsonRpc.Client.RpcMessages;
+using Nethereum.Util;
+using Nethereum.Web3;
+using NUnit.Framework;
+using static Arbitrum.Inbox.ForceInclusionParams;
 
 namespace Arbitrum.Tests.Integration
 {
     [TestFixture]
     public class SendL2MessageTest
     {
-        public class TxResult
-        {
-            public string? SignedMsg { get; set; }
-            public TransactionReceipt? L1TransactionReceipt { get; set; }
-        }
-        private async Task<TxResult> SendSignedTx(TestState testState, TransactionRequest info = null)
-        {
-            var l1Deployer = testState.L1Deployer;
-            var l2Deployer = testState.L2Deployer;
-            var l1Provider = l1Deployer.Provider;
-            var l2Provider = l2Deployer.Provider;
-            var l2Network = await NetworkUtils.GetL2Network( (int)(await l2Deployer.Provider.Eth.ChainId.SendRequestAsync()).Value);
-            var inbox = new InboxTools(l1Deployer, l2Network);
-
-            var message = new TransactionRequest
-            {
-                Value = new HexBigInteger(Web3.Convert.ToWei(0, UnitConversion.EthUnit.Ether)),
-                From = info.From,
-                MaxFeePerGas = info.MaxFeePerGas,
-                MaxPriorityFeePerGas = info.MaxPriorityFeePerGas,
-                AccessList = info.AccessList,
-                ChainId = info.ChainId,
-                Data = info.Data,
-                Gas = info.Gas,
-                GasPrice = info.GasPrice,
-                Nonce = info.Nonce,
-                To = info.To,
-                Type = info.Type
-            };
-
-            var signedTx = await inbox.SignL2Tx(message, l2Deployer);
-            var l1Tx = await inbox.SendL2SignedTx(signedTx);
-
-            return new TxResult
-            {
-                SignedMsg = signedTx,
-                L1TransactionReceipt = l1Tx
-            };
-        }
-
-        private (string, string) ReadGreeterContract()
-        {
-            var contractData = JsonConvert.DeserializeObject<dynamic>(File.ReadAllText("greeter.json"));
-
-            if (contractData.abi == null)
-            {
-                throw new Exception("No ABI found for contract greeter");
-            }
-
-            var abi = contractData.abi.ToString();
-            var bytecode = contractData.bytecode_hex;
-
-            return (abi, bytecode);
-        }
-
         [Test]
         public async Task CanDeployContract()
         {
             var testState = await TestSetupUtils.TestSetup();
             var l2Deployer = testState.L2Deployer;
             var l2Provider = l2Deployer.Provider;
-            var (abi, bytecode) = ReadGreeterContract();
-            var greeterContract = l2Provider.Eth.GetContract(abi, bytecode);
 
-            var c = greeterContract.ContractBuilder.ContractABI;
-            var constructTxn = new TransactionRequest()
+            var contractByteCode = (await LogParser.LoadAbi("Greeter")).Item2;
+
+            var currentNonce = await l2Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(l2Deployer.Account.Address, BlockParameter.CreatePending());
+            var constructTxn = new TransactionRequest
             {
-                From = l2Deployer.Account.Address,
-                Value = new HexBigInteger(0)
+                Data = contractByteCode,
+                Value = new HexBigInteger(0),
+                Gas = await l2Deployer.Provider.Eth.GasPrice.SendRequestAsync(),
+                MaxPriorityFeePerGas = new HexBigInteger(0),
+                Nonce = currentNonce
             };
+
             var returnData = await SendSignedTx(testState, constructTxn);
             var l1TransactionReceipt = returnData.L1TransactionReceipt;
             var signedMsg = returnData.SignedMsg;
 
-            Assert.That(l1TransactionReceipt.Status, Is.EqualTo(1), "L1 transaction failed");
+            Assert.That(l1TransactionReceipt.Status, Is.EqualTo(1.ToHexBigInteger()), "L1 transaction failed");
 
-            var l2TxHash = await l2Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedMsg);
-            var l2Tx = await l2Provider.Eth.Transactions.GetTransactionByHash.SendRequestAsync(l2TxHash);
-            var l2TxReceipt = await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(l2TxHash);
+            var l2TxReceipt = await l2Provider.Eth.TransactionManager.TransactionReceiptService.PollForReceiptAsync(signedMsg);
+            Assert.That(l2TxReceipt.Status, Is.EqualTo(1.ToHexBigInteger()), "L2 transaction failed");
 
-            Assert.That(l2TxReceipt.Status, Is.EqualTo(1), "L2 transaction failed");
+            var greeterDeployment = new GreeterDeployment(contractByteCode);
 
-            var senderAddress = l2Tx.From;
-            var nonce = l2Tx.Nonce;
+            var txnReceiptDeployment = await l2Provider.Eth.GetContractDeploymentHandler<GreeterDeployment>().SendRequestAndWaitForReceiptAsync(greeterDeployment);            
+            var contractHandler = l2Provider.Eth.GetContractHandler(txnReceiptDeployment.ContractAddress);
+            var greetResult = await contractHandler.QueryAsync<GreetFunction, string>();
 
-            var contractAddress = LoadContractUtils.GetContractAddress(senderAddress, nonce);
-
-            var greeter = l2Provider.Eth.GetContract(abi: abi,contractAddress: AddressUtil.Current.ConvertToChecksumAddress(contractAddress));
-            var greetResult = await greeter.GetFunction("greet").CallAsync<string>();
-
-            Assert.That(greetResult, Is.EqualTo("hello world"), "Contract returned unexpected value");
+            Assert.That(greetResult, Is.EqualTo("Hello, World!"), "Contract returned unexpected value");
         }
 
         [Test]
@@ -121,17 +57,27 @@ namespace Arbitrum.Tests.Integration
 
             var l2Deployer = testState.L2Deployer;
             var l2Provider = l2Deployer.Provider;
-            var returnData = await SendSignedTx(testState, new TransactionRequest { Data = "0x12", To = l2Deployer.Account.Address });
+
+            var currentNonce = await l2Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(l2Deployer.Account.Address, BlockParameter.CreatePending());
+            var constructTxn = new TransactionRequest
+            {
+                Data = "0x12",
+                Value = new HexBigInteger(0),
+                Gas = await l2Deployer.Provider.Eth.GasPrice.SendRequestAsync(),
+                MaxPriorityFeePerGas = new HexBigInteger(0),
+                Nonce = currentNonce,
+                To = l2Deployer.Account.Address
+            };
+
+            var returnData = await SendSignedTx(testState, constructTxn);
             var l1TransactionReceipt = returnData.L1TransactionReceipt;
             var signedMsg = returnData.SignedMsg;
 
-            Assert.That(l1TransactionReceipt.Status, Is.EqualTo(1), "L1 transaction failed");
+            Assert.That(l1TransactionReceipt.Status, Is.EqualTo(1.ToHexBigInteger()), "L1 transaction failed");
 
-            var l2TxHash = await l2Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedMsg);
-            var l2Tx = await l2Provider.Eth.Transactions.GetTransactionByHash.SendRequestAsync(l2TxHash);
-            var l2TxReceipt = await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(l2TxHash);
+            var l2TxReceipt = await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(signedMsg);
 
-            Assert.That(l2TxReceipt.Status, Is.EqualTo(1), "L2 transaction failed");
+            Assert.That(l2TxReceipt.Status, Is.EqualTo(1.ToHexBigInteger()), "L2 transaction failed");
         }
 
         [Test]
@@ -140,40 +86,84 @@ namespace Arbitrum.Tests.Integration
             var testState = await TestSetupUtils.TestSetup();
 
             var l2Deployer = testState.L2Deployer;
-            var l2Provider = l2Deployer.Provider;
+            var l2Provider = l2Deployer?.Provider;
 
-            var currentNonce = await l2Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(testState.L2Deployer.Account.Address);
-            var lowFeeInfo = new TransactionRequest { Data = "0x12", Nonce = currentNonce, To = testState.L2Deployer.Account.Address, MaxFeePerGas = new HexBigInteger(10000000), MaxPriorityFeePerGas = new HexBigInteger(10000000) };
+            var currentNonce = await l2Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(l2Deployer.Account.Address, BlockParameter.CreatePending());
+            var lowFeeInfo = new TransactionRequest
+            {
+                Data = "0x12",
+                Nonce = currentNonce,
+                To = testState.L2Deployer.Account.Address,
+                Gas = await l2Deployer.Provider.Eth.GasPrice.SendRequestAsync(),
+                MaxFeePerGas = new HexBigInteger(1000000000),
+                MaxPriorityFeePerGas = new HexBigInteger(100000000)
+            };
+
             var lowFeeTxData = await SendSignedTx(testState, lowFeeInfo);
-            
-            Assert.That(lowFeeTxData.L1TransactionReceipt.Status, Is.EqualTo(1), "L1 transaction (low fee) failed");
 
-            var enoughFeeInfo = new TransactionRequest{ Data = "0x12", To = testState.L2Deployer.Account.Address, Nonce = currentNonce };
+            Assert.That(lowFeeTxData.L1TransactionReceipt.Status, Is.EqualTo(1.ToHexBigInteger()), "L1 transaction (low fee) failed");
+
+            currentNonce = await l2Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(l2Deployer.Account.Address, BlockParameter.CreatePending());
+            var enoughFeeInfo = new TransactionRequest
+            {
+                Data = "0x12",
+                To = testState.L2Deployer.Account.Address,
+                Nonce = currentNonce,
+                Gas = await l2Deployer.Provider.Eth.GasPrice.SendRequestAsync()
+            };
+
             var enoughFeeTxData = await SendSignedTx(testState, enoughFeeInfo);
 
-            Assert.That(enoughFeeTxData.L1TransactionReceipt.Status, Is.EqualTo(1), "L1 transaction (enough fee) failed");
+            Assert.That(enoughFeeTxData.L1TransactionReceipt.Status, Is.EqualTo(1.ToHexBigInteger()), "L1 transaction (enough fee) failed");
 
-            var l2LowFeeTxHash = await l2Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(lowFeeTxData.SignedMsg);
-            var l2EnoughFeeTxHash = await l2Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(enoughFeeTxData.SignedMsg);
-            //var l2Tx = await l2Provider.Eth.Transactions.GetTransactionByHash.SendRequestAsync(l2LowFeeTxHash);
+            var l2EnoughFeeReceipt = await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(enoughFeeTxData.SignedMsg);
+            Assert.That(l2EnoughFeeReceipt.Status, Is.EqualTo(1.ToHexBigInteger()), "L2 transaction (enough fee) failed");
 
-            var l2EnoughFeeReceipt = await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(l2EnoughFeeTxHash);
+            var receipt = await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(lowFeeTxData.SignedMsg);
+            Assert.That(receipt.Logs.Count, Is.EqualTo(0));
+        }
 
-            Assert.That(l2EnoughFeeReceipt.Status, Is.EqualTo(1), "L2 transaction (enough fee) failed");
-            try
+        public class TxResult
+        {
+            public string? SignedMsg { get; set; }
+            public TransactionReceipt? L1TransactionReceipt { get; set; }
+        }
+
+        private static async Task<TxResult> SendSignedTx(TestState testState, TransactionRequest? info = null)
+        {
+            var l1Deployer = testState.L1Deployer;
+            var l2Deployer = testState.L2Deployer;
+            var l1Provider = l1Deployer.Provider;
+            var l2Provider = l2Deployer.Provider;
+            var chainId = await l2Deployer.Provider.Eth.ChainId.SendRequestAsync();
+            var l2Network = await NetworkUtils.GetL2Network((int)(chainId).Value);
+            var inbox = new InboxTools(l1Deployer, l2Network);
+
+            var message = new TransactionRequest
             {
-                await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(l2LowFeeTxHash);
-                Assert.Fail("Expected RpcResponseException was not thrown");
-            }
-            catch(RpcResponseException ex)
+                Value = new HexBigInteger(Web3.Convert.ToWei(0, UnitConversion.EthUnit.Ether)),
+                From = info.From,
+                MaxFeePerGas = info.MaxFeePerGas ?? new HexBigInteger(200000000),
+                MaxPriorityFeePerGas = info.MaxPriorityFeePerGas,
+                AccessList = info.AccessList,
+                ChainId = info.ChainId ?? chainId,
+                Data = info.Data,
+                Gas = info.Gas,
+                GasPrice = info.GasPrice,
+                Nonce = info.Nonce,
+                To = info.To,
+                Type = info.Type
+            };
+
+            var signedTx = await inbox.SignL2Tx(message, l2Deployer);
+            var l2TxHash = await l2Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);
+            var l1Tx = await inbox.SendL2SignedTx(signedTx);
+
+            return new TxResult
             {
-                if (!ex.Message.Contains("Transaction not found"))
-                {
-                    // If the exception message does not contain the expected error message,
-                    // rethrow the exception to fail the test
-                    throw;
-                }
-            }
+                SignedMsg = l2TxHash,
+                L1TransactionReceipt = l1Tx
+            };
         }
     }
 }

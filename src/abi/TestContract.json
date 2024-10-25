@@ -1,0 +1,910 @@
+{
+    "contractName": "TestContract",
+    "abi": [
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "uint256",
+                    "name": "value",
+                    "type": "uint256"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "string",
+                    "name": "message",
+                    "type": "string"
+                }
+            ],
+            "name": "TestEvent",
+            "type": "event"
+        },
+        {
+            "inputs": [],
+            "name": "triggerEvent",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        }
+    ],
+    "metadata": "{\"compiler\":{\"version\":\"0.8.27+commit.40a35a09\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"message\",\"type\":\"string\"}],\"name\":\"TestEvent\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"triggerEvent\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/test/foundry/TestContractTest.sol\":\"TestContract\"},\"evmVersion\":\"cancun\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[],\"viaIR\":true},\"sources\":{\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/Base.sol\":{\"keccak256\":\"0x4ff1a785311017d1eedb1b4737956fa383067ad34eb439abfec1d989754dde1c\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://f553622969b9fdb930246704a4c10dfaee6b1a4468c142fa7eb9dc292a438224\",\"dweb:/ipfs/QmcxqHnqdQsMVtgsfH9VNLmZ3g7GhgNagfq7yvNCDcCHFK\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/StdAssertions.sol\":{\"keccak256\":\"0x4584f551c3a875c26423c1e50a77179bc2f9c9c1ee6d0f0c6be0f89ca5ee8270\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://ef118876a862b60ba8a6612b8b3f3a6c226e11a0071a2e9695f021586d1bfdbe\",\"dweb:/ipfs/QmXd2vD91PkvoFWasFkgbDi89PctmgsHVxGvGNyhjmRK2b\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/StdChains.sol\":{\"keccak256\":\"0x7dd11ac4db798fa196e00a0cfa288ce984acac881f1f34de03fe3187deed58de\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://2c15fb03d5545e2d8d3948661596410edec5ec278a73988914b14a05d0d54557\",\"dweb:/ipfs/QmWGjkLgp4wSrTrFxF8cmhghaXQp5VyXYQvWE1DUTPL4rG\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/StdCheats.sol\":{\"keccak256\":\"0xc5ea928967b29cc7fc36a29b016ce9bec71ae9442cb4b2cbe698df73416e706b\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://79a8ad483b37fda26df82658e6f30e1cad694e382ae539e99470fe6486d69cbc\",\"dweb:/ipfs/QmbX7zrdX2niV4rgavwxm9iBuMo6d4sragQRuDzbCFoeaw\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/StdError.sol\":{\"keccak256\":\"0xbf477b11a42d7611696956546bcfaa29317d1166bf65e402344599c05943fc77\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://bc2e117d1135e030862b96a6526a43feb38d396cc79857f1fb696d4eff0e5fd6\",\"dweb:/ipfs/QmdSuQ5RrQudTLsNmWXGEeVJX8gR5U9XPm6m4dwwuQnJrj\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/StdInvariant.sol\":{\"keccak256\":\"0x4dab3021edfa9511bbdd80c48f060ef62eaf457f99eaf841f561fc2557d9a08d\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://07668628673174cf8f27f8f4e1f862bab775013ec247eb34f698c5005f229391\",\"dweb:/ipfs/QmPJsiiYwmCZXMsHmQv5tg8VF3CAhNdat7WnKLTWZZH2v5\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/StdJson.sol\":{\"keccak256\":\"0x62bed173cb126f6d5006706cf249bac8a2d51bfa18f773f314784ff18adc622d\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://5acc33dddbf2492e37dc32e89cd56ce917272d303a6874805f3a5768a6bfbf54\",\"dweb:/ipfs/QmTsgFhcpUf16gAVazUXU3WspgX8nHke2hzVCvoqS25WEp\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/StdMath.sol\":{\"keccak256\":\"0xd90ad4fd8aeaeb8929964e686e769fdedd5eded3fc3815df194a0ab9f91a3fb2\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://7919b70f636c7b805223992f28ad1ad0145d6c1385b5931a3589aface5fe6c92\",\"dweb:/ipfs/QmY7FRaULwoGgFteF8GawjQJRfasNgpWnU2aiMsFrYpuTC\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/StdStorage.sol\":{\"keccak256\":\"0xb91ab24383a5872b894fc93325eef1add6cbbf981628f18e860068bf88bb7dcc\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://2651e33b9ac8fc5803ed0a43078c1bf4fa90a0b0347aafd95776b02daccdcc57\",\"dweb:/ipfs/QmbdRyPuGJdZgnCuMnp7c1WsBo1Spf7j1KMmws1Z5rd4BQ\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/StdStyle.sol\":{\"keccak256\":\"0x43e2a8a9b9c2574dabe74f11adf6f782df218f463540e3b5b563609fe108597d\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://51363ca97404cf4128e1141428949768c31929e75e014b02c85e887fbbb4f1b8\",\"dweb:/ipfs/QmVhtbQc2fU4rRmbcfBtz34mAgG4BAZBsbna1Ca4SkoPsK\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/StdToml.sol\":{\"keccak256\":\"0xc8a57915ace96f5b6a85b57e57690fc038cad9034a3dc368c11828a3707c61ab\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://fa880a1a6e5d94005dcf4811b4c0df8d9c06407017ae111bd351483e2b76a72d\",\"dweb:/ipfs/QmcxkEE58gE1vDcZofTr8QpvdjXjgR72yYg7o4vTPSLCsy\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/StdUtils.sol\":{\"keccak256\":\"0x4a5853bb9688c4e1c65626036cddd8ea2af84ef1046b704ddc3782d84a892410\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://09c1024e6aac9657312fcfcf5c3dee62c22edf9f74a1065e6924c4ec710ecafa\",\"dweb:/ipfs/QmRNURoTUkd6DiZnf8yY8o3stJpVQBifopdSpQgP9RhvRr\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/Test.sol\":{\"keccak256\":\"0x3b4bb409a156dee9ce261458117fe9f81080ca844a8a26c07c857c46d155effe\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://5792c69fe24bdc063a14e08fe68275007fdb1e5e7e343840a77938cb7e95a64e\",\"dweb:/ipfs/QmcAMhaurUwzhytJFYix4vRNeZeV8g27b8LnV3t7dvYtiK\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/Vm.sol\":{\"keccak256\":\"0x20a0001cfab1054493c5da0947abb9c8b42abdc9c91d7451d83d804c025ad430\",\"license\":\"MIT OR Apache-2.0\",\"urls\":[\"bzz-raw://b6875cafc44f6891c9f318c2b808b61824864f33369ad8a4e76fc0999757aed4\",\"dweb:/ipfs/QmYQXZhSbonEsHm4SEqfiBf7gP6qHHU8M8Z5xwwr5ViY3E\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/console.sol\":{\"keccak256\":\"0xf61cb43a94d8318049d0a7f567af8c0aa952b5762a43851b130b90b3fcde0c6a\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://53a52c6c3aeb22f7a18f53fca16af590308a8e3e5507e74df9b8e2561c932194\",\"dweb:/ipfs/QmaaXuY8mC66YoE2xyZdWuLHXqAxLjbnNxiofx8BTP1MRn\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/console2.sol\":{\"keccak256\":\"0x3b8fe79f48f065a4e4d35362171304a33784c3a90febae5f2787805a438de12f\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://61de63af08803549299e68b6e6e88d40f3c5afac450e4ee0a228c66a61ba003d\",\"dweb:/ipfs/QmWVoQ5rrVxnczD4ZZoPbD4PC9Z3uExJtzjD4awTqd14MZ\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/interfaces/IERC165.sol\":{\"keccak256\":\"0x414b2861b1acbf816ccb7346d3f16cf6c1e002e9e5e40d2f1f26fa5ddc2ea600\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://698352fb240868ea8f1d1fe389993035eeab930f10d06934f80ccfb2b6ccbfbc\",\"dweb:/ipfs/QmT6WLHAgXxFhh12kWym895oTzXid1326iZiwT3pyfggoT\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/interfaces/IERC20.sol\":{\"keccak256\":\"0x4cab887298790f908c27de107e4e2907ca5413aee482ef776f8d2f353c5ef947\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://bb715e0c4a2bdbe432bb624501506041f06e878e0b72675aebba30ad2c2b72e7\",\"dweb:/ipfs/QmWhhLSvkxS2NrukJJHqFY8gDVE5r9rD4PfHvR24pwdKv9\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/interfaces/IERC721.sol\":{\"keccak256\":\"0xf069262a264fdb69f8f37a10d2df7374649e9ba73f8414c9c8a3b51184625f15\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://924a41ca82a68ffbd503a5faf2f76d13e9938f10501a71094716f12bb64b4b7f\",\"dweb:/ipfs/QmdWnqfKc5ZGhmxNPTde4zrFchnv9Yk9MpCMb2rdhXE5gm\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/interfaces/IMulticall3.sol\":{\"keccak256\":\"0x7aac1389150499a922d1f9ef5749c908cef127cb2075b92fa17e9cb611263d0a\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://d95ebb7c7c463e08ebc12dab639945752fb2480acfc6e86da32f72732a7fd0c0\",\"dweb:/ipfs/QmNXK8P8oPWwajsQHvAHw3JPyQidPLCGQN3hWu1Lk6PBL2\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/mocks/MockERC20.sol\":{\"keccak256\":\"0xadbdfc6639edec00ba94bb1133a0fd8de31ccafe45c2ef5df9b3ca61b60b559b\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://bc766f01bccf669abac8cc7b2096cc1352a66471ca3772ae61b1801dedc4ed4f\",\"dweb:/ipfs/QmNigaPj1LYkP7Z5xr4ijkUxr2K66fDGeoifG3WoM9ruyw\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/mocks/MockERC721.sol\":{\"keccak256\":\"0xbfbb755bb379f58b97699f7cda0e9a2b9113daaa072e41b280a5ce6a3bff44c9\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://5ae0c31d29db14d6a0e9b62d33d550feb307f48a6f45068901a013321f337f87\",\"dweb:/ipfs/QmX25DVXW6XZDvRm6SNBGCWrZQ6oNhdq5CmgtVocvsUdwv\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/safeconsole.sol\":{\"keccak256\":\"0xbef9786cb49d3eade757bad87568c49c8c8f35721f0193c95ffb055d9e466e11\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://3bafd2b0b2d28068d329f95ea8a1fbce3719c257fcb863fc01abcbafd8d531ab\",\"dweb:/ipfs/QmUeaFjKWTVDBsHVfSob4mwt6A5hTnKDz22HaUXeZhypa3\"]},\"c:/Contracts/nitro-contracts-main/nitro-contracts-main/test/foundry/TestContractTest.sol\":{\"keccak256\":\"0xd9026e86403227f8797b415cd625429a916b627fc5ec92315ed7f363fd2accc5\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://2ed25f3715ac6cd0e87a85c574e0d293a1f45771c17cb888a985de8cd64a586b\",\"dweb:/ipfs/QmSaQCA2cZi1YDAx2CH6i7tqmwHFvUn1Mgtaz71cYCrjft\"]}},\"version\":1}",
+    "bytecode": "6080806040523460135760b7908160188239f35b5f80fdfe60808060405260043610156011575f80fd5b5f3560e01c63ede48fb7146023575f80fd5b34607d575f366003190112607d577f1be7c4acf0f0eba0992603759c32d028600239a9034d28a643e234992e646aa46060826020607b9452600f60208201526e115d995b9d08151c9a59d9d95c9959608a1b6040820152a2005b5f80fdfea26469706673582212200624cfd4245517ca2a0bbbdf871047667301969268f344ada72762709154c25564736f6c634300081b0033",
+    "deployedBytecode": "60808060405260043610156011575f80fd5b5f3560e01c63ede48fb7146023575f80fd5b34607d575f366003190112607d577f1be7c4acf0f0eba0992603759c32d028600239a9034d28a643e234992e646aa46060826020607b9452600f60208201526e115d995b9d08151c9a59d9d95c9959608a1b6040820152a2005b5f80fdfea26469706673582212200624cfd4245517ca2a0bbbdf871047667301969268f344ada72762709154c25564736f6c634300081b0033",
+    "sourceMap": "147:184:23:-:0;;;;;;;;;;;;;;;;;",
+    "deployedSourceMap": "147:184:23:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;147:184:23;;;;286:33;;147:184;;296:3;147:184;;;;;;;-1:-1:-1;;;147:184:23;;;;286:33;147:184;;;;",
+    "sourcePath": "c:/Contracts/nitro-contracts-main/nitro-contracts-main/test/foundry/TestContractTest.sol",
+    "compiler": {
+        "name": "solc",
+        "version": "0.8.27+commit.40a35a09"
+    },
+    "ast": {
+        "absolutePath": "c:/Contracts/nitro-contracts-main/nitro-contracts-main/test/foundry/TestContractTest.sol",
+        "exportedSymbols": {
+            "StdAssertions": [
+                2695
+            ],
+            "StdChains": [
+                3540
+            ],
+            "StdCheats": [
+                6393
+            ],
+            "StdInvariant": [
+                6753
+            ],
+            "StdStorage": [
+                7525
+            ],
+            "StdStyle": [
+                10693
+            ],
+            "StdUtils": [
+                12071
+            ],
+            "Test": [
+                12123
+            ],
+            "TestBase": [
+                65
+            ],
+            "TestContract": [
+                39077
+            ],
+            "TestContractTest": [
+                39119
+            ],
+            "Vm": [
+                16217
+            ],
+            "VmSafe": [
+                15552
+            ],
+            "console": [
+                24341
+            ],
+            "console2": [
+                24341
+            ],
+            "safeconsole": [
+                39057
+            ],
+            "stdError": [
+                6459
+            ],
+            "stdJson": [
+                7345
+            ],
+            "stdMath": [
+                7487
+            ],
+            "stdStorage": [
+                9482
+            ],
+            "stdToml": [
+                11285
+            ]
+        },
+        "id": 39120,
+        "license": "MIT",
+        "nodeType": "SourceUnit",
+        "nodes": [
+            {
+                "id": 39059,
+                "literals": [
+                    "solidity",
+                    "^",
+                    "0.8",
+                    ".9"
+                ],
+                "nodeType": "PragmaDirective",
+                "src": "33:23:23"
+            },
+            {
+                "absolutePath": "c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/Vm.sol",
+                "file": "../../lib/forge-std/src/Vm.sol",
+                "id": 39060,
+                "nameLocation": "-1:-1:-1",
+                "nodeType": "ImportDirective",
+                "scope": 39120,
+                "sourceUnit": 16218,
+                "src": "58:40:23",
+                "symbolAliases": [],
+                "unitAlias": ""
+            },
+            {
+                "absolutePath": "c:/Contracts/nitro-contracts-main/nitro-contracts-main/lib/forge-std/src/Test.sol",
+                "file": "../../lib/forge-std/src/Test.sol",
+                "id": 39061,
+                "nameLocation": "-1:-1:-1",
+                "nodeType": "ImportDirective",
+                "scope": 39120,
+                "sourceUnit": 12124,
+                "src": "100:42:23",
+                "symbolAliases": [],
+                "unitAlias": ""
+            },
+            {
+                "abstract": false,
+                "baseContracts": [],
+                "canonicalName": "TestContract",
+                "contractDependencies": [],
+                "contractKind": "contract",
+                "fullyImplemented": true,
+                "id": 39077,
+                "linearizedBaseContracts": [
+                    39077
+                ],
+                "name": "TestContract",
+                "nameLocation": "156:12:23",
+                "nodeType": "ContractDefinition",
+                "nodes": [
+                    {
+                        "anonymous": false,
+                        "eventSelector": "1be7c4acf0f0eba0992603759c32d028600239a9034d28a643e234992e646aa4",
+                        "id": 39067,
+                        "name": "TestEvent",
+                        "nameLocation": "182:9:23",
+                        "nodeType": "EventDefinition",
+                        "parameters": {
+                            "id": 39066,
+                            "nodeType": "ParameterList",
+                            "parameters": [
+                                {
+                                    "constant": false,
+                                    "id": 39063,
+                                    "indexed": true,
+                                    "mutability": "mutable",
+                                    "name": "value",
+                                    "nameLocation": "208:5:23",
+                                    "nodeType": "VariableDeclaration",
+                                    "scope": 39067,
+                                    "src": "192:21:23",
+                                    "stateVariable": false,
+                                    "storageLocation": "default",
+                                    "typeDescriptions": {
+                                        "typeIdentifier": "t_uint256",
+                                        "typeString": "uint256"
+                                    },
+                                    "typeName": {
+                                        "id": 39062,
+                                        "name": "uint256",
+                                        "nodeType": "ElementaryTypeName",
+                                        "src": "192:7:23",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_uint256",
+                                            "typeString": "uint256"
+                                        }
+                                    },
+                                    "visibility": "internal"
+                                },
+                                {
+                                    "constant": false,
+                                    "id": 39065,
+                                    "indexed": false,
+                                    "mutability": "mutable",
+                                    "name": "message",
+                                    "nameLocation": "222:7:23",
+                                    "nodeType": "VariableDeclaration",
+                                    "scope": 39067,
+                                    "src": "215:14:23",
+                                    "stateVariable": false,
+                                    "storageLocation": "default",
+                                    "typeDescriptions": {
+                                        "typeIdentifier": "t_string_memory_ptr",
+                                        "typeString": "string"
+                                    },
+                                    "typeName": {
+                                        "id": 39064,
+                                        "name": "string",
+                                        "nodeType": "ElementaryTypeName",
+                                        "src": "215:6:23",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_string_storage_ptr",
+                                            "typeString": "string"
+                                        }
+                                    },
+                                    "visibility": "internal"
+                                }
+                            ],
+                            "src": "191:39:23"
+                        },
+                        "src": "176:55:23"
+                    },
+                    {
+                        "body": {
+                            "id": 39075,
+                            "nodeType": "Block",
+                            "src": "270:57:23",
+                            "statements": [
+                                {
+                                    "eventCall": {
+                                        "arguments": [
+                                            {
+                                                "hexValue": "313233",
+                                                "id": 39071,
+                                                "isConstant": false,
+                                                "isLValue": false,
+                                                "isPure": true,
+                                                "kind": "number",
+                                                "lValueRequested": false,
+                                                "nodeType": "Literal",
+                                                "src": "296:3:23",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_rational_123_by_1",
+                                                    "typeString": "int_const 123"
+                                                },
+                                                "value": "123"
+                                            },
+                                            {
+                                                "hexValue": "4576656e7420547269676765726564",
+                                                "id": 39072,
+                                                "isConstant": false,
+                                                "isLValue": false,
+                                                "isPure": true,
+                                                "kind": "string",
+                                                "lValueRequested": false,
+                                                "nodeType": "Literal",
+                                                "src": "301:17:23",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_stringliteral_48ab1c120f1c2023eaf6f61dde82e61ced500cd739f1c9b179206e5dc433f2b5",
+                                                    "typeString": "literal_string \"Event Triggered\""
+                                                },
+                                                "value": "Event Triggered"
+                                            }
+                                        ],
+                                        "expression": {
+                                            "argumentTypes": [
+                                                {
+                                                    "typeIdentifier": "t_rational_123_by_1",
+                                                    "typeString": "int_const 123"
+                                                },
+                                                {
+                                                    "typeIdentifier": "t_stringliteral_48ab1c120f1c2023eaf6f61dde82e61ced500cd739f1c9b179206e5dc433f2b5",
+                                                    "typeString": "literal_string \"Event Triggered\""
+                                                }
+                                            ],
+                                            "id": 39070,
+                                            "name": "TestEvent",
+                                            "nodeType": "Identifier",
+                                            "overloadedDeclarations": [],
+                                            "referencedDeclaration": 39067,
+                                            "src": "286:9:23",
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_function_event_nonpayable$_t_uint256_$_t_string_memory_ptr_$returns$__$",
+                                                "typeString": "function (uint256,string memory)"
+                                            }
+                                        },
+                                        "id": 39073,
+                                        "isConstant": false,
+                                        "isLValue": false,
+                                        "isPure": false,
+                                        "kind": "functionCall",
+                                        "lValueRequested": false,
+                                        "nameLocations": [],
+                                        "names": [],
+                                        "nodeType": "FunctionCall",
+                                        "src": "286:33:23",
+                                        "tryCall": false,
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_tuple$__$",
+                                            "typeString": "tuple()"
+                                        }
+                                    },
+                                    "id": 39074,
+                                    "nodeType": "EmitStatement",
+                                    "src": "281:38:23"
+                                }
+                            ]
+                        },
+                        "functionSelector": "ede48fb7",
+                        "id": 39076,
+                        "implemented": true,
+                        "kind": "function",
+                        "modifiers": [],
+                        "name": "triggerEvent",
+                        "nameLocation": "248:12:23",
+                        "nodeType": "FunctionDefinition",
+                        "parameters": {
+                            "id": 39068,
+                            "nodeType": "ParameterList",
+                            "parameters": [],
+                            "src": "260:2:23"
+                        },
+                        "returnParameters": {
+                            "id": 39069,
+                            "nodeType": "ParameterList",
+                            "parameters": [],
+                            "src": "270:0:23"
+                        },
+                        "scope": 39077,
+                        "src": "239:88:23",
+                        "stateMutability": "nonpayable",
+                        "virtual": false,
+                        "visibility": "public"
+                    }
+                ],
+                "scope": 39120,
+                "src": "147:184:23",
+                "usedErrors": [],
+                "usedEvents": [
+                    39067
+                ]
+            },
+            {
+                "abstract": false,
+                "baseContracts": [
+                    {
+                        "baseName": {
+                            "id": 39078,
+                            "name": "Test",
+                            "nameLocations": [
+                                "364:4:23"
+                            ],
+                            "nodeType": "IdentifierPath",
+                            "referencedDeclaration": 12123,
+                            "src": "364:4:23"
+                        },
+                        "id": 39079,
+                        "nodeType": "InheritanceSpecifier",
+                        "src": "364:4:23"
+                    }
+                ],
+                "canonicalName": "TestContractTest",
+                "contractDependencies": [
+                    39077
+                ],
+                "contractKind": "contract",
+                "fullyImplemented": true,
+                "id": 39119,
+                "linearizedBaseContracts": [
+                    39119,
+                    12123,
+                    12071,
+                    6753,
+                    6393,
+                    5600,
+                    3540,
+                    2695,
+                    65,
+                    62
+                ],
+                "name": "TestContractTest",
+                "nameLocation": "344:16:23",
+                "nodeType": "ContractDefinition",
+                "nodes": [
+                    {
+                        "constant": false,
+                        "id": 39082,
+                        "mutability": "mutable",
+                        "name": "testContract",
+                        "nameLocation": "389:12:23",
+                        "nodeType": "VariableDeclaration",
+                        "scope": 39119,
+                        "src": "376:25:23",
+                        "stateVariable": true,
+                        "storageLocation": "default",
+                        "typeDescriptions": {
+                            "typeIdentifier": "t_contract$_TestContract_$39077",
+                            "typeString": "contract TestContract"
+                        },
+                        "typeName": {
+                            "id": 39081,
+                            "nodeType": "UserDefinedTypeName",
+                            "pathNode": {
+                                "id": 39080,
+                                "name": "TestContract",
+                                "nameLocations": [
+                                    "376:12:23"
+                                ],
+                                "nodeType": "IdentifierPath",
+                                "referencedDeclaration": 39077,
+                                "src": "376:12:23"
+                            },
+                            "referencedDeclaration": 39077,
+                            "src": "376:12:23",
+                            "typeDescriptions": {
+                                "typeIdentifier": "t_contract$_TestContract_$39077",
+                                "typeString": "contract TestContract"
+                            }
+                        },
+                        "visibility": "internal"
+                    },
+                    {
+                        "body": {
+                            "id": 39092,
+                            "nodeType": "Block",
+                            "src": "434:52:23",
+                            "statements": [
+                                {
+                                    "expression": {
+                                        "id": 39090,
+                                        "isConstant": false,
+                                        "isLValue": false,
+                                        "isPure": false,
+                                        "lValueRequested": false,
+                                        "leftHandSide": {
+                                            "id": 39085,
+                                            "name": "testContract",
+                                            "nodeType": "Identifier",
+                                            "overloadedDeclarations": [],
+                                            "referencedDeclaration": 39082,
+                                            "src": "445:12:23",
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_contract$_TestContract_$39077",
+                                                "typeString": "contract TestContract"
+                                            }
+                                        },
+                                        "nodeType": "Assignment",
+                                        "operator": "=",
+                                        "rightHandSide": {
+                                            "arguments": [],
+                                            "expression": {
+                                                "argumentTypes": [],
+                                                "id": 39088,
+                                                "isConstant": false,
+                                                "isLValue": false,
+                                                "isPure": false,
+                                                "lValueRequested": false,
+                                                "nodeType": "NewExpression",
+                                                "src": "460:16:23",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_function_creation_nonpayable$__$returns$_t_contract$_TestContract_$39077_$",
+                                                    "typeString": "function () returns (contract TestContract)"
+                                                },
+                                                "typeName": {
+                                                    "id": 39087,
+                                                    "nodeType": "UserDefinedTypeName",
+                                                    "pathNode": {
+                                                        "id": 39086,
+                                                        "name": "TestContract",
+                                                        "nameLocations": [
+                                                            "464:12:23"
+                                                        ],
+                                                        "nodeType": "IdentifierPath",
+                                                        "referencedDeclaration": 39077,
+                                                        "src": "464:12:23"
+                                                    },
+                                                    "referencedDeclaration": 39077,
+                                                    "src": "464:12:23",
+                                                    "typeDescriptions": {
+                                                        "typeIdentifier": "t_contract$_TestContract_$39077",
+                                                        "typeString": "contract TestContract"
+                                                    }
+                                                }
+                                            },
+                                            "id": 39089,
+                                            "isConstant": false,
+                                            "isLValue": false,
+                                            "isPure": false,
+                                            "kind": "functionCall",
+                                            "lValueRequested": false,
+                                            "nameLocations": [],
+                                            "names": [],
+                                            "nodeType": "FunctionCall",
+                                            "src": "460:18:23",
+                                            "tryCall": false,
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_contract$_TestContract_$39077",
+                                                "typeString": "contract TestContract"
+                                            }
+                                        },
+                                        "src": "445:33:23",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_contract$_TestContract_$39077",
+                                            "typeString": "contract TestContract"
+                                        }
+                                    },
+                                    "id": 39091,
+                                    "nodeType": "ExpressionStatement",
+                                    "src": "445:33:23"
+                                }
+                            ]
+                        },
+                        "functionSelector": "0a9254e4",
+                        "id": 39093,
+                        "implemented": true,
+                        "kind": "function",
+                        "modifiers": [],
+                        "name": "setUp",
+                        "nameLocation": "419:5:23",
+                        "nodeType": "FunctionDefinition",
+                        "parameters": {
+                            "id": 39083,
+                            "nodeType": "ParameterList",
+                            "parameters": [],
+                            "src": "424:2:23"
+                        },
+                        "returnParameters": {
+                            "id": 39084,
+                            "nodeType": "ParameterList",
+                            "parameters": [],
+                            "src": "434:0:23"
+                        },
+                        "scope": 39119,
+                        "src": "410:76:23",
+                        "stateMutability": "nonpayable",
+                        "virtual": false,
+                        "visibility": "public"
+                    },
+                    {
+                        "body": {
+                            "id": 39117,
+                            "nodeType": "Block",
+                            "src": "526:232:23",
+                            "statements": [
+                                {
+                                    "expression": {
+                                        "arguments": [
+                                            {
+                                                "hexValue": "74727565",
+                                                "id": 39099,
+                                                "isConstant": false,
+                                                "isLValue": false,
+                                                "isPure": true,
+                                                "kind": "bool",
+                                                "lValueRequested": false,
+                                                "nodeType": "Literal",
+                                                "src": "594:4:23",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_bool",
+                                                    "typeString": "bool"
+                                                },
+                                                "value": "true"
+                                            },
+                                            {
+                                                "hexValue": "74727565",
+                                                "id": 39100,
+                                                "isConstant": false,
+                                                "isLValue": false,
+                                                "isPure": true,
+                                                "kind": "bool",
+                                                "lValueRequested": false,
+                                                "nodeType": "Literal",
+                                                "src": "600:4:23",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_bool",
+                                                    "typeString": "bool"
+                                                },
+                                                "value": "true"
+                                            },
+                                            {
+                                                "hexValue": "66616c7365",
+                                                "id": 39101,
+                                                "isConstant": false,
+                                                "isLValue": false,
+                                                "isPure": true,
+                                                "kind": "bool",
+                                                "lValueRequested": false,
+                                                "nodeType": "Literal",
+                                                "src": "606:5:23",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_bool",
+                                                    "typeString": "bool"
+                                                },
+                                                "value": "false"
+                                            },
+                                            {
+                                                "hexValue": "74727565",
+                                                "id": 39102,
+                                                "isConstant": false,
+                                                "isLValue": false,
+                                                "isPure": true,
+                                                "kind": "bool",
+                                                "lValueRequested": false,
+                                                "nodeType": "Literal",
+                                                "src": "613:4:23",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_bool",
+                                                    "typeString": "bool"
+                                                },
+                                                "value": "true"
+                                            }
+                                        ],
+                                        "expression": {
+                                            "argumentTypes": [
+                                                {
+                                                    "typeIdentifier": "t_bool",
+                                                    "typeString": "bool"
+                                                },
+                                                {
+                                                    "typeIdentifier": "t_bool",
+                                                    "typeString": "bool"
+                                                },
+                                                {
+                                                    "typeIdentifier": "t_bool",
+                                                    "typeString": "bool"
+                                                },
+                                                {
+                                                    "typeIdentifier": "t_bool",
+                                                    "typeString": "bool"
+                                                }
+                                            ],
+                                            "expression": {
+                                                "id": 39096,
+                                                "name": "vm",
+                                                "nodeType": "Identifier",
+                                                "overloadedDeclarations": [],
+                                                "referencedDeclaration": 58,
+                                                "src": "580:2:23",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_contract$_Vm_$16217",
+                                                    "typeString": "contract Vm"
+                                                }
+                                            },
+                                            "id": 39098,
+                                            "isConstant": false,
+                                            "isLValue": false,
+                                            "isPure": false,
+                                            "lValueRequested": false,
+                                            "memberLocation": "583:10:23",
+                                            "memberName": "expectEmit",
+                                            "nodeType": "MemberAccess",
+                                            "referencedDeclaration": 16144,
+                                            "src": "580:13:23",
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_function_external_nonpayable$_t_bool_$_t_bool_$_t_bool_$_t_bool_$returns$__$",
+                                                "typeString": "function (bool,bool,bool,bool) external"
+                                            }
+                                        },
+                                        "id": 39103,
+                                        "isConstant": false,
+                                        "isLValue": false,
+                                        "isPure": false,
+                                        "kind": "functionCall",
+                                        "lValueRequested": false,
+                                        "nameLocations": [],
+                                        "names": [],
+                                        "nodeType": "FunctionCall",
+                                        "src": "580:38:23",
+                                        "tryCall": false,
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_tuple$__$",
+                                            "typeString": "tuple()"
+                                        }
+                                    },
+                                    "id": 39104,
+                                    "nodeType": "ExpressionStatement",
+                                    "src": "580:38:23"
+                                },
+                                {
+                                    "eventCall": {
+                                        "arguments": [
+                                            {
+                                                "hexValue": "313233",
+                                                "id": 39108,
+                                                "isConstant": false,
+                                                "isLValue": false,
+                                                "isPure": true,
+                                                "kind": "number",
+                                                "lValueRequested": false,
+                                                "nodeType": "Literal",
+                                                "src": "657:3:23",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_rational_123_by_1",
+                                                    "typeString": "int_const 123"
+                                                },
+                                                "value": "123"
+                                            },
+                                            {
+                                                "hexValue": "4576656e7420547269676765726564",
+                                                "id": 39109,
+                                                "isConstant": false,
+                                                "isLValue": false,
+                                                "isPure": true,
+                                                "kind": "string",
+                                                "lValueRequested": false,
+                                                "nodeType": "Literal",
+                                                "src": "662:17:23",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_stringliteral_48ab1c120f1c2023eaf6f61dde82e61ced500cd739f1c9b179206e5dc433f2b5",
+                                                    "typeString": "literal_string \"Event Triggered\""
+                                                },
+                                                "value": "Event Triggered"
+                                            }
+                                        ],
+                                        "expression": {
+                                            "argumentTypes": [
+                                                {
+                                                    "typeIdentifier": "t_rational_123_by_1",
+                                                    "typeString": "int_const 123"
+                                                },
+                                                {
+                                                    "typeIdentifier": "t_stringliteral_48ab1c120f1c2023eaf6f61dde82e61ced500cd739f1c9b179206e5dc433f2b5",
+                                                    "typeString": "literal_string \"Event Triggered\""
+                                                }
+                                            ],
+                                            "expression": {
+                                                "id": 39105,
+                                                "name": "TestContract",
+                                                "nodeType": "Identifier",
+                                                "overloadedDeclarations": [],
+                                                "referencedDeclaration": 39077,
+                                                "src": "634:12:23",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_type$_t_contract$_TestContract_$39077_$",
+                                                    "typeString": "type(contract TestContract)"
+                                                }
+                                            },
+                                            "id": 39107,
+                                            "isConstant": false,
+                                            "isLValue": false,
+                                            "isPure": false,
+                                            "lValueRequested": false,
+                                            "memberLocation": "647:9:23",
+                                            "memberName": "TestEvent",
+                                            "nodeType": "MemberAccess",
+                                            "referencedDeclaration": 39067,
+                                            "src": "634:22:23",
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_function_event_nonpayable$_t_uint256_$_t_string_memory_ptr_$returns$__$",
+                                                "typeString": "function (uint256,string memory)"
+                                            }
+                                        },
+                                        "id": 39110,
+                                        "isConstant": false,
+                                        "isLValue": false,
+                                        "isPure": false,
+                                        "kind": "functionCall",
+                                        "lValueRequested": false,
+                                        "nameLocations": [],
+                                        "names": [],
+                                        "nodeType": "FunctionCall",
+                                        "src": "634:46:23",
+                                        "tryCall": false,
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_tuple$__$",
+                                            "typeString": "tuple()"
+                                        }
+                                    },
+                                    "id": 39111,
+                                    "nodeType": "EmitStatement",
+                                    "src": "629:51:23"
+                                },
+                                {
+                                    "expression": {
+                                        "arguments": [],
+                                        "expression": {
+                                            "argumentTypes": [],
+                                            "expression": {
+                                                "id": 39112,
+                                                "name": "testContract",
+                                                "nodeType": "Identifier",
+                                                "overloadedDeclarations": [],
+                                                "referencedDeclaration": 39082,
+                                                "src": "723:12:23",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_contract$_TestContract_$39077",
+                                                    "typeString": "contract TestContract"
+                                                }
+                                            },
+                                            "id": 39114,
+                                            "isConstant": false,
+                                            "isLValue": false,
+                                            "isPure": false,
+                                            "lValueRequested": false,
+                                            "memberLocation": "736:12:23",
+                                            "memberName": "triggerEvent",
+                                            "nodeType": "MemberAccess",
+                                            "referencedDeclaration": 39076,
+                                            "src": "723:25:23",
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_function_external_nonpayable$__$returns$__$",
+                                                "typeString": "function () external"
+                                            }
+                                        },
+                                        "id": 39115,
+                                        "isConstant": false,
+                                        "isLValue": false,
+                                        "isPure": false,
+                                        "kind": "functionCall",
+                                        "lValueRequested": false,
+                                        "nameLocations": [],
+                                        "names": [],
+                                        "nodeType": "FunctionCall",
+                                        "src": "723:27:23",
+                                        "tryCall": false,
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_tuple$__$",
+                                            "typeString": "tuple()"
+                                        }
+                                    },
+                                    "id": 39116,
+                                    "nodeType": "ExpressionStatement",
+                                    "src": "723:27:23"
+                                }
+                            ]
+                        },
+                        "functionSelector": "68c3b850",
+                        "id": 39118,
+                        "implemented": true,
+                        "kind": "function",
+                        "modifiers": [],
+                        "name": "testEmitEvent",
+                        "nameLocation": "503:13:23",
+                        "nodeType": "FunctionDefinition",
+                        "parameters": {
+                            "id": 39094,
+                            "nodeType": "ParameterList",
+                            "parameters": [],
+                            "src": "516:2:23"
+                        },
+                        "returnParameters": {
+                            "id": 39095,
+                            "nodeType": "ParameterList",
+                            "parameters": [],
+                            "src": "526:0:23"
+                        },
+                        "scope": 39119,
+                        "src": "494:264:23",
+                        "stateMutability": "nonpayable",
+                        "virtual": false,
+                        "visibility": "public"
+                    }
+                ],
+                "scope": 39120,
+                "src": "335:426:23",
+                "usedErrors": [],
+                "usedEvents": [
+                    100,
+                    104,
+                    108,
+                    112,
+                    116,
+                    120,
+                    124,
+                    128,
+                    134,
+                    140,
+                    148,
+                    156,
+                    162,
+                    168,
+                    174,
+                    180,
+                    185,
+                    190,
+                    195,
+                    202,
+                    209,
+                    216,
+                    39067
+                ]
+            }
+        ],
+        "src": "33:728:23"
+    },
+    "functionHashes": {
+        "triggerEvent()": "ede48fb7"
+    },
+    "gasEstimates": {
+        "creation": {
+            "codeDepositCost": "36600",
+            "executionCost": "93",
+            "totalCost": "36693"
+        },
+        "external": {
+            "triggerEvent()": "2083"
+        }
+    }
+}

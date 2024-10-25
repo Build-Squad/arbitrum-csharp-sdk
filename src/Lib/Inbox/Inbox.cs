@@ -1,32 +1,24 @@
-﻿using Arbitrum.Message;
-using Arbitrum.Utils;
-using System.Numerics;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Arbitrum.ContractFactory.Bridge;
 using Arbitrum.DataEntities;
-using Nethereum.Web3;
-using Nethereum.Web3.Accounts;
+using Arbitrum.Message;
+using Arbitrum.src.Lib.DataEntities;
+using Arbitrum.Utils;
+using NBitcoin.Logging;
+using Nethereum.ABI;
+using Nethereum.Contracts;
+using Nethereum.Hex.HexConvertors.Extensions;
 using Nethereum.Hex.HexTypes;
 using Nethereum.RPC.Eth.DTOs;
-using Newtonsoft.Json.Linq;
-using Nethereum.Contracts;
-using Nethereum.RPC.Eth;
-using Nethereum.Contracts.CQS;
 using Nethereum.Util;
-using Nethereum.ABI.Model;
-using Nethereum.Contracts.Standards.ERC20.ContractDefinition;
-using Nethereum.ABI;
-using Nethereum.ABI.FunctionEncoding;
-using Nethereum.Contracts.QueryHandlers.MultiCall;
+using Nethereum.Web3;
+using System.Numerics;
 
 namespace Arbitrum.Inbox
 {
     //correct my classes
     public class ForceInclusionParams
     {
-        public FetchedEvent<MessageDeliveredEvent>? Event { get; set; }
+        public FetchedEvent<MessageDeliveredEventDTO>? Event { get; set; }
         public string? DelayedAcc { get; set; }
 
 
@@ -46,6 +38,7 @@ namespace Arbitrum.Inbox
             public BigInteger? L1BaseFeeEstimate { get; set; }
             public BigInteger? GasEstimateForL2 { get; set; }
         }
+
         public class InboxTools
         {
             private readonly Web3 _l1Provider;
@@ -73,7 +66,8 @@ namespace Arbitrum.Inbox
 
             private bool IsContractCreation(TransactionRequest transactionl2Request)
             {
-                return string.IsNullOrEmpty(transactionl2Request.To) || transactionl2Request.To == "0x" || transactionl2Request.To == "0x0000000000000000000000000000000000000000";
+                return string.IsNullOrEmpty(transactionl2Request.To) || transactionl2Request.To == "0x" || 
+                    transactionl2Request.To == "0x0000000000000000000000000000000000000000";
             }
 
             private async Task<GasComponentsWithL2Part> EstimateArbitrumGas(TransactionRequest transactionl2Request, Web3 l2Provider)
@@ -169,18 +163,8 @@ namespace Arbitrum.Inbox
             //    return (firstEligibleBlock.Number, firstEligibleBlock.Number - blockNumberRangeSize);
             //}
 
-            private async Task<List<FetchedEvent<MessageDeliveredEvent>>> GetEventsAndIncreaseRange(Contract bridge, int searchRangeBlocks, int maxSearchRangeBlocks, int rangeMultiplier)
+            private async Task<List<FetchedEvent<MessageDeliveredEventDTO>>> GetEventsAndIncreaseRange(Contract bridge, int searchRangeBlocks, int maxSearchRangeBlocks, int rangeMultiplier)
             {
-                //if (bridge == null)              ///////////
-                //{
-                //    bridge = await LoadContractUtils.LoadContract(
-                //                contractName: "Bridge",
-                //                provider: _l1Provider,
-                //                address: _l2Network?.EthBridge?.Bridge,
-                //                isClassic: false
-                //            );
-                //}
-
                 var eFetcher = new EventFetcher(_l1Provider);
 
                 var cappedSearchRangeBlocks = Math.Min(searchRangeBlocks, maxSearchRangeBlocks);
@@ -189,7 +173,7 @@ namespace Arbitrum.Inbox
 
                 var blockRange = await GetForceIncludableBlockRange(cappedSearchRangeBlocks);
 
-                var events = await eFetcher.GetEventsAsync<MessageDeliveredEvent>(
+                var events = await eFetcher.GetEventsAsync<MessageDeliveredEventDTO>(
                     contractFactory: bridge,
                     eventName: "MessageDelivered",
                     argumentFilters: argumentFilters,
@@ -202,7 +186,7 @@ namespace Arbitrum.Inbox
 
                 if (events.Count() != 0) return events!;
 
-                else if (cappedSearchRangeBlocks == maxSearchRangeBlocks) return new List<FetchedEvent<MessageDeliveredEvent>>();
+                else if (cappedSearchRangeBlocks == maxSearchRangeBlocks) return new List<FetchedEvent<MessageDeliveredEventDTO>>();
                 else
                 {
                     return await GetEventsAndIncreaseRange(bridge, searchRangeBlocks * rangeMultiplier, maxSearchRangeBlocks, rangeMultiplier);
@@ -263,35 +247,40 @@ namespace Arbitrum.Inbox
                     eventInfo?.Event?.Event?.BaseFeeL1,
                     eventInfo?.Event?.Event?.Sender,
                     eventInfo?.Event?.Event?.MessageDataHash,
-                    // we need to pass in {} because if overrides is undefined it thinks we've provided too many params
                     overrides ?? new Overrides());
             }
 
             public async Task<TransactionReceipt?> SendL2SignedTx(string signedTx)
             {
-                var delayedInbox = await LoadContractUtils.LoadContract(
-                                            contractName: "IInbox",
-                                            provider: _l1Provider,
-                                            address: _l2Network?.EthBridge?.Inbox,
-                                            isClassic: false
-                                        );
-
                 var messageType = (byte)InboxMessageKind.L2MessageType_signedTx;
+                var packedMessageType = "0x" + messageType.ToString("X2");
 
-                var packedMessageType = new byte[] { messageType };
+                var sendDataBytes = SendDataBytes(packedMessageType, signedTx);
 
-                var sendDataBytes = ConcatArrays(packedMessageType, signedTx);
+                var delayedInbox = await LoadContractUtils.DeployAbiContract(
+                                            contractName: "Inbox",
+                                            provider: _l1Provider,
+                                            deployer: _l1Signer,
+                                            isClassic: false,
+                                            constructorArgs: new object[] { new BigInteger(sendDataBytes.Length) }
+                                        );                
 
-                var txReceipt = await delayedInbox.GetFunction("sendL2Message").SendTransactionAndWaitForReceiptAsync(
-                    from: _l1Signer?.Account.Address,      ////////////////
-                    receiptRequestCancellationToken: null,
-                    sendDataBytes
-                    );
+                var fn = delayedInbox.GetFunction("sendL2Message");
+
+                var tx = new TransactionInput()
+                {
+                    From = _l1Signer?.Account?.Address,
+                    Gas = await fn.EstimateGasAsync(new object[] { sendDataBytes })
+                };
+
+                var txReceipt = await fn.SendTransactionAndWaitForReceiptAsync(tx, functionInput: new object[] { sendDataBytes });
+
                 return txReceipt;
             }
 
             public async Task<string> SignL2Tx(TransactionRequest txRequest, SignerOrProvider l2Signer)
             {
+                // Initialize the transaction by copying properties from txRequest
                 var tx = new TransactionRequest
                 {
                     Data = txRequest?.Data,
@@ -308,76 +297,83 @@ namespace Arbitrum.Inbox
                     AccessList = txRequest?.AccessList,
                 };
 
+                // Determine if this is a contract creation transaction
                 var contractCreation = IsContractCreation(tx);
 
-                if (tx.ChainId == null) tx.ChainId = await l2Signer.Provider.Eth.ChainId.SendRequestAsync();
-                //if (tx.Nonce == null) tx.Nonce = await l2Signer?.NonceService.GetNextNonceAsync(); ////////
+                // Check and set the nonce if not provided
+                tx.Nonce ??= await l2Signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(l2Signer?.Account.Address);
 
-                if (tx.Nonce == null) tx.Nonce = await l2Signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(l2Signer?.Account.Address);  ////////
-
-                if (string.IsNullOrEmpty(tx.To)) tx.To = AddressUtil.Current.ConvertToChecksumAddress("0x0000000000000000000000000000000000000000");
-
-                if (tx.Type.Value == 1 || tx.GasPrice != null)
+                // Handle gas price or fee parameters based on transaction type
+                if (tx.Type?.Value == 1 || tx.GasPrice != null)
                 {
-                    if (tx.GasPrice == null) tx.GasPrice = await l2Signer.Provider?.Eth?.GasPrice.SendRequestAsync();
+                    tx.GasPrice ??= await l2Signer.Provider?.Eth?.GasPrice.SendRequestAsync();
                 }
                 else
                 {
                     if (tx.MaxFeePerGas == null)
                     {
                         var feeHistory = l2Signer.Provider?.Eth?.FeeHistory;
-
                         var feeData = await feeHistory?.SendRequestAsync(blockCount: BigInteger.One.ToHexBigInteger(), BlockParameter.CreateLatest(), rewardPercentiles: new decimal[] { });
-
                         var baseFee = feeData?.BaseFeePerGas[0];
-
                         var priorityFee = UnitConversion.Convert.ToWei(2, UnitConversion.EthUnit.Gwei);
 
                         tx.MaxPriorityFeePerGas = priorityFee.ToHexBigInteger();
-
                         tx.MaxFeePerGas = (baseFee.Value + priorityFee).ToHexBigInteger();
                     }
+
                     tx.Type = 2.ToHexBigInteger();
                 }
 
                 tx.From = l2Signer?.Account.Address;
-
                 tx.ChainId = await l2Signer?.Provider.Eth.ChainId.SendRequestAsync();
 
-                // if this is contract creation, user might not input the to address,
-                // however, it is needed when we call to estimateArbitrumGas, so
-                // we add a zero address here.
-                if (tx.To == null)
+                // Check and set the "to" address if not provided
+                if (string.IsNullOrEmpty(tx.To))
                 {
-                    tx.To = "0x0000000000000000000000000000000000000000";
+                    tx.To = AddressUtil.Current.ConvertToChecksumAddress("0x0000000000000000000000000000000000000000");
                 }
 
+                // Estimate gas if required and handle exceptions
                 try
                 {
-                    if (tx.To == null)
-                    {
-                        tx.Gas = (await EstimateArbitrumGas(tx, l2Signer.Provider))?.GasEstimateForL2.Value.ToHexBigInteger();
-
-                    }
+                    tx.Gas ??= (await EstimateArbitrumGas(tx, l2Signer.Provider))?.GasEstimateForL2.Value.ToHexBigInteger();
                 }
                 catch (Exception)
                 {
                     throw new ArbSdkError("Execution failed (estimate gas failed)");
                 }
 
+                // Remove the "to" field for contract creation transactions
                 if (contractCreation)
                 {
                     tx.To = null;
                 }
-                return await l2Signer?.Account.TransactionManager.SignTransactionAsync(tx);
+
+                // Sign the transaction
+                return await l2Signer?.Provider.TransactionManager.SignTransactionAsync(tx);
             }
 
-            private byte[] ConcatArrays(byte[] array1, string array2)
+            private static byte[] SendDataBytes(string messageType, string data)
             {
-                var result = new byte[array1.Length + array2.Length];
-                array1.CopyTo(result, 0);
-                System.Text.Encoding.ASCII.GetBytes(array2).CopyTo(result, array1.Length);
+                byte[] messageTypeBytes = HexStringToByteArray(messageType.Substring(2));
+                byte[] dataBytes = HexStringToByteArray(data);
+                byte[] result = new byte[messageTypeBytes.Length + dataBytes.Length];
+
+                Buffer.BlockCopy(messageTypeBytes, 0, result, 0, messageTypeBytes.Length);
+                Buffer.BlockCopy(dataBytes, 0, result, messageTypeBytes.Length, dataBytes.Length);
+
                 return result;
+            }
+
+            private static byte[] HexStringToByteArray(string hex)
+            {
+                int numberChars = hex.Length;
+                byte[] bytes = new byte[numberChars / 2];
+                for (int i = 0; i < numberChars; i += 2)
+                {
+                    bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
+                }
+                return bytes;
             }
         }
     }

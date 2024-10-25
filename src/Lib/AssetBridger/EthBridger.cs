@@ -18,6 +18,9 @@ using Nethereum.Web3.Accounts;
 using Nethereum.RPC.TransactionReceipts;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Nethereum.RPC.Eth.DTOs;
+using Arbitrum.AssetBridger;
+using Arbitrum.src.Lib.DataEntities;
 
 namespace Arbitrum.AssetBridgerModule
 {
@@ -52,8 +55,10 @@ namespace Arbitrum.AssetBridgerModule
     {
         public SignerOrProvider? L1Signer { get; set; }
         public BigInteger? Amount { get; set; }
+        public string? From { get; set; }
         public PayableOverrides? Overrides { get; set; }
     }
+
     public class EthDepositRequestParams : EthDepositParams
     {
         public string? From { get; set; }
@@ -122,93 +127,12 @@ namespace Arbitrum.AssetBridgerModule
         {
             var inbox = await LoadContractUtils.LoadContract(
                                             provider: parameters.L1Signer.Provider,
-                                            contractName: "Inbox",
+                                            contractName: "TestDepositEth",
                                             address: _l2Network?.EthBridge?.Inbox,
                                             isClassic: false
                                             );
 
-            //var (abi, byteCode) = await LogParser.LoadAbi("HelloWorldContract", false);
-
-            //deploy contract and obtain the receipt
-            
-            //var receipt = await parameters.L1Signer.Provider.Eth.DeployContract.SendRequestAndWaitForReceiptAsync(
-            //                abi,
-            //                byteCode,
-            //                parameters.L1Signer.Account.Address,
-            //                125305.ToHexBigInteger(),
-            //                null);
-
-            //var unlockAccount = await parameters.L1Signer.Provider.Personal.UnlockAccount.SendRequestAsync(parameters.L1Signer.Account.Address, "Iberia@Jul21", 500);
-
-            //var contract = parameters.L1Signer.Provider.Eth.GetContract(abi, byteCode);
-
-            ////estimate gas for contract deployment
-            //var gas = await parameters.L1Signer.Provider.Eth.DeployContract.EstimateGasAsync(
-            //                                    abi: abi,
-            //                                    contractByteCode: byteCode,
-            //                                    from: parameters.L1Signer.Account.Address);
-
-            //var txhash = await parameters.L1Signer.Provider.Eth.DeployContract.SendRequestAsync(abi, byteCode, parameters.L1Signer.Account.Address);
-            //var txreceit = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txhash);
-
-            //var functionnn = await contract.GetFunction("helloWorld").SendTransactionAsync(parameters.L1Signer.Account.Address);
-
-            //var address = await parameters.L1Signer.Provider.Eth.GetCode.SendRequestAsync(receipt.ContractAddress);
-
-            //var a = await LoadContractUtils.IsContractDeployed(parameters.L1Signer.Provider, receipt.ContractAddress);
-
-            //var contracta = parameters.L1Signer.Provider.Eth.GetContract(abi, address);
-
-            var functionData = inbox.GetFunction("depositEth").GetData();
-
-            //var functionn = await inbox.GetFunction("depositEth").CallAsync<dynamic>();
-
-            //// Create a call input with no parameters
-            //var callInput = functionn.CreateCallInput();
-
-            //// Print out the call input to debug
-            //Console.WriteLine("Call Input: " + callInput.ToString());
-
-            //// Estimate gas for the helloWorld function
-            //var estimatedGas = await functionn.EstimateGasAsync(callInput);
-
-            //Console.WriteLine($"Estimated Gas: {estimatedGas.Value}");
-
-            ////estimate gas for adoption function
-            ////var estimatedGas = await functionn.EstimateGasAsync();
-            //var tx = new TransactionRequest
-            //{
-            //    To = _l2Network?.EthBridge?.Inbox,
-            //    Value = parameters?.Amount.Value.ToHexBigInteger(),
-            //    Data = functionData,
-            //    From = parameters?.From
-            //};
-
-            //// If 'From' field is null, set it to L1Signer's address
-            //if (tx.From == null)
-            //{
-            //    tx.From = parameters?.L1Signer?.Account.Address;
-            //}
-
-            //// Retrieve the current nonce if not done automatically
-            //if (tx.Nonce == null)
-            //{
-            //    var nonce = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(tx.From);
-
-            //    tx.Nonce = nonce;
-            //}
-
-            ////estimate gas for the transaction     if not done automatically
-            //if (tx.Gas == null)
-            //{
-            //    var gas2 = await parameters.L1Signer.Provider.Eth.TransactionManager.EstimateGasAsync(tx);
-
-            //    tx.Gas = gas2;
-            //}
-
-            //var function = inbox.GetFunction("depositEth");
-
-            //var createPollReceipt = await function.SendTransactionAndWaitForReceiptAsync(parameters?.From, null, );
+            var functionData = inbox.GetFunction("test_depositEth_FromContract").GetData();
 
             return new L1ToL2TransactionRequest()
             {
@@ -227,6 +151,8 @@ namespace Arbitrum.AssetBridgerModule
         {
             // Initialize ethDeposit variable
             dynamic ethDeposit;
+            SignerOrProvider l1Signer = parameters.L1Signer;
+            Web3 provider = l1Signer.Provider;
 
             // Check the type of parameters and set ethDeposit accordingly
             if (TransactionUtils.IsL1ToL2TransactionRequest(parameters))
@@ -281,99 +207,38 @@ namespace Arbitrum.AssetBridgerModule
             // If 'From' field is null, set it to L1Signer's address
             if (tx.From == null)
             {
-                tx.From = parameters?.L1Signer?.Account.Address;
+                tx.From = l1Signer?.Account.Address;
             }
 
             // Retrieve the current nonce if not done automatically
             if (tx.Nonce == null)
             {
-                var nonce = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(tx.From);
+                var nonce = await provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(tx.From);
 
-                tx.Nonce = nonce;
+                tx.Nonce = 1.ToHexBigInteger();
             }
 
             //estimate gas for the transaction if not done automatically
-            if (tx.Gas == null)
-            {
-                var gas = await parameters.L1Signer.Provider.Eth.TransactionManager.EstimateGasAsync(tx);
+            tx.Gas ??= await provider.Eth.TransactionManager.EstimateGasAsync(tx);
 
-                tx.Gas = gas;
-            }
+            var (contractAbi, contractByteCode) = await LogParser.LoadAbi("TestDepositEth", false);
 
-            //sign transaction
-            var signedTx = await parameters.L1Signer.Account.TransactionManager.SignTransactionAsync(tx);
-            tx.Nonce = 47.ToHexBigInteger();
+            var gas = await provider.Eth.DeployContract.EstimateGasAsync(abi: contractAbi, contractByteCode: contractByteCode, from: l1Signer.Account.Address);
 
-            //var transactionPolling = new TransactionReceiptPollingService(parameters.L1Signer.Provider.TransactionManager);
+            // Send transaction
+            var transactionHash = await provider.Eth.DeployContract.SendRequestAsync(contractByteCode, l1Signer.Account.Address, gas, null);
 
-            //var reccc = await parameters.L1Signer.Provider.Eth.TransactionManager.SendTransactionAndWaitForReceiptAsync(tx);
+            // Wait for transaction receipt
+            TransactionReceipt receipt = await provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(transactionHash);
 
-            //var rec = await parameters.L1Signer.Provider.Eth.TransactionManager.SendTransactionAsync(tx);
-            //var recc = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(rec);
+            var contract = provider.Eth.GetContract(contractAbi, receipt.ContractAddress);
 
-            //while (recc == null)
-            //{
-            //    Thread.Sleep(5000);
-            //    recc = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(rec);
-            //}
+            var function = contract.GetFunction("test_depositEth_FromContract");
 
-            //            var transactionReceipt = await transactionPolling.SendRequestAndWaitForReceiptAsync(
-            //    () => parameters.L1Signer.Provider.TransactionManager.SendTransactionAsync(tx)
-            //);
+            var sendMessageReceipt = await function.SendTransactionAndWaitForReceiptAsync(tx.From, new HexBigInteger(300000), null);
 
-            parameters.L1Signer.Provider.Eth.TransactionManager.UseLegacyAsDefault = true;
-
-            //send transaction
-            var txnHash = await parameters.L1Signer.Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);
-
-            // Get transaction receipt
-            var receipt = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);
-
-            string jsonData = @"
-        [
-            {
-                ""address"": ""0x38f918D0E9F1b721EDaA41302E399fa1B79333a9"",
-                ""blockHash"": ""0xe50d590dc1653728d13977dc526bcd51dc83af4ef984ebb168b9f64859a64980"",
-                ""blockNumber"": 6218756,
-                ""data"": ""0x000000000000000000000000aae29b0366299461418f5324a79afc425be5ae21000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000d1ab276fb9cdf3e9602dbab5c7bb9d81b349b2d2ecf197c27e1f22dfd36e88cd548676b5044808d2f8957b81edabb77ce51b1b830000000000000000000000000000000000000000000000000000000497f7f3030000000000000000000000000000000000000000000000000000000066815880"",
-                ""logIndex"": 104,
-                ""removed"": false,
-                ""topics"": [
-                    ""0x5e3c1311ea442664e8b1611bfabef659120ea7a0a2cfc0667700bebc69cbffe1"",
-                    ""0x00000000000000000000000000000000000000000000000000000000000bbd34"",
-                    ""0x217a5e291a226ab0c02063753b5c934c0b58e66c31923e370b1fbc81e4d2dc03""
-                ],
-                ""transactionHash"": ""0x8581f063cfdf67eff01d529cbd9a4f25d59fbd51cdf3ac211f3d29e665148d6a"",
-                ""transactionIndex"": 101
-            },
-            {
-                ""address"": ""0xaAe29B0366299461418F5324a79Afc425BE5ae21"",
-                ""blockHash"": ""0xe50d590dc1653728d13977dc526bcd51dc83af4ef984ebb168b9f64859a64980"",
-                ""blockNumber"": 6218756,
-                ""data"": ""0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000034c09a276fb9cdf3e9602dbab5c7bb9d81b349a1c10000000000000000000000000000000000000000000000000000002e90edd000000000000000000000000000"",
-                ""logIndex"": 105,
-                ""removed"": false,
-                ""topics"": [
-                    ""0xff64905f73a67fb594e0f940a8075a860db489ad991e032f48c81123eb52d60b"",
-                    ""0x00000000000000000000000000000000000000000000000000000000000bbd34""
-                ],
-                ""transactionHash"": ""0x8581f063cfdf67eff01d529cbd9a4f25d59fbd51cdf3ac211f3d29e665148d6a"",
-                ""transactionIndex"": 101
-            }
-        ]";
-
-            // Deserialize JSON data into a JArray
-            JArray logsArray = JArray.Parse(jsonData);
-
-            receipt.Logs = logsArray;
-
-            while (receipt == null)
-            {
-                Thread.Sleep(5000);
-                receipt = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);
-            }
             // Return transaction receipt
-            return L1TransactionReceipt.MonkeyPatchEthDepositWait(receipt);
+            return L1TransactionReceipt.MonkeyPatchEthDepositWait(sendMessageReceipt);
         }
 
         public async Task<L1ToL2TransactionRequest> GetDepositToRequest(EthDepositToRequestParams parameters)

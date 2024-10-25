@@ -1,14 +1,20 @@
 ﻿using Arbitrum.AssetBridgerModule;
+using Arbitrum.ContractFactory.L1GatewayRouter;
 using Arbitrum.DataEntities;
 using Arbitrum.Message;
+using Arbitrum.src.Lib.DataEntities;
 using Arbitrum.Utils;
 using Nethereum.ABI;
+using Nethereum.ABI.FunctionEncoding;
+using Nethereum.ABI.FunctionEncoding.Attributes;
+using Nethereum.ABI.Model;
 using Nethereum.Contracts;
-using Nethereum.Hex.HexConvertors.Extensions;
 using Nethereum.Hex.HexTypes;
+using Nethereum.JsonRpc.Client;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Util;
 using Nethereum.Web3;
+using Newtonsoft.Json.Linq;
 using System.Numerics;
 
 namespace Arbitrum.AssetBridger
@@ -33,6 +39,7 @@ namespace Arbitrum.AssetBridger
     public class Erc20WithdrawParams : EthWithdrawParams
     {
         public string? Erc20L1Address { get; set; }
+        public SignerOrProvider? L1Signer { get; set; } = null;
     }
 
     public class L1ToL2TxReqAndSignerProvider : L1ToL2TxReqAndSigner
@@ -86,13 +93,39 @@ namespace Arbitrum.AssetBridger
         public string? TokenAddr { get; set; }
         public string? GatewayAddr { get; set; }
     }
+
+    [Function("approve", "bool")]
+    public class ApproveFunctionInput
+    {
+        [Parameter("address", "spender", 1)]
+        public string Spender { get; set; }
+
+        [Parameter("uint256", "value", 2)]
+        public BigInteger Value { get; set; }
+    }
+
     public class Erc20Bridger : AssetBridger<Erc20DepositParams, Erc20WithdrawParams, L1ContractCallTransactionReceipt>
     {
-        public static BigInteger MAX_APPROVAL { get; set; } = BigInteger.Parse("18446744073709551615");
+        public static BigInteger MAX_APPROVAL { get; } = 1152921504606846976;
+
         public static BigInteger MIN_CUSTOM_DEPOSIT_GAS_LIMIT { get; set; } = BigInteger.Parse("275000");
 
         public Erc20Bridger(L2Network l2Network) : base(l2Network)
         {
+        }
+
+        public class RevertParams
+        {
+            public string? From { get; set; }
+            public string? To { get; set; }
+            public string? ExcessFeeRefundAddress { get; set; }
+            public string? CallValueRefundAddress { get; set; }
+            public BigInteger L2CallValue { get; set; }
+            public byte[]? Data { get; set; }
+            public BigInteger MaxSubmissionCost { get; set; }
+            public BigInteger? Value { get; set; }
+            public BigInteger GasLimit { get; set; }
+            public BigInteger MaxFeePerGas { get; set; }
         }
 
         public static async Task<Erc20Bridger> FromProvider(Web3 l2Provider)
@@ -101,43 +134,25 @@ namespace Arbitrum.AssetBridger
             return new Erc20Bridger(l2Network);
         }
 
-        public async Task<string> GetL1GatewayAddress(string erc20L1Address, Web3 l1Provider)
+        public async Task<string> GetL1GatewayAddress(string erc20L1Address, SignerOrProvider l1Signer, L2Network l2Network)
         {
-            //await CheckL1Network(l1Provider);
+            var l1GatewayRouter = await LoadContractUtils.LoadContract("L1GatewayRouter", l1Signer.Provider, l2Network.TokenBridge.L1GatewayRouter, true);
 
-            // Load the L1GatewayRouter contract
-            var l1GatewayRouter = await LoadContractUtils.LoadContract(
-                contractName: "L1GatewayRouter",
-                address: L2Network?.TokenBridge?.L1GatewayRouter,
-                provider: l1Provider,
-                isClassic: true
-            );
-
-            // Call the getGateway function
-            var getGatewayFunction = l1GatewayRouter.GetFunction("getGateway");
-            return await getGatewayFunction.CallAsync<dynamic>(erc20L1Address);
+            // Call getGateway function to retrieve the gateway for the WETH address
+            return await l1GatewayRouter.GetFunction("getGateway").CallAsync<string>(erc20L1Address);
         }
 
-        public async Task<string> GetL2GatewayAddress(string erc20L1Address, Web3 l2Provider)
+        public async Task<string> GetL2GatewayAddress(SignerOrProvider l2Signer, L2Network l2Network, string erc20L1Address)
         {
-            await CheckL2Network(l2Provider);
+            await CheckL2Network(l2Signer.Provider);
 
-            // Load the L2GatewayRouter contract using the LoadContract method
-            var l2GatewayRouterContract = await LoadContractUtils.LoadContract(
-                provider: l2Provider,
-                contractName: "L2GatewayRouter",
-                address: L2Network?.TokenBridge?.L2GatewayRouter,
-                isClassic: true
-            );
+            var l2GatewayRouter = await LoadContractUtils.LoadContract("L2GatewayRouter", l2Signer.Provider, l2Network.TokenBridge.L2GatewayRouter, true);
 
-            // Retrieve the getGateway function
-            var getGatewayFunction = l2GatewayRouterContract.GetFunction("getGateway");
-
-            // Call the function with erc20L1Address and return the result as a string
-            return await getGatewayFunction.CallAsync<string>(erc20L1Address);
+            // Retrieve the L2Gateway address
+            return await l2GatewayRouter.GetFunction("getGateway").CallAsync<string>(erc20L1Address);
         }
 
-        public async Task<TransactionRequest> GetApproveGasTokenRequest(ProviderTokenApproveParams parameters)
+        public async Task<TransactionRequest> GetApproveGasTokenRequest(ProviderTokenApproveParams parameters, SignerOrProvider l1Signer)
         {
             if (NativeTokenIsEth)
             {
@@ -145,7 +160,7 @@ namespace Arbitrum.AssetBridger
             }
 
             // Call the existing method to get the approve token request
-            var txRequest = await GetApproveTokenRequest(parameters);
+            var txRequest = await GetApproveTokenRequest(parameters, l1Signer);
 
             // Modify the transaction request to direct it towards the native token contract
             txRequest.To = NativeToken;
@@ -170,7 +185,7 @@ namespace Arbitrum.AssetBridger
 
                 providerTokenApproveParams.L1Provider = SignerProviderUtils.GetProviderOrThrow(parameters?.L1Signer);
 
-                approveGasTokenRequest = await GetApproveGasTokenRequest(providerTokenApproveParams);
+                approveGasTokenRequest = await GetApproveGasTokenRequest(providerTokenApproveParams, parameters?.L1Signer);
             }
 
             else
@@ -212,34 +227,32 @@ namespace Arbitrum.AssetBridger
             return receipt;
         }
 
-        public async Task<TransactionRequest> GetApproveTokenRequest(ProviderTokenApproveParams parameters)
+        public async Task<TransactionRequest> GetApproveTokenRequest(ProviderTokenApproveParams parameters, SignerOrProvider l1Signer)
         {
             // Approving tokens to the gateway that the router will use
-            var gatewayAddress = await GetL1GatewayAddress(
-                parameters?.Erc20L1Address!,
-                SignerProviderUtils.GetProviderOrThrow(parameters?.L1Provider!)
-            );
+            var gatewayAddress = await GetL1GatewayAddress(parameters?.Erc20L1Address!, l1Signer, L2Network);
 
-            // Create the ERC20 interface
-            Contract erc20Interface = await LoadContractUtils.LoadContract(
-                                                        contractName: "ERC20",
-                                                        provider: parameters?.L1Provider,
-                                                        isClassic: true
-                                                        );
+            // Create an instance of the function input data
+            var approveFunctionInput = new ApproveFunctionInput
+            {
+                Spender = gatewayAddress,
+                Value = parameters?.Amount ?? MAX_APPROVAL
+            };
 
-            var functionData = erc20Interface.GetFunction("approve").GetData( new object[] { gatewayAddress, parameters?.Amount ?? MAX_APPROVAL });
-
+            var sha3Signature = new Sha3Keccack().CalculateHash("approve(address,uint256)")[..8];
+            var functionCallEncoder = new FunctionCallEncoder();
+            var encodedABI = functionCallEncoder.EncodeRequest(approveFunctionInput, sha3Signature);
 
             // Return a new TransactionRequest
             return new TransactionRequest
             {
                 To = parameters?.Erc20L1Address,
-                Data = functionData,
-                Value = BigInteger.Zero.ToHexBigInteger()
+                Data = encodedABI,
+                Value = new HexBigInteger(0)
             };
         }
 
-        private bool IsApproveParams(ApproveParamsOrTxRequest parameters)
+        private static bool IsApproveParams(ApproveParamsOrTxRequest parameters)
         {
             // Check if parameters is of type SignerTokenApproveParams by checking if the erc20L1Address property is set
             return parameters is SignerTokenApproveParams signerParams && !string.IsNullOrEmpty(signerParams.Erc20L1Address);
@@ -250,56 +263,30 @@ namespace Arbitrum.AssetBridger
             // Check if the signer is connected to the correct L1 network
             await CheckL1Network(parameters?.L1Signer);
 
-            TransactionRequest approveRequest;
+            var provider = SignerProviderUtils.GetProviderOrThrow(parameters?.L1Signer);
 
-            // Determine whether the parameters represent a SignerTokenApproveParams type
+            TransactionRequest approveRequest;
             if (IsApproveParams(parameters))
             {
-                // Call GetApproveTokenRequest with appropriate parameters
-                var provider = SignerProviderUtils.GetProviderOrThrow(parameters?.L1Signer);
-
                 var signerTokenApproveParams = HelperMethods.CopyMatchingProperties<ProviderTokenApproveParams, ApproveParamsOrTxRequest>(parameters);
                 signerTokenApproveParams.L1Provider = provider;
-                approveRequest = await GetApproveTokenRequest(signerTokenApproveParams);
+                approveRequest = await GetApproveTokenRequest(signerTokenApproveParams, parameters.L1Signer);
             }
             else
             {
-                // If the parameters are not of type SignerTokenApproveParams, use the existing transaction request
                 approveRequest = parameters?.TxRequest;
             }
 
-            // If 'From' field is null, set it to L1Signer's address
-            if (approveRequest.From == null)
-            {
-                approveRequest.From = parameters?.L1Signer?.Account.Address;
-            }
+            provider.TransactionReceiptPolling.SetPollingRetryIntervalInMilliseconds(200);
+            provider.TransactionManager.UseLegacyAsDefault = true;
 
-            // Retrieve the current nonce if not done automatically
-            if (approveRequest.Nonce == null)
-            {
-                var nonce = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(approveRequest.From);
+            approveRequest.From ??= parameters?.L1Signer?.Account.Address;
+            approveRequest.Gas ??= await provider.Eth.TransactionManager.EstimateGasAsync(approveRequest);
 
-                approveRequest.Nonce = nonce;
-            }
+            var txnSign = await provider.TransactionManager.SignTransactionAsync(approveRequest);
+            var txnHash = await provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(txnSign);            
+            var receipt = await provider.Eth.TransactionManager.TransactionReceiptService.PollForReceiptAsync(txnHash);
 
-            //estimate gas for the transaction if not done automatically
-            if (approveRequest.Gas == null)
-            {
-                var gas = await parameters.L1Signer.Provider.Eth.TransactionManager.EstimateGasAsync(approveRequest);
-
-                approveRequest.Gas = gas;
-            }
-
-            //sign transaction
-            var signedTx = await parameters.L1Signer.Account.TransactionManager.SignTransactionAsync(approveRequest);
-
-            //send transaction
-            var txnHash = await parameters.L1Signer.Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);
-
-            // Get transaction receipt
-            var receipt = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);
-
-            // Send the transaction and return the transaction receipt
             return receipt;
         }
 
@@ -358,7 +345,7 @@ namespace Arbitrum.AssetBridger
             }
             catch (Exception err)
             {
-                if (err is Nethereum.JsonRpc.Client.RpcResponseException rpcErr && rpcErr.RpcError != null && rpcErr.RpcError.Message == "CALL_EXCEPTION")
+                if (err is RpcResponseException rpcErr && rpcErr.RpcError != null && rpcErr.RpcError.Message == "CALL_EXCEPTION")
                 {
                     return false;
                 }
@@ -389,66 +376,45 @@ namespace Arbitrum.AssetBridger
             return false;
         }
 
-        public async Task<Contract> GetL2TokenContract(Web3 l2Provider, string l2TokenAddr)
+        public async Task<Contract> GetL2TokenContract(SignerOrProvider l2Signer, string l2TokenAddr)
         {
-            return await LoadContractUtils.LoadContract(
-                                                provider: l2Provider,
-                                                contractName: "L2GatewayToken",
-                                                address: l2TokenAddr,
-                                                isClassic: true
-                                                );
+            var l2GatewayToken = await LoadContractUtils.LoadContract("L2GatewayToken", l2Signer.Provider, l2TokenAddr, true);
+
+            return l2GatewayToken;
         }
 
-        public async Task<Contract> GetL1TokenContract(Web3 l1Provider, string l1TokenAddr)
+        public async Task<Contract> GetL1TokenContract(Web3 l1Provider, string l1TokenAddress)
         {
-            return await LoadContractUtils.LoadContract(
-                                                provider: l1Provider,
-                                                contractName: "ERC20",
-                                                address: l1TokenAddr,
-                                                isClassic: true
-                                                );
+            var contract = await LoadContractUtils.LoadContract("ERC20", l1Provider, l1TokenAddress, true);
+
+            return contract;
         }
 
-        public async Task<string> GetL2ERC20Address(string erc20L1Address, Web3 l1Provider)
+        public async Task<string> GetL2ERC20Address(string erc20L1Address, SignerOrProvider l1Signer, L2Network l2Network)
         {
-            await CheckL1Network(l1Provider);
+            await CheckL1Network(l1Signer.Provider);
 
-            var l1GatewayRouter = await LoadContractUtils.LoadContract(
-                                                provider: l1Provider,
-                                                contractName: "L1GatewayRouter",
-                                                address: erc20L1Address,
-                                                isClassic: true
-                                                );
+            var l1GatewayRouter = await LoadContractUtils.LoadContract("L1GatewayRouter", l1Signer.Provider, l2Network.TokenBridge.L1GatewayRouter, true);
 
             return await l1GatewayRouter.GetFunction("calculateL2TokenAddress").CallAsync<string>(erc20L1Address);
         }
 
-        public async Task<string> GetL1ERC20Address(string erc20L2Address, Web3 l2Provider)
+        public async Task<string> GetL1ERC20Address(SignerOrProvider l2Signer, L2Network l2Network, string erc20L2Address)
         {
-            await CheckL2Network(l2Provider);
+            await CheckL2Network(l2Signer.Provider);
 
             if (erc20L2Address.Equals(L2Network?.TokenBridge?.L2Weth, StringComparison.OrdinalIgnoreCase))
             {
                 return L2Network?.TokenBridge?.L1Weth;
             }
 
-            var arbERC20 = await LoadContractUtils.LoadContract(
-                                                provider: l2Provider,
-                                                contractName: "L2GatewayToken",
-                                                address: erc20L2Address,
-                                                isClassic: true
-                                                );
+            var l2GatewayToken = await LoadContractUtils.LoadContract("L2GatewayToken", l2Signer.Provider, erc20L2Address, true);
 
-            var l1Address = await arbERC20.GetFunction("l1Address").CallAsync<string>();
+            var l1Address = await l2GatewayToken.GetFunction("l1Address").CallAsync<string>();
 
-            var l2GatewayRouter = await LoadContractUtils.LoadContract(
-                                                provider: l2Provider,
-                                                contractName: "L2GatewayRouter",
-                                                address: erc20L2Address,
-                                                isClassic: true
-                                                );
+            var l2GatewayRouter = await LoadContractUtils.LoadContract("L2GatewayRouter", l2Signer.Provider, l2Network.TokenBridge.L2GatewayRouter, true);
 
-            var l2Address = await arbERC20.GetFunction("calculateL2TokenAddress").CallAsync<string>(l1Address);
+            var l2Address = await l2GatewayRouter.GetFunction("calculateL2TokenAddress").CallAsync<string>(l1Address);
 
             if (!l2Address.Equals(erc20L2Address, StringComparison.OrdinalIgnoreCase))
             {
@@ -465,7 +431,7 @@ namespace Arbitrum.AssetBridger
             var l1GatewayRouter = await LoadContractUtils.LoadContract(
                                                 provider: l1Provider,
                                                 contractName: "L1GatewayRouter",
-                                                address: L2Network?.TokenBridge?.L2GatewayRouter,
+                                                address: L2Network?.TokenBridge?.L1GatewayRouter,
                                                 isClassic: true
                                                 );
 
@@ -486,36 +452,53 @@ namespace Arbitrum.AssetBridger
             return defaultedParams;
         }
 
-        private BigInteger? GetDepositRequestCallValue(L1ToL2MessageGasParams depositParams)
-        {
-            if (!this.NativeTokenIsEth)
-            {
-                return BigInteger.Zero;
-            }
-
-            // Calculate call value
-            return depositParams?.GasLimit * depositParams?.MaxFeePerGas + depositParams?.MaxSubmissionCost;
-        }
-
         private byte[] GetDepositRequestOutboundTransferInnerData(L1ToL2MessageGasParams depositParams)
         {
-            ABIEncode encoder = new ABIEncode();
+            var encoder = new ABIEncode();
 
-            if (!this.NativeTokenIsEth)
-            {
-                return encoder.GetABIEncoded(
-                depositParams?.MaxSubmissionCost,
-                "0x",
-                depositParams?.GasLimit * depositParams?.MaxFeePerGas + depositParams?.MaxSubmissionCost
-                );
-            }
-            else
-            {
-                return encoder.GetABIEncoded(
+            return encoder.GetABIEncoded(
                     depositParams?.MaxSubmissionCost,
-                    "0x"  
+                    "0x"
                     );
+        }
+
+        public byte[] SolidityEncode(string[] types, object[] values)
+        {
+            // Create an ABI encoder instance
+            var encoder = new ABIEncode();
+
+            // Replace "0x" with an empty byte array
+            for (int i = 0; i < values.Length; i++)
+            {
+                if (values[i] is string str && str == "0x")
+                {
+                    values[i] = new byte[0]; // Empty byte array
+                }
             }
+
+            // Call the ABI encoder with the modified values
+            return encoder.GetABIEncoded(ConvertValuesToDefaultABIValues(types, values));
+        }
+
+        private object[] ConvertValuesToDefaultABIValues(string[] types, object[] values)
+        {
+            // Convert values based on their expected ABI types
+            object[] defaultABIValues = new object[values.Length];
+
+            for (int i = 0; i < values.Length; i++)
+            {
+                // Handle uint256 separately
+                if (types[i] == "uint256")
+                {
+                    defaultABIValues[i] = BigInteger.Parse(values[i].ToString());
+                }
+                else
+                {
+                    defaultABIValues[i] = values[i];
+                }
+            }
+
+            return defaultABIValues;
         }
 
         public async Task<L1ToL2TransactionRequest> GetDepositRequest(DepositRequest parameters)
@@ -531,86 +514,56 @@ namespace Arbitrum.AssetBridger
             var erc20L1Address = defaultedParams?.Erc20L1Address;
             var l1Provider = defaultedParams?.L1Provider;
             var l2Provider = defaultedParams?.L2Provider;
-            var retryableGasOverrides = defaultedParams?.RetryableGasOverrides;
+            var l1Signer = defaultedParams?.L1Signer;
+            var retryableGasOverrides = defaultedParams?.RetryableGasOverrides ;
 
             // Get gateway address
-            string l1GatewayAddress = await GetL1GatewayAddress(erc20L1Address, l1Provider);
+            var l1GatewayAddress = await GetL1GatewayAddress(erc20L1Address, l1Signer, L2Network);
 
-            // Modify tokenGasOverrides if necessary
-            GasOverrides tokenGasOverrides = retryableGasOverrides;
+            retryableGasOverrides ??= new GasOverrides();
 
             if (l1GatewayAddress == L2Network?.TokenBridge?.L1CustomGateway)
             {
-                if (tokenGasOverrides == null)
-                {
-                    tokenGasOverrides = new GasOverrides();
-                }
-                if (tokenGasOverrides.GasLimit == null)
-                {
-                    tokenGasOverrides.GasLimit = new GasOverrides()?.GasLimit;
-                }
-                if (tokenGasOverrides.GasLimit.Min == null)
-                {
-                    tokenGasOverrides.GasLimit.Min = Erc20Bridger.MIN_CUSTOM_DEPOSIT_GAS_LIMIT;
-                }
+                retryableGasOverrides.GasLimit ??= retryableGasOverrides.GasLimit = new GasOverrides()?.GasLimit;
+                retryableGasOverrides.GasLimit!.Min ??= MIN_CUSTOM_DEPOSIT_GAS_LIMIT;
             }
 
-            var iGatewayRouter = await LoadContractUtils.LoadContract(
-                        contractName: "L1GatewayRouter",
-                        address: L2Network?.TokenBridge?.L1GatewayRouter,
-                        provider: l1Provider,
-                        isClassic: true
-                    );
-
             // Define deposit function
-            Func<L1ToL2MessageGasParams, TransactionRequest> depositFunc = (depositParams) =>
+            CallInput depositFunc(L1ToL2MessageGasParams depositParams)
             {
-                // Add missing maxSubmissionCost if necessary
-                depositParams.MaxSubmissionCost = parameters?.MaxSubmissionCost ?? depositParams?.MaxSubmissionCost;
+                string[] types = { "uint256", "bytes" };
+                object[] values = { depositParams.MaxSubmissionCost, "0x" };
+                var innerData = SolidityEncode(types, values);
 
-                byte[] innerData = GetDepositRequestOutboundTransferInnerData(depositParams);
-                string functionData;
-                if (defaultedParams.ExcessFeeRefundAddress != defaultedParams.From)
-                {
-                    functionData = iGatewayRouter.GetFunction("outboundTransferCustomRefund").GetData(
-                        new object[]
-                        {
-                            AddressUtil.Current.ConvertToChecksumAddress(erc20L1Address),
-                            AddressUtil.Current.ConvertToChecksumAddress(defaultedParams?.ExcessFeeRefundAddress),
-                            AddressUtil.Current.ConvertToChecksumAddress(destinationAddress),
-                            (int)amount,
-                            (int)depositParams?.GasLimit,
-                            (int)depositParams?.MaxFeePerGas,
-                            innerData
-                        });
-                }
-                else
-                {
+                var util = new AddressUtil();
 
-                    functionData = iGatewayRouter.GetFunction("outboundTransfer").GetData(
-                        new object[]
-                        {
-                            AddressUtil.Current.ConvertToChecksumAddress(erc20L1Address),
-                            AddressUtil.Current.ConvertToChecksumAddress(destinationAddress),
-                            (int)amount,
-                            (int)depositParams?.GasLimit,
-                            (int)depositParams?.MaxFeePerGas,
-                            innerData
-                        });
-                }
-
-                return new TransactionRequest
+                var outboundFunc = new OutboundTransferFunction
                 {
-                    Data = functionData,
-                    To = L2Network?.TokenBridge?.L1GatewayRouter,
-                    From = defaultedParams?.From,
-                    Value = GetDepositRequestCallValue(depositParams).Value.ToHexBigInteger()
+                    Token = util.IsChecksumAddress(erc20L1Address) ? erc20L1Address : util.ConvertToChecksumAddress(erc20L1Address),
+                    To = util.IsChecksumAddress(destinationAddress) ? destinationAddress : util.ConvertToChecksumAddress(destinationAddress),
+                    Amount = defaultedParams.Amount.Value,
+                    MaxGas = depositParams.GasLimit.Value,
+                    GasPriceBid = depositParams.MaxFeePerGas.Value,
+                    Data = innerData
                 };
-            };
 
-            L1ToL2MessageGasEstimator gasEstimator = new L1ToL2MessageGasEstimator(l2Provider);
+                var contractHandler = l1Provider.Eth.GetContractHandler(L2Network.TokenBridge.L1GatewayRouter);
+                var encodedData = contractHandler.GetFunction<OutboundTransferFunction>().GetData(outboundFunc);
 
-            PopulateFunctionParamsResult estimates = await gasEstimator.PopulateFunctionParams(depositFunc, l1Provider, tokenGasOverrides);
+                var callInput = new CallInput
+                {
+                    From = defaultedParams.From,
+                    To =  L2Network.TokenBridge.L1GatewayRouter,
+                    Data = encodedData,
+                    Value = (depositParams?.GasLimit * depositParams?.MaxFeePerGas + depositParams?.MaxSubmissionCost).Value.ToHexBigInteger()
+                };
+
+                return callInput;
+            }
+
+            var gasEstimator = new L1ToL2MessageGasEstimator(l2Provider);
+
+            var estimates = await gasEstimator.PopulateFunctionParams(depositFunc, l1Signer.Provider, retryableGasOverrides);
 
             return new L1ToL2TransactionRequest
             {
@@ -623,31 +576,27 @@ namespace Arbitrum.AssetBridger
                 },
                 RetryableData = new RetryableData
                 {
-                    Data = estimates?.Data.HexToByteArray(),
-                    To = estimates?.To,
-                    Deposit = estimates?.Retryable?.Deposit,
+                    Data = estimates?.Retryable.Data,
+                    To = estimates?.Retryable.To,
+                    Value = estimates?.Value,
                     From = estimates?.Retryable?.From,
                     ExcessFeeRefundAddress = estimates?.Retryable?.ExcessFeeRefundAddress,
                     CallValueRefundAddress = estimates?.Retryable?.CallValueRefundAddress,
                     GasLimit = estimates?.Retryable?.GasLimit,
                     L2CallValue = estimates?.Retryable?.L2CallValue,
                     MaxFeePerGas = estimates?.Retryable?.MaxFeePerGas,
-                    MaxSubmissionCost = estimates?.Retryable?.MaxSubmissionCost
+                    MaxSubmissionCost = estimates?.Estimates?.MaxSubmissionCost
                 },
-                IsValid = async () => await L1ToL2MessageGasEstimator.IsValid(estimates?.Estimates, (await gasEstimator.PopulateFunctionParams(depositFunc, l1Provider, tokenGasOverrides))?.Estimates)
+                IsValid = async () => await L1ToL2MessageGasEstimator.IsValid(
+                    estimates?.Estimates, (await gasEstimator.PopulateFunctionParams(depositFunc, l1Signer.Provider, retryableGasOverrides))?.Estimates)
             };
         }
 
         public override async Task<L1ContractCallTransactionReceipt> Deposit(dynamic parameters)
         {
-            await CheckL1Network(new SignerOrProvider(parameters?.L1Signer));
+            await CheckL1Network(parameters?.L1Signer);
 
-            // Check for unexpected values
-            if (parameters?.Overrides?.Value != null)
-            {
-                throw new ArbSdkError("L1 call value should be set through l1CallValue param.");
-            }
-            dynamic tokenDeposit;
+            L1ToL2TransactionRequest tokenDeposit;
 
             var l1Provider = SignerProviderUtils.GetProviderOrThrow(parameters?.L1Signer);
 
@@ -655,14 +604,13 @@ namespace Arbitrum.AssetBridger
             {
                 tokenDeposit = parameters;
             }
-
-            else if (parameters is Erc20DepositParams)
+            else
             {
                 tokenDeposit = await GetDepositRequest(new DepositRequest
                 {
                     Erc20L1Address = parameters?.Erc20L1Address,
                     L1Provider = l1Provider,
-                    From = parameters?.L1Signer?.Address,
+                    From = parameters?.L1Signer?.Account?.Address,
                     Amount = parameters?.Amount,
                     DestinationAddress = parameters?.DestinationAddress,
                     L2Provider = parameters?.L2Provider,
@@ -670,76 +618,28 @@ namespace Arbitrum.AssetBridger
                     CallValueRefundAddress = parameters?.CallValueRefundAddress,
                     ExcessFeeRefundAddress = parameters?.ExcessFeeRefundAddress,
                     MaxSubmissionCost = parameters?.MaxSubmissionCost,
-                    Overrides = parameters?.Overrides,
-                    L1Signer = parameters?.L1Signer
-                });
-            }
-            else if(parameters is L1ToL2TxReqAndSignerProvider)
-            {
-                tokenDeposit = await GetDepositRequest(new DepositRequest
-                {
-                    L1Provider = l1Provider,
-                    From = parameters?.L1Signer?.Address,
-                    L2Provider = parameters?.L2Provider,
-                    Overrides = parameters?.Overrides,
                     L1Signer = parameters?.L1Signer
                 });
             }
 
-            else
+            var tx = new TransactionInput()
             {
-                throw new ArgumentException("Invalid parameter type. Expected Erc20DepositParams or L1ToL2TxReqAndSignerProvider.");
-            }
-
-            var tx = new TransactionRequest
-            {
-                To = tokenDeposit?.TxRequest?.To,
-                Value = tokenDeposit?.TxRequest?.Value ?? BigInteger.Zero,
-                Data = tokenDeposit?.TxRequest?.Data,
-                From = tokenDeposit?.TxRequest?.From,
-                AccessList = tokenDeposit?.TxRequest?.AccessList,
-                ChainId = tokenDeposit?.TxRequest?.ChainId,
-                Gas = tokenDeposit?.TxRequest?.Gas,
-                GasPrice = tokenDeposit?.TxRequest?.GasPrice,
-                MaxFeePerGas = parameters?.Overrides?.MaxFeePerGas.Value.ToHexBigInteger(),
-                MaxPriorityFeePerGas = parameters?.Overrides?.MaxPriorityFeePerGas.Value.ToHexBigInteger(),
-                Nonce = tokenDeposit?.TxRequest?.Nonce,
-                Type = tokenDeposit?.TxRequest?.Type,
+                To = tokenDeposit.TxRequest.To,
+                Value = tokenDeposit.TxRequest.Value,
+                Data = tokenDeposit.TxRequest.Data
             };
 
-            // If 'From' field is null, set it to L1Signer's address
-            if (tx.From == null)
-            {
-                tx.From = parameters?.L1Signer?.Account.Address;
-            }
+            var provider = parameters?.L1Signer?.Provider;
+            provider.TransactionReceiptPolling.SetPollingRetryIntervalInMilliseconds(200);
+            provider.TransactionManager.UseLegacyAsDefault = true;
 
-            // Retrieve the current nonce if not done automatically
-            if (tx.Nonce == null)
-            {
-                var nonce = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(tx.From);
+            tx.From ??= parameters?.L1Signer?.Account.Address;
+            tx.Gas ??= await provider?.Eth.TransactionManager.EstimateGasAsync(tx);
 
-                tx.Nonce = nonce;
-            }
-
-            //estimate gas for the transaction if not done automatically
-            if (tx.Gas == null)
-            {
-                var gas = await parameters.L1Signer.Provider.Eth.TransactionManager.EstimateGasAsync(tx);
-
-                tx.Gas = gas;
-            }
-
-            //sign transaction
-            var signedTx = await parameters.L1Signer.Account.TransactionManager.SignTransactionAsync(tx);
-
-            //send transaction
-            var txnHash = await parameters.L1Signer.Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);
-
-            // Get transaction receipt
-            var receipt = await parameters.L1Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);
-
-            // Apply monkey patching
-            return L1TransactionReceipt.MonkeyPatchContractCallWait(receipt);
+            var txnSign = await provider.TransactionManager.SignTransactionAsync(tx);
+            var txnHash = await provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(txnSign);
+            var txReceipt = await provider.Eth.TransactionManager.TransactionReceiptService.PollForReceiptAsync(txnHash);
+            return L1TransactionReceipt.MonkeyPatchContractCallWait(txReceipt);
         }
 
         public async Task<L2ToL1TransactionRequest> GetWithdrawalRequest(Erc20WithdrawParams parameters)
@@ -765,7 +665,7 @@ namespace Arbitrum.AssetBridger
                 });
 
             // Create the transaction request
-            L2ToL1TransactionRequest request = new L2ToL1TransactionRequest
+            var request = new L2ToL1TransactionRequest
             {
                 TxRequest = new TransactionRequest
                 {
@@ -783,7 +683,7 @@ namespace Arbitrum.AssetBridger
                     }
 
                     // Get L1 Gateway Address
-                    string l1GatewayAddress = await GetL1GatewayAddress(parameters?.Erc20L1Address, new Web3(l1Provider));
+                    string l1GatewayAddress = await GetL1GatewayAddress(parameters?.Erc20L1Address, parameters.L1Signer, L2Network);
 
                     // Check if this is a WETH deposit
                     bool isWeth = await IsWethGateway(l1GatewayAddress, new Web3(l1Provider));
@@ -804,7 +704,7 @@ namespace Arbitrum.AssetBridger
                 throw new MissingProviderArbSdkError("l2Signer");
             }
 
-            await CheckL2Network(new SignerOrProvider(parameters?.L2Signer));
+            await CheckL2Network(new SignerOrProvider(parameters.L2Signer.Provider));
 
             dynamic withdrawalRequest;
 
@@ -852,38 +752,19 @@ namespace Arbitrum.AssetBridger
             };
 
             // If 'From' field is null, set it to L1Signer's address
-            if (tx.From == null)
-            {
-                tx.From = parameters?.L2Signer?.Account.Address;
-            }
-
-            // Retrieve the current nonce if not done automatically
-            if (tx.Nonce == null)
-            {
-                var nonce = await parameters.L2Signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(tx.From);
-
-                tx.Nonce = nonce;
-            }
+            tx.From ??= parameters?.L2Signer?.Account.Address;
 
             //estimate gas for the transaction if not done automatically
-            if (tx.Gas == null)
-            {
-                var gas = await parameters.L2Signer.Provider.Eth.TransactionManager.EstimateGasAsync(tx);
+            tx.Gas ??= await parameters.L2Signer.Provider.Eth.TransactionManager.EstimateGasAsync(tx);
 
-                tx.Gas = gas;
-            }
-
-            //sign transaction
-            var signedTx = await parameters.L2Signer.Account.TransactionManager.SignTransactionAsync(tx);
-
-            //send transaction
-            var txnHash = await parameters.L2Signer.Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);
+            var txnHash = await parameters.L1Signer.Provider.Eth.TransactionManager.SendTransactionAsync(tx);
 
             // Get transaction receipt
-            var receipt = await parameters.L2Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);
+            var receipt = await parameters.L1Signer.Provider.Eth.TransactionManager.TransactionReceiptService.PollForReceiptAsync(txnHash);
 
             return L2TransactionReceipt.MonkeyPatchWait(receipt);
         }
+
         public class GasParams
         {
             public BigInteger? MaxSubmissionCost { get; set; }
@@ -899,55 +780,53 @@ namespace Arbitrum.AssetBridger
                 string l1TokenAddress,
                 string l2TokenAddress,
                 SignerOrProvider l1Signer,
-                Web3 l2Provider)
+                SignerOrProvider l2Signer)
             { 
                 if (!SignerProviderUtils.SignerHasProvider(l1Signer))
                 {
                     throw new MissingProviderArbSdkError("l1Signer");
                 }
 
-                //await CheckL1Network(l1Signer);
-                //await CheckL2Network(l2Provider);
-
                 string l1SenderAddress = l1Signer?.Account?.Address;
 
-                var l1Token = await LoadContractUtils.LoadContract(
-                        contractName: "ICustomToken",
+                var l1Token = LoadContract(
+                        contractName: "TestCustomTokenL1",
                         address: l1TokenAddress,
                         provider: l1Signer?.Provider,
                         isClassic: true
                     );
 
 
-                var l2Token = await LoadContractUtils.LoadContract(
-                        contractName: "IArbToken",
+                var l2Token = LoadContract(
+                        contractName: "TestArbCustomToken",
                         address: l2TokenAddress,
-                        provider: l2Provider,
+                        provider: l2Signer.Provider,
                         isClassic: true
                     );
+
+
 
                 // Sanity checks
                 if (!await LoadContractUtils.IsContractDeployed(l1Signer.Provider, l1Token.Address))
                 {
-                    //throw new Exception("L1 token is not deployed.");
+                    throw new Exception("L1 token is not deployed.");
                 }
-                if (!await LoadContractUtils.IsContractDeployed(l2Provider, l2Token.Address))
+                if (!await LoadContractUtils.IsContractDeployed(l2Signer.Provider, l2Token.Address))
                 {
-                    //throw new Exception("L2 token is not deployed.");
+                    throw new Exception("L2 token is not deployed.");
                 }
 
                 string l1AddressFromL2 = await l2Token.GetFunction("l1Address").CallAsync<dynamic>();
 
-                if (l1AddressFromL2 != l1TokenAddress)
+                if (l1AddressFromL2.ToLower() != l1TokenAddress.ToLower())
                 {
                     throw new ArbSdkError(
                         $"L2 token does not have l1 address set. Set address: {l1AddressFromL2}, expected address: {l1TokenAddress}."
                     );
                 }
 
-
                 // Define encodeFuncData function for setting gas parameters
-                Func<GasParams, GasParams, BigInteger?, TransactionRequest> encodeFuncData = (setTokenGas, setGatewayGas, maxFeePerGas) =>
+                TransactionRequest encodeFuncData(GasParams setTokenGas, GasParams setGatewayGas, BigInteger? maxFeePerGas)
                 {
                     BigInteger? doubleFeePerGas = maxFeePerGas == RetryableDataTools.ErrorTriggeringParams.MaxFeePerGas
                         ? RetryableDataTools.ErrorTriggeringParams.MaxFeePerGas * 2
@@ -976,49 +855,41 @@ namespace Arbitrum.AssetBridger
                         Value = (setTokenDeposit + setGatewayDeposit).Value.ToHexBigInteger(),
                         From = l1SenderAddress
                     };
-                };
+                }
 
                 var l1Provider = l1Signer.Provider;
-                var gEstimator = new L1ToL2MessageGasEstimator(l2Provider);
+                var gEstimator = new L1ToL2MessageGasEstimator(l2Signer.Provider);
 
                 // Estimate gas parameters
-                var setTokenEstimates = await gEstimator.PopulateFunctionParams(
-                    (parameters) => encodeFuncData(
-                        new GasParams
-                        {
-                            GasLimit = parameters?.GasLimit,
-                            MaxSubmissionCost = parameters?.MaxSubmissionCost
-                        },
-                        new GasParams
-                        {
-                            GasLimit = RetryableDataTools.ErrorTriggeringParams.GasLimit,
-                            MaxSubmissionCost = BigInteger.One
-                        },
-                        parameters?.MaxFeePerGas
-                    ),
-                    l1Provider
-                );
+                /* var setTokenEstimates = await gEstimator.PopulateFunctionParams(
+                     (parameters) => encodeFuncData(
+                         new GasParams
+                         {
+                             GasLimit = parameters?.GasLimit,
+                             MaxSubmissionCost = parameters?.MaxSubmissionCost
+                         },
+                         new GasParams
+                         {
+                             GasLimit = RetryableDataTools.ErrorTriggeringParams.GasLimit,
+                             MaxSubmissionCost = BigInteger.One
+                         },
+                         parameters?.MaxFeePerGas
+                     ),
+                     l1Signer.Provider
+                 );*/
 
-                var registerTx = new TransactionRequest()
-                {
+                var registerTx = new TransactionRequest();
+                /*{
                     To = l1Token?.Address,
                     Data = setTokenEstimates?.Data,
                     Value = setTokenEstimates?.Value.Value.ToHexBigInteger(),
                     From = l1SenderAddress
-                };
+                };*/
 
                 // If 'From' field is null, set it to L1Signer's address
                 if (registerTx.From == null)
                 {
                     registerTx.From = l1Signer?.Account.Address;
-                }
-
-                // Retrieve the current nonce if not done automatically
-                if (registerTx.Nonce == null)
-                {
-                    var nonce = await l1Signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(registerTx.From);
-
-                    registerTx.Nonce = nonce;
                 }
 
                 //estimate gas for the transaction if not done automatically
@@ -1029,14 +900,10 @@ namespace Arbitrum.AssetBridger
                     registerTx.Gas = gas;
                 }
 
-                //sign transaction
-                var signedTx = await l1Signer.Account.TransactionManager.SignTransactionAsync(registerTx);
-
-                //send transaction
-                var txnHash = await l1Signer.Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(signedTx);
+                var txnHash = await l1Signer.Provider.Eth.TransactionManager.SendTransactionAsync(registerTx);
 
                 // Get transaction receipt
-                var receipt = await l1Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);
+                var receipt = await l1Signer.Provider.Eth.TransactionManager.TransactionReceiptService.PollForReceiptAsync(txnHash);
 
                 // Return the transaction receipt
                 return L1TransactionReceipt.MonkeyPatchWait(receipt);
@@ -1153,7 +1020,7 @@ namespace Arbitrum.AssetBridger
                 };
 
                 var gEstimator = new L1ToL2MessageGasEstimator(l2Provider);
-                var estimates = await gEstimator.PopulateFunctionParams(setGatewaysFunc, l1Signer.Provider, options);
+                var estimates = await gEstimator.PopulateFunctionParams(null, l1Signer.Provider, options);
 
                 var resTx = new TransactionRequest
                 {
@@ -1195,6 +1062,45 @@ namespace Arbitrum.AssetBridger
 
                 return L1TransactionReceipt.MonkeyPatchContractCallWait(receipt);
             }
+            public static Contract LoadContract(string contractName, Web3 provider, string address = null, bool isClassic = false)
+            {
+                // Determine the ABI file path
+                string filePath;
+                if (isClassic)
+                {
+                    filePath = $"src/abi/classic/{contractName}.json";
+                }
+                else
+                {
+                    filePath = $"src/abi/{contractName}.json";
+                }
+
+                // Load the ABI and bytecode from the JSON file
+                string abi = null;
+                string bytecode = null;
+                using (StreamReader reader = new StreamReader(filePath))
+                {
+                    var contractData = JObject.Parse(reader.ReadToEnd());
+                    abi = contractData["abi"]?.ToString();
+                    bytecode = contractData["bytecode"]?.ToString();
+
+                    if (string.IsNullOrEmpty(abi))
+                    {
+                        throw new Exception($"No ABI found for contract: {contractName}");
+                    }
+                }
+
+                // Check if a contract address was provided
+                if (!string.IsNullOrEmpty(address))
+                {
+                    // Convert the address to a checksum address
+                    string contractAddress = Nethereum.Util.AddressUtil.Current.ConvertToChecksumAddress(address);
+                    return provider.Eth.GetContract(abi, contractAddress);
+                }
+
+                return null;
+            }
+
 
         }
     }

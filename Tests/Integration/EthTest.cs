@@ -20,6 +20,10 @@ using Nethereum.Signer;
 using Nethereum.BlockchainProcessing.BlockStorage.Entities;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using Newtonsoft.Json.Linq;
+using Nethereum.Contracts.Standards.ENS.PublicResolver.ContractDefinition;
+using Nethereum.Contracts;
+using Contract = Nethereum.Contracts.Contract;
+using System.Diagnostics.Contracts;
 
 namespace Arbitrum.Tests.Integration
 {
@@ -124,7 +128,7 @@ namespace Arbitrum.Tests.Integration
 
             var finalInboxBalance = await l1Provider.Eth.GetBalance.SendRequestAsync(inboxAddress);
 
-            var a = await l1Signer.Provider.Eth.Transactions.GetTransactionByHash.SendRequestAsync(rec.TransactionHash);
+            var result = await l1Signer.Provider.Eth.Transactions.GetTransactionByHash.SendRequestAsync(rec.TransactionHash);
 
             // Also fails in TS implementation - https://github.com/OffchainLabs/arbitrum-sdk/pull/407
             // Assert.That(finalInboxBalance, Is.EqualTo(initialInboxBalance + ethToDeposit), "Balance failed to update after ETH deposit");
@@ -295,8 +299,8 @@ namespace Arbitrum.Tests.Integration
             var miner1 = new SignerOrProvider(miner1Account, l1Provider);
             var miner2 = new SignerOrProvider(miner2Account, l2Provider);
 
-            await TestHelpers.FundL1(miner1, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
-            await TestHelpers.FundL2(miner2, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
+            await TestHelpers.FundL1(setupState.L1Deployer.Provider, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether), miner1.Account.Address);
+            await TestHelpers.FundL2(setupState.L2Deployer.Provider, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether), miner2.Account.Address);
 
             var state = new Dictionary<string, object> { { "mining", true } };
 

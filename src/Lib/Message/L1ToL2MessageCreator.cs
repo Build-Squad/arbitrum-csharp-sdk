@@ -1,24 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using System.Numerics;
-using Nethereum.Web3;
-using Nethereum.Hex.HexTypes;
-using Nethereum.Contracts;
-using Arbitrum.Message;
-using Arbitrum.Utils;
+﻿using Arbitrum.ContractFactory;
 using Arbitrum.DataEntities;
-using Nethereum.RPC.Eth.DTOs;
-using Org.BouncyCastle.Asn1.X509;
-using Nethereum.Hex.HexConvertors.Extensions;
-using System.Linq.Expressions;
-using Nethereum.JsonRpc.Client;
+using Arbitrum.src.Lib.DataEntities;
+using Arbitrum.Utils;
+using Nethereum.Hex.HexTypes;
+using Nethereum.Web3;
 
 namespace Arbitrum.Message
 {
-
-
-
     public class L1ToL2MessageCreator
     {
         private readonly SignerOrProvider l1Signer;
@@ -41,11 +29,11 @@ namespace Arbitrum.Message
             var gasEstimator = new L1ToL2MessageGasEstimator(l2Provider);
             return await gasEstimator.EstimateAll(parameters, baseFee, l1Provider, retryableGasOverrides);
         }
+
         public static async Task<L1ToL2TransactionRequest> GetTicketCreationRequest(L1ToL2MessageParams parameters, Web3 l1Provider, Web3 l2Provider, GasOverrides? options = null)
         {
-
-            var excessFeeRefundAddress = parameters?.ExcessFeeRefundAddress ?? parameters.From;
-            var callValueRefundAddress = parameters?.CallValueRefundAddress ?? parameters.From;
+            var excessFeeRefundAddress = parameters?.ExcessFeeRefundAddress ?? parameters?.From;
+            var callValueRefundAddress = parameters?.CallValueRefundAddress ?? parameters?.From;
 
             var parsedParams = new L1ToL2MessageNoGasParams
             {
@@ -61,41 +49,31 @@ namespace Arbitrum.Message
 
             var l2Network = await NetworkUtils.GetL2Network(l2Provider);
 
-            //var net = NetworkUtils.AddDefaultLocalNetwork();
-            //var l2Network = net.l2Network;
+            var funcParams = new CreateRetryableTicketFunction
+            {
+                To = parameters.To,
+                L2CallValue = parameters.L2CallValue.Value,
+                MaxSubmissionCost = estimates.MaxSubmissionCost.Value,
+                ExcessFeeRefundAddress = excessFeeRefundAddress,
+                CallValueRefundAddress = callValueRefundAddress,
+                GasLimit = estimates.GasLimit.Value,
+                MaxFeePerGas = estimates.MaxFeePerGas.Value,
+                Data = parameters.Data
+            };
 
-            bool nativeTokenIsEth = l2Network.NativeToken == null;
+            var contractHandler = l2Provider.Eth.GetContractHandler(l2Network?.EthBridge?.Inbox);
+            var funcHandler = contractHandler.GetFunction<CreateRetryableTicketFunction>();
+            var funcData = funcHandler.GetData(funcParams);
 
-            var inboxContract = await LoadContractUtils.LoadContract(
-                                                    contractName: "Inbox",
-                                                    provider: l1Provider,
-                                                    address: l2Network?.EthBridge?.Inbox,
-                                                    isClassic: false
-                                                    );
-
-            var functionData = inboxContract.GetFunction("createRetryableTicket").GetData(
-                new object[]
-                {
-                    parameters.To,
-                    parameters.L2CallValue,
-                    estimates.MaxSubmissionCost,
-                    excessFeeRefundAddress,
-                    callValueRefundAddress,
-                    estimates.GasLimit,
-                    estimates.MaxFeePerGas,
-                    parameters.Data
-                });
-
-
-            var txRequest = new TransactionRequest()
+            var txRequest = new TransactionRequest
             {
                 To = l2Network?.EthBridge?.Inbox,
-                Data = functionData,
-                Value = nativeTokenIsEth ? (estimates.Deposit.Value.ToHexBigInteger()) ?? BigInteger.Zero.ToHexBigInteger() : BigInteger.Zero.ToHexBigInteger(),
+                Data = funcData,
+                Value = estimates?.Deposit?.ToHexBigInteger(),
                 From = parameters.From
             };
 
-            var retryableData = new RetryableData()
+            var retryableData = new RetryableData
             {
                 Data = parameters.Data,
                 From = parameters.From,
@@ -103,16 +81,16 @@ namespace Arbitrum.Message
                 ExcessFeeRefundAddress = excessFeeRefundAddress,
                 CallValueRefundAddress = callValueRefundAddress,
                 L2CallValue = parameters.L2CallValue,
-                MaxSubmissionCost = estimates.MaxSubmissionCost,
-                MaxFeePerGas = estimates.MaxFeePerGas,
-                GasLimit = estimates.GasLimit,
-                Deposit = estimates.Deposit
+                MaxSubmissionCost = estimates?.MaxSubmissionCost,
+                MaxFeePerGas = estimates?.MaxFeePerGas,
+                GasLimit = estimates?.GasLimit,
+                Value = estimates?.Deposit
             };
 
             async Task<bool> IsValid()
             {
                 var reEstimates = await GetTicketEstimate(parsedParams, l1Provider, l2Provider, options);
-                return await L1ToL2MessageGasEstimator.IsValid(estimates, reEstimates);
+                return await L1ToL2MessageGasEstimator.IsValid(estimates!, reEstimates);
             }
 
             return new L1ToL2TransactionRequest(txRequest, retryableData)
@@ -123,7 +101,7 @@ namespace Arbitrum.Message
             };
         }
 
-        public async Task<L1TransactionReceipt> CreateRetryableTicket(dynamic parameters, Web3 l2Provider, GasOverrides? options = null)    /////////
+        public async Task<L1TransactionReceipt> CreateRetryableTicket(dynamic parameters, Web3 l2Provider, GasOverrides? options = null)
         {
             var l1Provider = SignerProviderUtils.GetProviderOrThrow(l1Signer);
 
@@ -136,18 +114,15 @@ namespace Arbitrum.Message
                     options
                 );
 
-            var txReceipt = await l1Signer.Provider.Eth.TransactionManager.SendTransactionAndWaitForReceiptAsync(new TransactionRequest
-            {
-                From = createRequest.TxRequest.From,
-                To = createRequest.TxRequest.To,
-                Gas = createRequest.TxRequest.Gas,
-                GasPrice = createRequest.TxRequest.GasPrice,
-                Value = createRequest.TxRequest.Value,
-                Data = createRequest.TxRequest.Data,
-                Nonce = createRequest.TxRequest.Nonce,
-                ChainId = createRequest.TxRequest.ChainId
-            });
+            var tx = createRequest.TxRequest;
 
+            tx.From ??= l1Signer?.Account?.Address;
+
+            tx.Gas ??= await l1Provider.Eth.TransactionManager.EstimateGasAsync(tx);
+
+            var txnSign = await l1Provider.TransactionManager.SignTransactionAsync(tx);
+            var txnHash = await l1Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(txnSign);
+            var txReceipt = await l1Provider.Eth.TransactionManager.TransactionReceiptService.PollForReceiptAsync(txnHash);
 
             return L1TransactionReceipt.MonkeyPatchWait(txReceipt);
         }

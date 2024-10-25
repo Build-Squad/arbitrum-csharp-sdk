@@ -47,9 +47,9 @@ namespace Arbitrum.Tests.Unit
 
             // Assert
             Assert.That(result, Is.Not.Null);
-            Assert.That(result.Name, Is.EqualTo("Arbitrum One"));
-            Assert.That(result.ExplorerUrl, Is.EqualTo("https://arbiscan.io"));
-            Assert.That(result.ConfirmPeriodBlocks, Is.EqualTo(45818));
+            Assert.That(result.Name, Is.EqualTo("Arbitrum Rollup Goerli Testnet"));
+            Assert.That(result.ExplorerUrl, Is.EqualTo("https://goerli.arbiscan.io"));
+            Assert.That(result.ConfirmPeriodBlocks, Is.EqualTo(20));
         }
 
         [Test]

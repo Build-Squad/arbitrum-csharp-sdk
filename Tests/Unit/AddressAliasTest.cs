@@ -1,5 +1,7 @@
 ﻿using Arbitrum.DataEntities;
+using Nethereum.Web3;
 using NUnit.Framework;
+using System.Numerics;
 
 namespace Arbitrum.Tests.Unit
 {
@@ -10,7 +12,7 @@ namespace Arbitrum.Tests.Unit
         public void Constructor_ValidAddress_Success()
         {
             // Arrange
-            string validAddress = "0x0000000000000000000000000000000000000000";
+            string validAddress = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 
             // Act
             var address = new Address(validAddress);
@@ -34,7 +36,7 @@ namespace Arbitrum.Tests.Unit
         {
             // Arrange
             string l1Address = "0x1234567890123456789012345678901234567890";
-            string expectedL2Alias = "0x00ff456789012345678901234567890123456789"; // Example expected L2 alias
+            string expectedL2Alias = "0x23455678901234567890123456789012345689A1"; // Example expected L2 alias
 
             var address = new Address(l1Address);
 
@@ -49,7 +51,7 @@ namespace Arbitrum.Tests.Unit
         public void UndoAlias_ValidAddress_Success()
         {
             // Arrange
-            string l2Address = "0x00ff456789012345678901234567890123456789"; // Example L2 alias
+            string l2Address = "0x23455678901234567890123456789012345689A1"; // Example L2 alias
             string expectedL1Address = "0x1234567890123456789012345678901234567890";
 
             var address = new Address(l2Address);

@@ -1,25 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Numerics;
-using System.Threading.Tasks;
-using Nethereum.Contracts;
-using Nethereum.Web3;
-using NUnit.Framework;
-using Arbitrum.Tests.Integration;
-using Arbitrum.Utils;
-using Nethereum.Util;
-using Org.BouncyCastle.Asn1.X509;
-using static Arbitrum.Message.L1ToL2MessageUtils;
+﻿using Arbitrum.ContractFactory.aeWETH;
+using Arbitrum.Message;
 using Arbitrum.Scripts;
-using Nethereum.RPC.Eth.DTOs;
+using Arbitrum.Utils;
 using Nethereum.Hex.HexTypes;
+using Nethereum.Model;
+using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Signer;
+using Nethereum.Util;
+using Nethereum.Web3;
 using Nethereum.Web3.Accounts;
+using NUnit.Framework;
+using System.Numerics;
 
 namespace Arbitrum.Tests.Integration
 {
     [TestFixture]
-    public class TokenBridgeTests
+    public class WethTests
     {
         [Test]
         public async Task DepositWETH()
@@ -32,49 +28,48 @@ namespace Arbitrum.Tests.Integration
             var l2Provider = l2Signer.Provider;
             var erc20Bridger = setupState.Erc20Bridger;
 
-            var l1WethAddress = l2Network.TokenBridge.L1Weth;
-
             var wethToWrap = Web3.Convert.ToWei(0.00001, UnitConversion.EthUnit.Ether);
             var wethToDeposit = Web3.Convert.ToWei(0.0000001, UnitConversion.EthUnit.Ether);
 
-            await TestHelpers.FundL1(l1Signer, Web3.Convert.ToWei(1, UnitConversion.EthUnit.Ether));
+            await TestHelpers.FundL1(setupState.L1Deployer.Provider, address: l1Signer.Account.Address);
 
-            var l2WETH = await LoadContractUtils.LoadContract(
-                provider: l2Provider,
-                address: l2Network.TokenBridge.L2Weth,
-                contractName: "AeWETH",
-                isClassic: true
-            );
-            Assert.That(l2WETH.GetFunction("balanceOf").CallAsync<BigInteger>(l2Signer.Account.Address).Result, Is.Zero);
+            var l2WETH = await LoadContractUtils.LoadContract("AeWETH", l2Provider, l2Network.TokenBridge.L2Weth, true);
 
-            var l1WETH = await LoadContractUtils.LoadContract(
-                provider: l1Provider,
-                address: l1WethAddress,
-                contractName: "AeWETH",
-                isClassic: true
-            );
+            var initialBalance = await l2WETH.GetFunction("balanceOf").CallAsync<BigInteger>(l2Signer.Account.Address);
 
-            var tx = await l1WETH.GetFunction("deposit").SendTransactionAsync(from: l1Signer.Account.Address, new CallInput{Value = wethToWrap.ToHexBigInteger() });
+            Assert.That(initialBalance.Equals(BigInteger.Zero), "start balance weth");
 
-            await l1Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(tx);
+            var l1WETH = await LoadContractUtils.LoadContract("AeWETH", l1Provider, l2Network.TokenBridge.L1Weth, true);
+
+            var txRequest = new TransactionInput
+            {
+                Value = new HexBigInteger(wethToWrap),
+                From = l1Signer.Account.Address,
+            };
+
+            txRequest.Gas ??= await l1Provider.Eth.TransactionManager.EstimateGasAsync(txRequest);
+
+            var txHash = await l1WETH.GetFunction("deposit").SendTransactionAsync(txRequest);
+            await l1Provider.Eth.TransactionManager.TransactionReceiptService.PollForReceiptAsync(txHash);
 
             await TestHelpers.DepositToken(
                 depositAmount: wethToDeposit,
-                l1TokenAddress: l1WethAddress,
-                erc20Bridger: erc20Bridger,
+                l1TokenAddress: l1WETH.Address,
                 l1Signer: l1Signer,
                 l2Signer: l2Signer,
-                expectedStatus: L1ToL2MessageStatus.REDEEMED,
-                expectedGatewayType: GatewayType.WETH
+                l2Network: l2Network,
+                erc20Bridger: erc20Bridger,
+                expectedGatewayType: GatewayType.WETH,
+                expectedStatus: L1ToL2MessageUtils.L1ToL2MessageStatus.REDEEMED
             );
 
-            var l2WethGateway = await erc20Bridger.GetL2GatewayAddress(l1WethAddress, l2Provider);
+            var l2WethGateway = await erc20Bridger.GetL2GatewayAddress(l2Signer, l2Network, l1WETH.Address);
             Assert.That(l2WethGateway, Is.EqualTo(l2Network.TokenBridge.L2WethGateway));
 
-            var l2Token = await erc20Bridger.GetL2TokenContract(l2Provider, l2Network.TokenBridge.L2Weth);
+            var l2Token = await erc20Bridger.GetL2TokenContract(l2Signer, l2Network.TokenBridge.L2Weth);
             Assert.That(l2Token.Address, Is.EqualTo(l2Network.TokenBridge.L2Weth));
 
-            await TestHelpers.FundL2(l2Signer);
+            await TestHelpers.FundL2(setupState.L2Deployer.Provider, address: l2Signer.Account.Address);
 
             var l2Weth = await LoadContractUtils.LoadContract(
                 provider: l2Provider,
@@ -83,21 +78,23 @@ namespace Arbitrum.Tests.Integration
                 isClassic: true
             );
 
-            // Generate a new private key
             var privateKey = EthECKey.GenerateKey().GetPrivateKey();
-
-            // Create a new account with the generated private key
-            var account = new Account(privateKey);
+            var account = new Nethereum.Web3.Accounts.Account(privateKey);
 
             //random address
             var randomAddr = account.Address;
 
-            tx = await l2Weth.GetFunction("withdrawTo").SendTransactionAsync(from: l2Signer.Account.Address, randomAddr, wethToDeposit);
+            var withdrawToFunction = new WithdrawToFunction
+            {
+                Account = randomAddr,
+                Amount = new HexBigInteger(wethToDeposit)
+            };
 
-            await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(tx);
+            var contractHandler = l2Provider.Eth.GetContractHandler(l2Weth.Address);            
+            var withdrawToFunctionTxnReceipt = await contractHandler.SendRequestAndWaitForReceiptAsync(withdrawToFunction);
 
             var afterBalance = await l2Provider.Eth.GetBalance.SendRequestAsync(randomAddr);
-            Assert.That(afterBalance, Is.EqualTo(wethToDeposit));
+            Assert.That(afterBalance.Value, Is.EqualTo(wethToDeposit));
         }
 
         [Test]
@@ -115,8 +112,8 @@ namespace Arbitrum.Tests.Integration
             var l2Provider = l2Signer.Provider;
             var erc20Bridger = setupState.Erc20Bridger;
 
-            await TestHelpers.FundL1(l1Signer);
-            await TestHelpers.FundL2(l2Signer);
+            await TestHelpers.FundL1(setupState.L1Deployer.Provider, address: l1Signer.Account.Address);
+            await TestHelpers.FundL2(setupState.L2Deployer.Provider, address: l2Signer.Account.Address);
 
             var l2Weth = await LoadContractUtils.LoadContract(
                 provider: l2Provider,
@@ -125,11 +122,18 @@ namespace Arbitrum.Tests.Integration
                 isClassic: true
             );
 
-            var tx = await l2Weth.GetFunction("deposit").SendTransactionAsync(from: l2Signer.Account.Address, new CallInput{ Value = wethToWrap.ToHexBigInteger() });
+            var txRequest = new TransactionInput
+            {
+                From = l2Signer.Account.Address,
+                Value = new HexBigInteger(wethToWrap)
+            };
 
-            var rec = await l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(tx);
+            txRequest.Gas ??= await l1Provider.Eth.TransactionManager.EstimateGasAsync(txRequest);
 
-            Assert.That(rec.Status, Is.EqualTo(1));
+            var txHash = await l2Weth.GetFunction("deposit").SendTransactionAsync(txRequest);
+            var txReceipt = await l2Provider.Eth.TransactionManager.TransactionReceiptService.PollForReceiptAsync(txHash);
+
+            Assert.That(txReceipt.Status, Is.EqualTo(1));
 
             await TestHelpers.WithdrawToken(new WithdrawalParams
             {
@@ -145,7 +149,7 @@ namespace Arbitrum.Tests.Integration
                 ),
                 L2Signer = setupState.L2Signer,
                 StartBalance = wethToWrap
-            });
+            }, l2Network);
         }
     }
 }

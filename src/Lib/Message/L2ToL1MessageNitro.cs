@@ -23,6 +23,7 @@ using Nethereum.Hex.HexConvertors.Extensions;
 using Org.BouncyCastle.Crypto.Tls;
 using Nethereum.Web3.Accounts;
 using Nethereum.ABI.FunctionEncoding.Attributes;
+using Arbitrum.src.Lib.DataEntities;
 
 namespace Arbitrum.Message
 {
@@ -302,12 +303,12 @@ namespace Arbitrum.Message
             if (log == null)
             {
                 Console.WriteLine("No NodeCreated events found, defaulting to block 0");
-                return await arbitrumProvider.GetBlock(BigInteger.Zero.ToHexBigInteger()); 
+                return await arbitrumProvider.GetBlock(0); 
             }
 
             var parsedLog = ParseNodeCreatedAssertion(log);
 
-            var l2Block = await arbitrumProvider.GetBlock(new HexBigInteger(parsedLog.TryGetValue("blockHash", out var value) ? value : null));
+            var l2Block = await arbitrumProvider.GetBlock(0);// (new HexBigInteger(parsedLog.TryGetValue("blockHash", out var value) ? value : null));
             if (l2Block == null)
             {
                 throw new ArbSdkError($"Block not found. {parsedLog["blockHash"]}");

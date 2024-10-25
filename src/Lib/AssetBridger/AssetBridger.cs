@@ -1,11 +1,6 @@
-﻿using Arbitrum.DataEntities;
+﻿using Arbitrum.AssetBridger;
+using Arbitrum.DataEntities;
 using Arbitrum.Message;
-using Nethereum.Web3.Accounts;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Arbitrum.AssetBridgerModule
 {
@@ -37,12 +32,12 @@ namespace Arbitrum.AssetBridgerModule
 
         protected async Task CheckL1Network(dynamic sop)
         {
-            await SignerProviderUtils.CheckNetworkMatches(sop, L1Network.ChainID);
+            await SignerProviderUtils.CheckNetworkMatches(sop, L2Network.PartnerChainID);
         }
 
         protected async Task CheckL2Network(dynamic sop)
         {
-            await SignerProviderUtils.CheckNetworkMatches(sop, L2Network.ChainID);
+            await SignerProviderUtils.CheckNetworkMatches(sop, L1Network.PartnerChainIDs[0]);
         }
 
         protected bool NativeTokenIsEth => string.IsNullOrEmpty(NativeToken) || NativeToken == Constants.ADDRESS_ZERO;

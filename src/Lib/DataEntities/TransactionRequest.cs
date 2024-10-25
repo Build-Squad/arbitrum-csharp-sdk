@@ -3,6 +3,7 @@ using System.Numerics;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.JsonRpc.Client;
 using System.Reflection;
+using Arbitrum.src.Lib.DataEntities;
 
 namespace Arbitrum.DataEntities
 {
@@ -20,7 +21,7 @@ namespace Arbitrum.DataEntities
 
     public class L1ToL2MessageNoGasParams : CallInput
     {
-        public new byte[] Data { get; set; }
+        public new byte[]? Data { get; set; }
         public BigInteger? L2CallValue { get; set; }
         public string? ExcessFeeRefundAddress { get; set; }
         public string? CallValueRefundAddress { get; set; }

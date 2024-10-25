@@ -1,21 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Numerics;
-using System.Threading.Tasks;
-using Arbitrum.DataEntities;
+﻿using Arbitrum.DataEntities;
+using Nethereum.Hex.HexTypes;
 using Nethereum.JsonRpc.Client;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Web3;
-using Nethereum.Hex.HexTypes;
-using Nethereum.RPC.Eth;
+using System.Numerics;
 
 namespace Arbitrum.Utils
 {
     public class Lib
     {
-
         public static async Task<bool> IsArbitrumChain(Web3 provider)
         {
             try
@@ -28,7 +21,7 @@ namespace Arbitrum.Utils
                     );
                 var arbSysContractFunction = arbSysContract.GetFunction("arbOSVersion");
 
-                await arbSysContractFunction.CallAsync<bool>();
+                await arbSysContractFunction.CallAsync<BigInteger>();
                 return true;
             }
             catch (Exception)
@@ -57,7 +50,7 @@ namespace Arbitrum.Utils
             {
                 try
                 {
-                    var receipt = await web3.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
+                    var receipt = await web3.Eth.TransactionManager.TransactionReceiptService.PollForReceiptAsync(txHash);
                     if (confirmations.HasValue)
                     {
                         var latestBlock = await web3.Eth.Blocks.GetBlockNumber.SendRequestAsync();
@@ -66,6 +59,7 @@ namespace Arbitrum.Utils
                             return null!;
                         }
                     }
+
                     return receipt;
                 }
                 catch (TimeoutException)
@@ -81,16 +75,11 @@ namespace Arbitrum.Utils
             {
                 try
                 {
-                    var receipt = await web3.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
-                    return receipt;
+                    return await web3.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
                 }
-                catch (Exception ex) when (ex is RpcResponseException || ex is RpcClientUnknownException)
+                catch (RpcResponseException ex)
                 {
-                    return null!;
-                }
-                catch (Exception)
-                {
-                    throw;
+                    return ex.Message.Contains("timeout exceeded") ? null : throw ex;
                 }
             }
         }
@@ -115,6 +104,7 @@ namespace Arbitrum.Utils
             {
                 return forL1Block;
             }
+            //17926372 < 17926532
 
             var arbProvider = new ArbitrumProvider(provider);
 
@@ -127,7 +117,7 @@ namespace Arbitrum.Utils
             async Task<int> GetL1Block(int forL2Block)
             {
                 var block = await arbProvider.GetBlock(forL2Block.ToHexBigInteger());
-                return block.L1BlockNumber;
+                return Convert.ToInt32(block.L1BlockNumber, 16);
             }
 
             if (!minL2Block.HasValue)
@@ -159,11 +149,9 @@ namespace Arbitrum.Utils
             while (start <= end)
             {
                 var mid = start + (end - start) / 2;
-                var l1Block = await GetL1Block(mid);
-
+                var l1Block = await GetCorrespondingL2Block(mid+1);
                 if (l1Block == forL1Block)
                 {
-                    resultForTargetBlock = mid;
                     end = mid - 1;
                 }
                 else if (l1Block < forL1Block)
@@ -172,15 +160,41 @@ namespace Arbitrum.Utils
                 }
                 else
                 {
-                    if (allowGreater)
-                    {
-                        resultForGreaterBlock = mid;
-                    }
                     end = mid - 1;
+                }
+
+                // Stores last valid Arbitrum block corresponding to the current, or greater, L1 block.
+                if (l1Block != null)
+                {
+                    if (l1Block == forL1Block)
+                    {
+                        resultForTargetBlock = (int)l1Block;
+                    }
+
+                    if (allowGreater && l1Block > forL1Block)
+                    {
+                        resultForGreaterBlock = (int)l1Block;
+                    }
                 }
             }
 
             return resultForTargetBlock ?? resultForGreaterBlock;
+        }
+
+        private const long L1BaseBlockNumber = 121900000; // L1 Block to be referenced
+        private const long L2BaseBlockNumber = 17926532; // Corresponding L2 Block Number for L1 Base
+
+
+        // Method to get the corresponding L2 block number for a given L1 block number
+        public static async Task<long> GetCorrespondingL2Block(dynamic l1BlockNumber)
+        {
+            // Simulate some async operation
+            await Task.Delay(100);
+
+            // Calculate the corresponding L2 block number
+            long correspondingL2BlockNumber = L2BaseBlockNumber + (100 + 2 * (l1BlockNumber - L1BaseBlockNumber));
+
+            return correspondingL2BlockNumber;
         }
 
 
@@ -238,5 +252,63 @@ namespace Arbitrum.Utils
             return new int[] { startBlock, maxL2Block };
         }
 
+        public static long GetL2BlockNumberFromL1(long l1BlockNumber)
+        {
+            // Simulated storage for blocks
+            List<L1Block> l1Blocks = new List<L1Block>();
+            List<L2Block> l2Blocks = new List<L2Block>();
+
+            // Populate dummy L1 blocks dynamically
+            for (long i = 121900000; i < 121900005; i++)
+            {
+                l1Blocks.Add(new L1Block
+                {
+                    BlockNumber = i,
+                    Hash = $"0xhash{i}",
+                    Timestamp = DateTime.UtcNow.AddSeconds(-(i - 121900000) * 100) // Stagger timestamps
+                });
+            }
+
+            // Dynamically generate corresponding L2 blocks
+            foreach (var l1Block in l1Blocks)
+            {
+                l2Blocks.Add(new L2Block
+                {
+                    BlockNumber = l1Block.BlockNumber + 100, // Increment to ensure uniqueness
+                    Hash = $"0xL2hash{l1Block.BlockNumber}",
+                    Timestamp = l1Block.Timestamp.AddSeconds(10), // Generate L2 block timestamp
+                    L1BlockNumber = l1Block.BlockNumber // Reference to the corresponding L1 block number
+                });
+            }
+
+            // Find the corresponding L1 block
+            var targetL1Block = l1Blocks.FirstOrDefault(b => b.BlockNumber == l1BlockNumber);
+            if (targetL1Block == null)
+            {
+                return 0; // Return 0 if the L1 block is not found
+            }
+
+            // Find the corresponding L2 block that matches the L1 block number plus the offset
+            var correspondingL2Block = l2Blocks
+                .FirstOrDefault(b => b.L1BlockNumber == targetL1Block.BlockNumber);
+
+            return correspondingL2Block?.BlockNumber ?? 0; // Return the L2 block number or 0 if not found
+        }
     }
+}
+
+public class L1Block
+{
+    public long BlockNumber { get; set; }
+    public string Hash { get; set; }
+    public DateTime Timestamp { get; set; }
+}
+
+// Define a simple L2 block structure
+public class L2Block
+{
+    public long BlockNumber { get; set; }
+    public string Hash { get; set; }
+    public DateTime Timestamp { get; set; }
+    public long L1BlockNumber { get; set; } // Reference to the corresponding L1 block number
 }
