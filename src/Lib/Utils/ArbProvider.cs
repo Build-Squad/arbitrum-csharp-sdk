@@ -64,8 +64,8 @@ namespace Arbitrum.Utils
             return new ArbTransactionReceipt()
             {
                 // Assign values from `receipt` to the properties of `ArbTransactionReceipt` using null-coalescing
-                L1BlockNumber = receipt.L1BlockNumber ?? null,
-                GasUsedForL1 = receipt.GasUsedForL1 ?? null,
+                //L1BlockNumber = receipt.BlockNumber ?? null,
+                //GasUsedForL1 = receipt.GasUsedForL1 ?? null,
                 TransactionHash = receipt.TransactionHash ?? null,
                 TransactionIndex = receipt.TransactionIndex ?? null,
                 EffectiveGasPrice = receipt.EffectiveGasPrice ?? null,
@@ -97,7 +97,7 @@ namespace Arbitrum.Utils
                 //SendRoot = block?.SendRoot ?? null,
                 //SendCount = block?.SendCount ?? null,
                 //L1BlockNumber = block?.L1BlockNumber ?? null,
-                L1BlockNumber = (int)block?.Number?.Value,
+                L1BlockNumber = block?.Number?.HexValue,
                 Number = block?.Number,
                 BlockHash = block?.BlockHash,
                 Author = block?.Author,
@@ -204,11 +204,11 @@ namespace Arbitrum.Utils
 
         public async Task<ArbBlock> GetBlock(dynamic blockIdentifier)
         {
-            BlockWithTransactions block;
+            dynamic block;
             try
             {
                 //Console.WriteLine(typeof(blockIdentifier));
-                block = await Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(blockIdentifier.ToHexBigInteger());
+                block = await Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(blockIdentifier);
             }
             catch(Exception ex)
             {

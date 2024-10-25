@@ -101,27 +101,28 @@ namespace Arbitrum.Message
 
         public async Task<IEnumerable<EventLog<L2ToL1TransactionEvent>>> GetL2ToL1Events(Web3 provider)
         {
-            var classicLogs = await LogParser.ParseTypedLogs<ClassicL2ToL1TransactionEvent, Contract>(provider, "ArbSys", Logs, "L2ToL1Transaction", isClassic: false);
-            var nitroLogs = await LogParser.ParseTypedLogs<NitroL2ToL1TransactionEvent, Contract>(provider, "ArbSys", Logs, "L2ToL1Tx", isClassic: false);
+            //var classicLogs = await LogParser.ParseTypedLogs<ClassicL2ToL1TransactionEvent, Contract>(provider, "ArbSys", Logs, "L2ToL1Transaction", isClassic: false);
+            //var nitroLogs = await LogParser.ParseTypedLogs<NitroL2ToL1TransactionEvent, Contract>(provider, "ArbSys", Logs, "L2ToL1Tx", isClassic: false);
 
 
             // Convert classicLogs to a list of EventLog<L2ToL1TransactionEvent>
-            var classicList = classicLogs.Select(log => new EventLog<L2ToL1TransactionEvent>(log.Event, log.Log)).ToList();
+            //var classicList = classicLogs.Select(log => new EventLog<L2ToL1TransactionEvent>(log.Event, log.Log)).ToList();
 
             // Convert nitroLogs to a list of EventLog<L2ToL1TransactionEvent>
-            var nitroList = nitroLogs.Select(log => new EventLog<L2ToL1TransactionEvent>(log.Event, log.Log)).ToList();
+            //var nitroList = nitroLogs.Select(log => new EventLog<L2ToL1TransactionEvent>(log.Event, log.Log)).ToList();
 
             // Concatenate the two lists
-            var allLogs = classicList.Concat(nitroList);
+            //var allLogs = classicList.Concat(nitroList);
 
-            return allLogs;
+            return null;
 
         }
 
         public async Task<IEnumerable<EventLog<RedeemScheduledEvent>>> GetRedeemScheduledEvents(Web3 provider)
         {
-            var redeemScheduledEvents = await LogParser.ParseTypedLogs<RedeemScheduledEvent, Contract>(provider, "ArbRetryableTx", Logs, "RedeemScheduled");
-            return redeemScheduledEvents.ToArray();
+            //var redeemScheduledEvents = await LogParser.ParseTypedLogs<RedeemScheduledEvent, Contract>(provider, "ArbRetryableTx", Logs, "RedeemScheduled");
+            //return redeemScheduledEvents.ToArray();
+            return null;
         }
 
         public async Task<IEnumerable<L2ToL1Message>> GetL2ToL1Messages<T>(T l1SignerOrProvider) where T : SignerOrProvider
@@ -146,21 +147,23 @@ namespace Arbitrum.Message
             return messages;
         }
 
-        public async Task<BigInteger> GetBatchConfirmations(Web3 l2Provider)
+        public async Task<BigInteger> GetBatchConfirmations(SignerOrProvider l2Signer)
         {
             var nodeInterfaceContract = await LoadContractUtils.LoadContract(
                                     contractName: "NodeInterface",
                                     address: Constants.NODE_INTERFACE_ADDRESS,
-                                    provider: l2Provider,
+                                    provider: l2Signer.Provider,
                                     isClassic: false
                                 );
+
             var nodeInterfaceContractFunction = nodeInterfaceContract.GetFunction("getL1Confirmations");
-            return await nodeInterfaceContractFunction.CallAsync<dynamic>(BlockHash);
+            var byteValue = Nethereum.Hex.HexConvertors.Extensions.HexByteConvertorExtensions.HexToByteArray(BlockHash);
+            return await nodeInterfaceContractFunction.CallAsync<BigInteger>(byteValue);
         }
 
-        public async Task<BigInteger> GetBatchNumber(IClient l2Provider)
+        public async Task<BigInteger> GetBatchNumber(Web3 l2Provider)
         {
-            var arbProvider = new ArbitrumProvider(l2Provider);
+            var arbProvider = new ArbitrumProvider(l2Provider); 
             var nodeInterfaceContract = await LoadContractUtils.LoadContract(
                                     contractName: "NodeInterface",
                                     address: Constants.NODE_INTERFACE_ADDRESS,
@@ -178,10 +181,10 @@ namespace Arbitrum.Message
             return await nodeInterfaceContractFunction.CallAsync<BigInteger>(BlockNumber);
         }
 
-        public async Task<bool> IsDataAvailable(Web3 l2Provider, int confirmations = 10)
+        public async Task<bool> IsDataAvailable(SignerOrProvider l2Provider, int confirmations = 10)
         {
             var batchConfirmations = await GetBatchConfirmations(l2Provider);
-            return (int)batchConfirmations > confirmations;
+            return Convert.ToInt64(batchConfirmations) > confirmations;
         }
 
         public static L2TransactionReceipt MonkeyPatchWait(TransactionReceipt contractTransaction)   /////

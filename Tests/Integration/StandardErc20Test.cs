@@ -1,15 +1,9 @@
-﻿using System;
-using System.Numerics;
-using System.Threading.Tasks;
-using Arbitrum.DataEntities;
+﻿using Arbitrum.DataEntities;
 using Arbitrum.Message;
 using Arbitrum.Scripts;
-using Arbitrum.Tests.Integration;
 using Arbitrum.Utils;
-using Moq;
-using Nethereum.Contracts.Standards.ENS.ETHRegistrarController.ContractDefinition;
-using Nethereum.Web3;
 using NUnit.Framework;
+using System.Numerics;
 using static Arbitrum.Message.L1ToL2MessageUtils;
 
 namespace Arbitrum.Tests.Integration
@@ -36,7 +30,7 @@ namespace Arbitrum.Tests.Integration
                 isClassic: true
                 );
 
-            var tx = new TransactionRequest() { From = _setupState?.L1Signer?.Account.Address, Gas = await testToken.GetFunction("mint").EstimateGasAsync()  };
+            var tx = new TransactionRequest() { From = _setupState?.L1Signer?.Account.Address, Gas = await testToken.GetFunction("mint").EstimateGasAsync() };
             var receipt = await testToken.GetFunction("mint").SendTransactionAndWaitForReceiptAsync(tx);
             //var receipt = await setupState.L1Signer.Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txHash);
 
@@ -62,6 +56,7 @@ namespace Arbitrum.Tests.Integration
                 erc20Bridger: setupState.Erc20Bridger,
                 l1Signer: setupState.L1Signer,
                 l2Signer: setupState.L2Signer,
+                l2Network: setupState.L2Network,
                 expectedStatus: L1ToL2MessageStatus.REDEEMED,
                 expectedGatewayType: GatewayType.STANDARD
             );
@@ -78,6 +73,7 @@ namespace Arbitrum.Tests.Integration
                 erc20Bridger: setupState.Erc20Bridger,
                 l1Signer: setupState.L1Signer,
                 l2Signer: setupState.L2Signer,
+                l2Network: setupState.L2Network,
                 expectedStatus: L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2,
                 expectedGatewayType: GatewayType.STANDARD,
                 retryableOverrides: new GasOverrides
@@ -102,6 +98,7 @@ namespace Arbitrum.Tests.Integration
                 erc20Bridger: setupState.Erc20Bridger,
                 l1Signer: setupState.L1Signer,
                 l2Signer: setupState.L2Signer,
+                l2Network: setupState.L2Network,
                 expectedStatus: L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2,
                 expectedGatewayType: GatewayType.STANDARD,
                 retryableOverrides: new GasOverrides
@@ -126,6 +123,7 @@ namespace Arbitrum.Tests.Integration
                 erc20Bridger: setupState.Erc20Bridger,
                 l1Signer: setupState.L1Signer,
                 l2Signer: setupState.L2Signer,
+                l2Network: setupState.L2Network,
                 expectedStatus: L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2,
                 expectedGatewayType: GatewayType.STANDARD,
                 retryableOverrides: new GasOverrides
@@ -162,6 +160,7 @@ namespace Arbitrum.Tests.Integration
                 erc20Bridger: setupState.Erc20Bridger,
                 l1Signer: setupState.L1Signer,
                 l2Signer: setupState.L2Signer,
+                l2Network: setupState.L2Network,
                 expectedStatus: L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2,
                 expectedGatewayType: GatewayType.STANDARD,
                 retryableOverrides: new GasOverrides
@@ -183,10 +182,10 @@ namespace Arbitrum.Tests.Integration
             var setupState = _setupState;
 
             var l2TokenAddr = await setupState.Erc20Bridger.GetL2ERC20Address(
-                setupState.L1Token.Address, setupState.L1Signer.Provider
+                setupState.L1Token.Address, setupState.L1Signer, setupState.L2Network
             );
 
-            var l2Token = await setupState.Erc20Bridger.GetL2TokenContract(setupState.L2Signer.Provider, l2TokenAddr);
+            var l2Token = await setupState.Erc20Bridger.GetL2TokenContract(setupState.L2Signer, l2TokenAddr);
 
             var startBalance = DEPOSIT_AMOUNT * 5;
             var l2BalanceStart = await l2Token.GetFunction("balanceOf").CallAsync<BigInteger>(setupState.L2Signer.Account.Address);
@@ -207,7 +206,7 @@ namespace Arbitrum.Tests.Integration
                     contractName: "ERC20",
                     isClassic: true
                 )
-            });
+            }, setupState.L2Network);
         }
         public async Task RedeemAndTest(TestState setupState, L1ToL2MessageReaderOrWriter message, int expectedStatus, BigInteger? gasLimit = null)
         {

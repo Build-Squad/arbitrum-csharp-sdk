@@ -1,32 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net.Http;
-using System.Text.Json;
-using System.Threading.Tasks;
-using Nethereum.Web3;
-using Nethereum.Contracts;
-using Nethereum.Hex.HexConvertors.Extensions;
-using Arbitrum.AssetBridger;
+﻿using Arbitrum.AssetBridger;
 using Arbitrum.AssetBridgerModule;
 using Arbitrum.DataEntities;
+using Arbitrum.Utils;
+using Nethereum.Contracts;
+using Nethereum.Hex.HexTypes;
+using Nethereum.JsonRpc.Client;
+using Nethereum.RPC.Eth.DTOs;
+using Nethereum.RPC.TransactionManagers;
+using Nethereum.Signer;
+using Nethereum.Util;
+using Nethereum.Web3;
+using Nethereum.Web3.Accounts;
+using Newtonsoft.Json;
+using NUnit.Framework;
+using System.Numerics;
 using static Arbitrum.AssetBridger.Erc20Bridger;
 using static Arbitrum.Inbox.ForceInclusionParams;
-using Newtonsoft.Json;
-using Arbitrum.Utils;
-using Nethereum.JsonRpc.Client;
-using Nethereum.Web3.Accounts.Managed;
-using Nethereum.Util;
-using NBitcoin;
-using Nethereum.HdWallet;
-using Nethereum.Web3.Accounts;
-using System.Numerics;
-using Nethereum.Signer;
-using NUnit.Framework;
-using Nethereum.RPC.Eth.Blocks;
-using Nethereum.JsonRpc.Client.RpcMessages;
-using Nethereum.RPC.Eth.DTOs;
-using System.Runtime.InteropServices;
 
 namespace Arbitrum.Scripts
 {
@@ -34,120 +23,6 @@ namespace Arbitrum.Scripts
     {
         public L1Network L1Network { get; set; }
         public L2Network L2Network { get; set; }
-    }
-    public class GethPoAMiddleware : RequestInterceptor
-    {
-        public override async Task<object> InterceptSendRequestAsync<T>(
-            Func<RpcRequest, string, Task<T>> interceptedSendRequestAsync, RpcRequest request,
-            string route = null)
-        {
-            // Modify the request if needed (e.g., add extra headers, modify payload, etc.)
-            return await interceptedSendRequestAsync(request, route).ConfigureAwait(false);
-        }
-
-        public override async Task InterceptSendRequestAsync(
-            Func<RpcRequest, string, Task> interceptedSendRequestAsync, RpcRequest request,
-            string route = null)
-        {
-            // Modify the request if needed (e.g., add extra headers, modify payload, etc.)
-            await interceptedSendRequestAsync(request, route).ConfigureAwait(false);
-        }
-
-        public override async Task<object> InterceptSendRequestAsync<T>(
-            Func<string, string, object[], Task<T>> interceptedSendRequestAsync, string method,
-            string route = null, params object[] paramList)
-        {
-            // Modify the request if needed (e.g., add extra headers, modify payload, etc.)
-            return await interceptedSendRequestAsync(method, route, paramList).ConfigureAwait(false);
-        }
-
-        public override Task InterceptSendRequestAsync(
-            Func<string, string, object[], Task> interceptedSendRequestAsync, string method,
-            string route = null, params object[] paramList)
-        {
-            // Modify the request if needed (e.g., add extra headers, modify payload, etc.)
-            return interceptedSendRequestAsync(method, route, paramList);
-        }
-    }
-    public class SignAndSendRawMiddleware : RequestInterceptor
-    {
-        private readonly Account _account;
-        private readonly Web3 _provider;
-
-        public SignAndSendRawMiddleware(Account account)
-        {
-            _account = account;
-            _provider = new Web3(_account);
-
-        }
-
-        public override async Task<object> InterceptSendRequestAsync<T>(
-            Func<RpcRequest, string, Task<T>> interceptedSendRequestAsync, RpcRequest request,
-            string route = null)
-        {
-            if (request.Method == "eth_sendTransaction")
-            {
-                var transactionInput = request.RawParameters[0] as TransactionInput;
-                if (transactionInput != null)
-                {
-                    var txnHash = await _account.TransactionManager.SendTransactionAsync(transactionInput);
-                    return txnHash;
-                }
-            }
-
-            return await interceptedSendRequestAsync(request, route).ConfigureAwait(false);
-        }
-
-        public override async Task InterceptSendRequestAsync(
-            Func<RpcRequest, string, Task> interceptedSendRequestAsync, RpcRequest request,
-            string route = null)
-        {
-            if (request.Method == "eth_sendTransaction")
-            {
-                var transactionInput = request.RawParameters[0] as TransactionInput;
-                if (transactionInput != null)
-                {
-                    var txnHash = await _account.TransactionManager.SendTransactionAsync(transactionInput);
-                    return;
-                }
-            }
-
-            await interceptedSendRequestAsync(request, route).ConfigureAwait(false);
-        }
-
-        public override async Task<object> InterceptSendRequestAsync<T>(
-            Func<string, string, object[], Task<T>> interceptedSendRequestAsync, string method,
-            string route = null, params object[] paramList)
-        {
-            if (method == "eth_sendTransaction" && paramList.Length > 0 && paramList[0] is TransactionInput)
-            {
-                var transactionInput = paramList[0] as TransactionInput;
-                if (transactionInput != null)
-                {
-                    var txnHash = await _account.TransactionManager.SendTransactionAsync(transactionInput);
-                    return txnHash;
-                }
-            }
-
-            return await interceptedSendRequestAsync(method, route, paramList).ConfigureAwait(false);
-        }
-
-        public override Task InterceptSendRequestAsync(
-            Func<string, string, object[], Task> interceptedSendRequestAsync, string method,
-            string route = null, params object[] paramList)
-        {
-            if (method == "eth_sendTransaction" && paramList.Length > 0 && paramList[0] is TransactionInput)
-            {
-                var transactionInput = paramList[0] as TransactionInput;
-                if (transactionInput != null)
-                {
-                    var txnHash = _account.TransactionManager.SendTransactionAsync(transactionInput).Result;
-                    return Task.FromResult(txnHash);
-                }
-            }
-
-            return interceptedSendRequestAsync(method, route, paramList);
-        }
     }
 
     public class TestState
@@ -179,11 +54,12 @@ namespace Arbitrum.Scripts
 
         public static async Task<string> GetDeploymentData()
         {
+            var dir = @"C:\Dev\nitro-testnode";
             var dockerNames = new List<string>
             {
+                "nitro-testnode-sequencer-1",
                 "nitro_sequencer_1",
                 "nitro-sequencer-1",
-                "nitro-testnode-sequencer-1",
                 "nitro-testnode-sequencer-1"
             };
 
@@ -191,7 +67,8 @@ namespace Arbitrum.Scripts
             {
                 try
                 {
-                    var result = await ExecuteCommandAsync("docker", $"exec {dockerName} cat /config/deployment.json");
+                    var result = await ExecuteCommandAsync("docker", $"compose run --entrypoint sh tokenbridge -c \"cat l1l2_network.json\"", dir);
+                    if (string.IsNullOrEmpty(result)) continue;
                     return result;
                 }
                 catch (Exception)
@@ -203,7 +80,7 @@ namespace Arbitrum.Scripts
             throw new Exception("nitro-testnode sequencer not found");
         }
 
-        public static async Task<string> ExecuteCommandAsync(string command, string arguments)
+        public static async Task<string> ExecuteCommandAsync(string command, string arguments, string directory)
         {
             using var process = new System.Diagnostics.Process
             {
@@ -213,7 +90,8 @@ namespace Arbitrum.Scripts
                     Arguments = arguments,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
-                    CreateNoWindow = true
+                    CreateNoWindow = true,
+                    WorkingDirectory = directory
                 }
             };
 
@@ -225,9 +103,6 @@ namespace Arbitrum.Scripts
         {
             var l1Provider = new Web3(new RpcClient(new Uri(l1Url)));
             var l2Provider = new Web3(new RpcClient(new Uri(l2Url)));
-
-            //l1Provider.AddMiddleware(new GethPOAMiddleware(), 0);
-            //l2Provider.AddMiddleware(new GethPOAMiddleware(), 0);
 
             var deploymentData = JsonConvert.DeserializeObject<Dictionary<string, string>>(await GetDeploymentData());
 
@@ -371,125 +246,44 @@ namespace Arbitrum.Scripts
 
         public static async Task<TestState> TestSetup()
         {
-            // Assuming __src_directory is the directory of the current assembly file
-            string assemblyDirectory = AppContext.BaseDirectory;
-            var projectPath = Path.Combine(assemblyDirectory, @"..\..\..");
-
+            string projectPath = Path.Combine(AppContext.BaseDirectory, @"..\..\..");
             string PROJECT_DIRECTORY = Path.GetFullPath(projectPath);
 
-            // Generate a new private key
-            //var privateKey = EthECKey.GenerateKey().GetPrivateKey();
+            var l2ChainId = new BigInteger(412346);
 
-            // Create a new account with the generated private key
-            //var account = new Account(privateKey);
+            var l1DeployerAccount = new Account(Config["ETH_KEY"], Chain.Private);
+            var l2DeployerAccount = new Account(Config["ARB_KEY"], l2ChainId);
 
-            //var signerPrivateKey = account.PrivateKey.EnsureHexPrefix();
+            var l1DeployerWeb = new Web3(l1DeployerAccount, Config["ETH_URL"]);
+            var l2DeployerWeb = new Web3(l2DeployerAccount, Config["ARB_URL"]);
 
-            var signerAccount = new Account("0x394d84674d89ffd6d02b8b768642ffc15cfd02ec7ea593c3d1cfc22da07f50dc");
+            var l1Deployer = new SignerOrProvider(l1DeployerAccount, l1DeployerWeb);
+            var l2Deployer = new SignerOrProvider(l2DeployerAccount, l2DeployerWeb);
 
-            var ethProvider = new Web3(signerAccount, Config["ETH_URL"]);
-            var arbProvider = new Web3(signerAccount, Config["ARB_URL"]);
+            var pvtKeyGen = EthECKey.GenerateKey();
 
-            ethProvider.Client.OverridingRequestInterceptor = new GethPoAMiddleware();
-            arbProvider.Client.OverridingRequestInterceptor = new GethPoAMiddleware();
+            var l1SignerAccount = new Account(pvtKeyGen.GetPrivateKey(), Chain.Private);
+            var l2SignerAccount = new Account(pvtKeyGen.GetPrivateKey(), l2ChainId);
 
-            var l1Deployer = new SignerOrProvider(await GetSigner(ethProvider, Config["ETH_KEY"]), ethProvider);
-            var l2Deployer = new SignerOrProvider(await GetSigner(arbProvider, Config["ARB_KEY"]), arbProvider);
+            var ethProvider = new Web3(l1SignerAccount, Config["ETH_URL"]);
+            var arbProvider = new Web3(l2SignerAccount, Config["ARB_URL"]);
 
-            // Injecting custom SignAndSendRawMiddleware
-            //By configuring the client with the SignAndSendRawMiddleware, any eth requests made through the client
-            //will be intercepted and signed with the specified account before being sent to the Ethereum network.
-            ethProvider.Client.OverridingRequestInterceptor = new SignAndSendRawMiddleware(signerAccount);
-            arbProvider.Client.OverridingRequestInterceptor = new SignAndSendRawMiddleware(signerAccount);
+            var l1Signer = new SignerOrProvider(l1SignerAccount, ethProvider);
+            var l2Signer = new SignerOrProvider(l2SignerAccount, arbProvider);
 
-            var l1Signer = new SignerOrProvider(signerAccount,ethProvider);
-            var l2Signer = new SignerOrProvider(signerAccount, arbProvider);
+            (var l1Network, var l2Network) = await SetupNetworks(PROJECT_DIRECTORY, ethProvider, arbProvider);
 
-            L1Network setL1Network;
-            L2Network setL2Network;
+            var erc20Bridger = new Erc20Bridger(l2Network);
+            var adminErc20Bridger = new AdminErc20Bridger(l2Network);
+            var ethBridger = new EthBridger(l2Network);
+            var inboxTools = new InboxTools(l1Signer, l2Network);
 
-            //using local as of now
-            var network = NetworkUtils.AddDefaultLocalNetwork();
-            try
-            {
-                //setL1Network = network.l1Network;
-                //setL2Network = network.l2Network;
-
-                //NetworkUtils.AddCustomNetwork(setL1Network, setL2Network);
-
-                setL1Network = await NetworkUtils.GetL1Network(ethProvider);
-                setL2Network = await NetworkUtils.GetL2Network(arbProvider);
-            }
-            catch (ArbSdkError)
-            {
-                var localNetworkFile = Path.Combine(PROJECT_DIRECTORY, "localNetwork.json");
-                CustomNetworks networkData;
-                if (File.Exists(localNetworkFile))
-                {
-                    var json = File.ReadAllText(localNetworkFile);
-                    networkData = JsonConvert.DeserializeObject<CustomNetworks>(json);
-
-                    setL1Network = new L1Network()
-                    {
-                        ChainID = networkData.L1Network.ChainID,
-                        Name = networkData.L1Network.Name,
-                        ExplorerUrl = networkData.L1Network.ExplorerUrl,
-                        Gif = networkData.L1Network.Gif,
-                        IsCustom = networkData.L1Network.IsCustom,
-                        BlockTime = networkData.L1Network.BlockTime,
-                        PartnerChainIDs = networkData.L1Network.PartnerChainIDs,
-                        IsArbitrum = networkData.L1Network.IsArbitrum
-                    };
-
-                    //networkData.L2Network.TokenBridge = new TokenBridge()
-                    //{
-
-                    //};
-                    //networkData.L2Network.EthBridge = new EthBridge()
-                    //{
-
-                    //};
-                    setL2Network = new L2Network()
-                    {
-                        ChainID = networkData.L2Network.ChainID,
-                        Name = networkData?.L2Network?.Name,
-                        ExplorerUrl = networkData?.L2Network?.ExplorerUrl,
-                        Gif = networkData?.L2Network?.Gif,
-                        IsCustom = networkData.L2Network.IsCustom,
-                        BlockTime = networkData.L2Network.BlockTime,
-                        PartnerChainIDs = networkData?.L2Network?.PartnerChainIDs,
-                        IsArbitrum = networkData?.L2Network?.IsArbitrum ?? false,
-                        ConfirmPeriodBlocks = networkData.L2Network.ConfirmPeriodBlocks,
-                        RetryableLifetimeSeconds = networkData.L2Network.RetryableLifetimeSeconds,
-                        NitroGenesisBlock = networkData.L2Network.NitroGenesisBlock,
-                        NitroGenesisL1Block = networkData.L2Network.NitroGenesisL1Block,
-                        DepositTimeout = networkData.L2Network.DepositTimeout,
-                        NativeToken = networkData?.L2Network?.NativeToken,
-                        TokenBridge = networkData?.L2Network?.TokenBridge,
-                        EthBridge = networkData?.L2Network?.EthBridge,
-                        PartnerChainID = networkData.L2Network.PartnerChainID
-                    };
-
-                    NetworkUtils.AddCustomNetwork(setL1Network, setL2Network);
-                }
-                else
-                {
-                    networkData = await SetupNetworks(Config["ETH_URL"], Config["ARB_URL"], l1Deployer, l2Deployer);
-                    setL1Network = networkData.L1Network;
-                    setL2Network = networkData.L2Network;
-                }
-            }
-            var erc20Bridger = new Erc20Bridger(setL2Network);
-            var adminErc20Bridger = new AdminErc20Bridger(setL2Network);
-            var ethBridger = new EthBridger(setL2Network);
-            var inboxTools = new InboxTools(l1Signer, setL2Network);
-
-            var result = new TestState
+            return new TestState
             {
                 L1Signer = l1Signer,
                 L2Signer = l2Signer,
-                L1Network = setL1Network,
-                L2Network = setL2Network,
+                L1Network = l1Network,
+                L2Network = l2Network,
                 Erc20Bridger = erc20Bridger,
                 AdminErc20Bridger = adminErc20Bridger,
                 EthBridger = ethBridger,
@@ -497,9 +291,61 @@ namespace Arbitrum.Scripts
                 L1Deployer = l1Deployer,
                 L2Deployer = l2Deployer
             };
-
-            return result;
         }
+
+
+        private static async Task<(L1Network, L2Network)> SetupNetworks(string projectDir, Web3 ethProvider, Web3 arbProvider)
+        {
+            var localNetworkFile = Path.Combine(projectDir, "localNetwork.json");
+            if (File.Exists(localNetworkFile))
+            {
+                var json = File.ReadAllText(localNetworkFile);
+                var networkData = JsonConvert.DeserializeObject<CustomNetworks>(json);
+
+                var l1Network = new L1Network()
+                {
+                    ChainID = networkData.L1Network.ChainID,
+                    Name = networkData.L1Network.Name,
+                    ExplorerUrl = networkData.L1Network.ExplorerUrl,
+                    Gif = networkData.L1Network.Gif,
+                    IsCustom = networkData.L1Network.IsCustom,
+                    BlockTime = networkData.L1Network.BlockTime,
+                    PartnerChainIDs = networkData.L1Network.PartnerChainIDs,
+                    IsArbitrum = networkData.L1Network.IsArbitrum
+                };
+
+                var l2Network = new L2Network()
+                {
+                    ChainID = networkData.L2Network.ChainID,
+                    Name = networkData?.L2Network?.Name,
+                    ExplorerUrl = networkData?.L2Network?.ExplorerUrl,
+                    Gif = networkData?.L2Network?.Gif,
+                    IsCustom = networkData.L2Network.IsCustom,
+                    BlockTime = networkData.L2Network.BlockTime,
+                    PartnerChainIDs = networkData?.L2Network?.PartnerChainIDs,
+                    IsArbitrum = networkData?.L2Network?.IsArbitrum ?? false,
+                    ConfirmPeriodBlocks = networkData.L2Network.ConfirmPeriodBlocks,
+                    RetryableLifetimeSeconds = networkData.L2Network.RetryableLifetimeSeconds,
+                    NitroGenesisBlock = networkData.L2Network.NitroGenesisBlock,
+                    NitroGenesisL1Block = networkData.L2Network.NitroGenesisL1Block,
+                    DepositTimeout = networkData.L2Network.DepositTimeout,
+                    NativeToken = networkData?.L2Network?.NativeToken,
+                    TokenBridge = networkData?.L2Network?.TokenBridge,
+                    EthBridge = networkData?.L2Network?.EthBridge,
+                    PartnerChainID = networkData.L2Network.PartnerChainID
+                };
+
+                NetworkUtils.AddCustomNetwork(l1Network, l2Network);
+
+                return (l1Network, l2Network);
+            }
+
+            var l1NetworkFetched = await NetworkUtils.GetL1Network(ethProvider);
+            var l2NetworkFetched = await NetworkUtils.GetL2Network(arbProvider);
+
+            return (l1NetworkFetched, l2NetworkFetched);
+        }
+
 
         public static async Task SkipIfMainnet(int chainId)
         {
@@ -517,5 +363,4 @@ namespace Arbitrum.Scripts
             }
         }
     }
-
 }

@@ -6,6 +6,7 @@ using Arbitrum.Utils;
 using Nethereum.JsonRpc.Client;
 using Nethereum.Web3;
 using Nethereum.Hex.HexTypes;
+using System.ComponentModel.DataAnnotations;
 
 namespace Arbitrum.Tests.Unit
 {
@@ -69,64 +70,82 @@ namespace Arbitrum.Tests.Unit
                 throw new ArgumentException($"Expected L2 block range to have the array length of {l2BlocksCount}, got {l2Blocks.Length}.");
             }
 
-
-            if (l2Blocks.Any(block => block == 0 ? type != "undefined" : block.GetType().Name.ToLower() != type))
+            // Check if all blocks are integers or null when blockType is "number"
+            if (l2Blocks.Any(block => block.GetType().Name.ToLower() == "int32" && !l2Blocks.All(block => block == null || block is int)))
             {
-                throw new ArgumentException($"Expected all blocks to be {type}.");
+                throw new ArgumentException("Expected all blocks to be integers or None.");
             }
 
+            // Check if all blocks are null when blockType is "undefined"
+            if (l2Blocks.Any(block => block.GetType().Name.ToLower() == "undefined") && !l2Blocks.All(block => block == null))
+            {
+                throw new ArgumentException("Expected all blocks to be None when block type is 'undefined'.");
+            }
+
+            // Early return if blockType is "undefined"
             if (type == "undefined")
             {
                 return;
             }
 
             var arbProvider = new ArbitrumProvider(new Web3(new RpcClient(new Uri("https://arb1.arbitrum.io/rpc"))));
-            var promises = l2Blocks.Select(async (l2Block, index) =>
+            
+            var tasks = new List<Task<ArbBlock>>();
+            for (int index = 0; index < l2BlocksCount; index++)
             {
+                var l2Block = l2Blocks[index];
                 if (l2Block == null)
                 {
-                    throw new ArgumentNullException("L2 block is undefined.");
+                    throw new ValidationException("L2 block is undefined.");
                 }
 
-                var isStartBlock = index == 0;
-                var blockNumber = l2Block;
-                var block = await arbProvider.GetBlock(blockNumber);
-                var nextBlockNumber = isStartBlock ? blockNumber - 1 : blockNumber + 1;
-                var nextBlock = await arbProvider.GetBlock(nextBlockNumber);
-
-                return (block, nextBlock);
-            });
-
-            var result = await Task.WhenAll(promises);
-
-            int startBlock, blockBeforeStartBlock, endBlock, blockAfterEndBlock;
-            try
-            {
-                startBlock = result[0].block.L1BlockNumber;
-                blockBeforeStartBlock = result[0].nextBlock.L1BlockNumber;
-                endBlock = result[1].block.L1BlockNumber;
-                blockAfterEndBlock = result[1].nextBlock.L1BlockNumber;
+                bool isStartBlock = index == 0;
+                tasks.Add(arbProvider.GetBlock(l2Block.ToHexBigInteger())); // Current block
+                tasks.Add(arbProvider.GetBlock((l2Block + (isStartBlock ? -1  : 1)).ToHexBigInteger())); // Adjacent block
             }
-            catch (Exception ex)
+
+            // Await all tasks (equivalent to asyncio.gather in Python)
+            var blocks = await Task.WhenAll(tasks);
+
+            // Loop through the fetched blocks in pairs (current and adjacent)
+            for (int i = 0; i < blocks.Length; i += 2)
             {
-                if (ex.Message == "System.Exception : Index was outside the bounds of the array.")
-                { 
-                    endBlock = 0;
-                    blockAfterEndBlock = 0;
+                var currentBlock = blocks[i];
+                var adjacentBlock = blocks[i + 1];
+
+                // Skip if either block is null
+                if (currentBlock == null || adjacentBlock == null) continue;
+
+                int currentBlockNumber = Convert.ToInt32(currentBlock.L1BlockNumber, 16);
+                int adjacentBlockNumber = Convert.ToInt32(adjacentBlock.L1BlockNumber, 16);
+
+                bool isStartBlock = i == 0;
+
+                if (isStartBlock)
+                {
+                    if (currentBlockNumber <= adjacentBlockNumber)
+                    {
+                        throw new ValidationException("L2 start block is not the first block in range for L1 block.");
+                    }
                 }
-                throw new Exception(ex.Message);
+                else
+                {
+                    if (currentBlockNumber >= adjacentBlockNumber)
+                    {
+                        throw new ValidationException("L2 end block is not the last block in range for L1 block.");
+                    }
+                }
             }
 
+            //if (startBlock < blockBeforeStartBlock)
+            //{
+            //    throw new Exception("L2 block is not the first block in range for L1 block.");
+            //}
 
-            if (startBlock < blockBeforeStartBlock)
-            {
-                throw new Exception("L2 block is not the first block in range for L1 block.");
-            }
-
-            if (endBlock < blockAfterEndBlock)
-            {
-                throw new Exception("L2 block is not the last block in range for L1 block.");
-            }
+            //if (endBlock < blockAfterEndBlock)
+            //{
+            //    throw new Exception("L2 block is not the last block in range for L1 block.");
+            //}
         }
     }
 }

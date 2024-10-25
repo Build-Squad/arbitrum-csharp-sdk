@@ -1,47 +1,33 @@
-﻿using System.Threading.Tasks;
-using NUnit.Framework;
-using Nethereum.Web3;
+﻿using Arbitrum.DataEntities;
 using Arbitrum.Message;
-using Nethereum.Util;
-using static Arbitrum.Message.L1ToL2MessageUtils;
-using System.Numerics;
 using Arbitrum.Scripts;
-using Arbitrum.Tests.Integration;
-using Arbitrum.DataEntities;
 using Nethereum.Hex.HexConvertors.Extensions;
+using Nethereum.Util;
+using Nethereum.Web3;
+using NUnit.Framework;
+using System.Numerics;
+using static Arbitrum.Message.L1ToL2MessageUtils;
 
 namespace Arbitrum.Tests.Integration
 {
     [TestFixture]
-    public class TestRetryableTicketCreation
+    public class L1ToL2MessageCreatorTest
     {
         private readonly BigInteger TEST_AMOUNT = Web3.Convert.ToWei("0.01", UnitConversion.EthUnit.Ether);
 
-        public async Task<TestState> SetupState()
-        {
-            var setupState = await TestSetupUtils.TestSetup();
-            return setupState;
-        }
-
         [Test]
         [Category("Async")]
-        public async Task TestRetryableTicketCreationWithParameters()
+        public async Task L1ToL2MessageCreationWithParameters()
         {
-            var setupState = await SetupState();
+            var setupState = await TestSetupUtils.TestSetup();
             var l1Signer = setupState.L1Signer;
-
-            var l2network = await NetworkUtils.GetL2Network(setupState.L2Signer.Provider);
             var l2Signer = setupState.L2Signer;
-            var l1Provider = l1Signer.Provider;
-            var l2Provider = l2Signer.Provider;
             var signerAddress = l1Signer.Account.Address;
             var arbProvider = l2Signer.Provider;
 
-            //await TestHelpers.FundL1(l1Signer);
+            await TestHelpers.FundL1(setupState.L1Deployer.Provider, address: l1Signer.Account.Address);
 
-            var l1ToL2MessageCreator = new L1ToL2MessageCreator(l1Signer);
-
-            var initialL2Balance = await l2Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Account.Address);
+            var initialL2Balance = await l2Signer.Provider.Eth.GetBalance.SendRequestAsync(l2Signer?.Account?.Address);
 
             var retryableTicketParams = new L1ToL2MessageParams
             {
@@ -52,36 +38,43 @@ namespace Arbitrum.Tests.Integration
                 Data = "0x".HexToByteArray()
             };
 
+            var l1ToL2MessageCreator = new L1ToL2MessageCreator(l1Signer);
+
             var l1SubmissionTxReceipt = await l1ToL2MessageCreator.CreateRetryableTicket(retryableTicketParams, arbProvider);
-            var l1ToL2Messages = (await l1SubmissionTxReceipt.GetL1ToL2Messages(arbProvider)).ToList();
+            var l1ToL2Messages = await l1SubmissionTxReceipt.GetL1ToL2Messages(arbProvider, l1SubmissionTxReceipt.ContractAddress);
 
             Assert.That(l1ToL2Messages.Count(), Is.EqualTo(1));
-            var l1ToL2Message = l1ToL2Messages[0];
 
+            /* 
+            // Message status to be tested only on live networks. Local node doesn't have support for it
+            var l1ToL2Message = l1ToL2Messages.FirstOrDefault();
             var retryableTicketResult = await l1ToL2Message.WaitForStatus();
             Assert.That(retryableTicketResult.Status, Is.EqualTo(L1ToL2MessageStatus.REDEEMED));
-            var finalL2Balance = l2Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Account.Address);
-            Assert.That(finalL2Balance, Is.GreaterThan(initialL2Balance));
+            */
+
+            Task.Delay(TimeSpan.FromSeconds(3)).Wait();
+
+            var finalL2Balance = await l2Signer.Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Account.Address);
+
+            Assert.That(finalL2Balance.Value, Is.GreaterThan(initialL2Balance.Value));
         }
 
         [Test]
         [Category("Async")]
-        public async Task TestRetryableTicketCreationWithRequest()
+        public async Task L1ToL2MessageCreationWithRequest()
         {
-            var setupState = await SetupState();
+            var setupState = await TestSetupUtils.TestSetup();
             var l1Signer = setupState.L1Signer;
             var l2Signer = setupState.L2Signer;
             var signerAddress = l1Signer.Account.Address;
             var l1Provider = l1Signer.Provider;
             var l2Provider = l2Signer.Provider;
-            var ethProvider = l1Signer.Provider;
-            var arbProvider = l2Signer.Provider;
 
-            await TestHelpers.FundL1(l1Signer);
+            await TestHelpers.FundL1(setupState.L1Deployer.Provider, address: l1Signer.Account.Address);
 
             var l1ToL2MessageCreator = new L1ToL2MessageCreator(l1Signer);
 
-            var initialL2Balance = l2Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Account.Address);
+            var initialL2Balance = await l2Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Account.Address);
 
             var l1ToL2TransactionRequestParams = new L1ToL2MessageParams
             {
@@ -92,19 +85,25 @@ namespace Arbitrum.Tests.Integration
                 Data = "0x".HexToByteArray()
             };
 
-            var l1ToL2TransactionRequest = await L1ToL2MessageCreator.GetTicketCreationRequest(l1ToL2TransactionRequestParams, ethProvider, arbProvider);
+            var l1ToL2TransactionRequest = await L1ToL2MessageCreator.GetTicketCreationRequest(l1ToL2TransactionRequestParams, l1Provider, l2Provider);
 
-            var l1SubmissionTxReceipt = await l1ToL2MessageCreator.CreateRetryableTicket(l1ToL2TransactionRequest, arbProvider);
+            var l1SubmissionTxReceipt = await l1ToL2MessageCreator.CreateRetryableTicket(l1ToL2TransactionRequest, l2Provider);
 
-            var l1ToL2Messages = (await l1SubmissionTxReceipt.GetL1ToL2Messages(arbProvider)).ToList();
+            var l1ToL2Messages = await l1SubmissionTxReceipt.GetL1ToL2Messages(l2Provider);
+
             Assert.That(l1ToL2Messages.Count(), Is.EqualTo(1));
-            var l1ToL2Message = l1ToL2Messages[0];
-
+            /* 
+            // Message status to be tested only on live networks. Local node doesn't have support for it
+            var l1ToL2Message = l1ToL2Messages.FirstOrDefault();
             var retryableTicketResult = await l1ToL2Message.WaitForStatus();
             Assert.That(retryableTicketResult.Status, Is.EqualTo(L1ToL2MessageStatus.REDEEMED));
+            */
 
-            var finalL2Balance = l2Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Account.Address);
-            Assert.That(finalL2Balance, Is.GreaterThan(initialL2Balance));
+            Task.Delay(TimeSpan.FromSeconds(3)).Wait();
+
+            var finalL2Balance = await l2Provider.Eth.GetBalance.SendRequestAsync(l2Signer.Account.Address);
+
+            Assert.That(finalL2Balance.Value, Is.GreaterThan(initialL2Balance.Value));
         }
     }
 }

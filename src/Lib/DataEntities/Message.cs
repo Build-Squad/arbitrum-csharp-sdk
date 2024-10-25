@@ -35,7 +35,7 @@ namespace Arbitrum.DataEntities
         public BigInteger MaxFeePerGas { get; set; } // Gas price for L2 execution
 
         [Parameter("bytes", 9)]
-        public byte[] Data { get; set; } // Calldata for of the L2 message
+        public string Data { get; set; } // Calldata for of the L2 message
     }
 
 
@@ -57,7 +57,7 @@ namespace Arbitrum.DataEntities
     {
         L1MessageType_submitRetryableTx = 9,
         L1MessageType_ethDeposit = 12,
-        L2MessageType_signedTx = 4,
+        L2MessageType_signedTx = 4
     }
 
     /* L2ToL1 message status */
@@ -65,6 +65,6 @@ namespace Arbitrum.DataEntities
     {
         UNCONFIRMED,
         CONFIRMED,
-        EXECUTED,
+        EXECUTED
     }
 }

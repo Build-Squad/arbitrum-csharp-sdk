@@ -13,6 +13,7 @@ using System.Reflection.Metadata.Ecma335;
 using System.Reflection;
 using Nethereum.Web3.Accounts;
 using Nethereum.Hex.HexTypes;
+using System.Net;
 
 namespace Arbitrum.Message
 {
@@ -175,7 +176,7 @@ namespace Arbitrum.Message
                     case "pending":
                         return new BlockParameter(nitroGenBlock);
                     case "blockNumber":
-                        return new BlockParameter(Math.Min((int)blockTag.BlockNumber.Value, (int)nitroGenBlock.Value).ToHexBigInteger());
+                        return new BlockParameter(Math.Min((int)blockTag, (int)nitroGenBlock).ToHexBigInteger());
                     default:
                         throw new ArbSdkError($"Unrecognised block tag. {blockTag}");
                 }

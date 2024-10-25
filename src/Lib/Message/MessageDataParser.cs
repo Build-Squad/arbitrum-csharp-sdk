@@ -12,130 +12,123 @@ using Nethereum.ABI.Model;
 using Nethereum.ABI.FunctionEncoding;
 using Nethereum.ABI.Encoders;
 using Nethereum.RPC.Eth.DTOs;
+using Nethereum.ABI.FunctionEncoding.Attributes;
+using Nethereum.Contracts;
+using Nethereum.Hex.HexTypes;
 
 namespace Arbitrum.Message
 {
+    [Function("transfer", "bool")]
+    public class DecodeFunction : FunctionMessage
+    {
+        [Parameter("uint256", "test", 1)]
+        public BigInteger Dest { get; set; }
+
+        [Parameter("uint256", "l2CallValue", 2)]
+        public BigInteger L2CallValue { get; set; }
+
+        [Parameter("uint256", "msgVal", 3)]
+        public BigInteger MsgVal { get; set; }
+
+        [Parameter("uint256", "maxSubmission", 4)]
+        public BigInteger MaxSubmission { get; set; }
+
+        [Parameter("uint256", "excessFeeRefundAddr", 5)]
+        public BigInteger ExcessFeeRefundAddr { get; set; }
+
+        [Parameter("uint", "callValueRefundAddr", 6)]
+        public BigInteger CallValueRefundAddr { get; set; }
+
+        [Parameter("uint256", "maxGas", 7)]
+        public BigInteger MaxGas { get; set; }
+
+        [Parameter("uint256", "gasPriceBid", 8)]
+        public BigInteger GasPriceBid { get; set; }
+
+        [Parameter("uint256", "dataLength", 9)]
+        public BigInteger DataLength { get; set; }
+    }
+
     public static class SubmitRetryableMessageDataParser
     {
-        public static RetryableMessageParams Parse(string eventData)     
+        public static RetryableMessageParams Parse(string eventData)
         {
-            //// Define the ABI types
-            //var abiTypes = new[]
-            // {
-            //    "uint256", // dest
-            //    "uint256", // l2 call value
-            //    "uint256", // msg val
-            //    "uint256", // max submission
-            //    "uint256", // excess fee refund addr
-            //    "uint256", // call value refund addr
-            //    "uint256", // max gas
-            //    "uint256", // gas price bid
-            //    "uint256"  // data length
-            //};
-            // Define the ABI types
-            var abiTypes = new Parameter[]
+
+            var parsed = new DecodeFunction().DecodeInput(eventData);
+
+            var functionCallDecoder = new FunctionCallDecoder();
+
+            // Create an instance of the TransferFunction
+            var transferFunction = new DecodeFunction();
+
+            // Decode the input data into the TransferFunction object
+            var decodedFunction = functionCallDecoder.DecodeFunctionInput<DecodeFunction>(transferFunction, "a9059cbb", eventData);
+
+            string AddressFromBigNumber(BigInteger bn)
             {
-                new Parameter("uint256", 1), // dest
-                new Parameter("uint256", 2), // l2 call value
-                new Parameter("uint256", 3), // msg val
-                new Parameter("uint256", 4), // max submission
-                new Parameter("uint256", 5), // excess fee refund addr
-                new Parameter("uint256", 6), // call value refund addr
-                new Parameter("uint256", 7), // max gas
-                new Parameter("uint256", 8), // gas price bid
-                new Parameter("uint256", 9)  // data length
-            };
+                // Convert BigInteger to a byte array
+                byte[] bytes = bn.ToByteArray();
 
-           
-            var eventDataBytes = eventData.HexToByteArray();
-            string address = System.Text.Encoding.UTF8.GetString(eventDataBytes, 0, eventDataBytes.Length);
+                // Ensure the byte array is 20 bytes long (Ethereum address length)
+                byte[] addressBytes = new byte[20];
 
-            string decodedText = new Bytes32TypeDecoder().Decode<string>(eventDataBytes);
+                // Check if the system architecture is little-endian and reverse if necessary
+                if (BitConverter.IsLittleEndian)
+                {
+                    Array.Reverse(bytes);
+                }
 
-            var type = abiTypes.FirstOrDefault().ABIType.Name;
+                int copyLength = Math.Min(bytes.Length, 20);
 
-            int decodedInt = new IntTypeDecoder().Decode<int>(eventDataBytes);
+                // Copy bytes to addressBytes, ensuring it fills from the end
+                Array.Copy(bytes, bytes.Length - copyLength, addressBytes, 20 - copyLength, copyLength);
 
-            var transaction = new Transaction();
-            transaction.Input = eventData;
-            
-
-
-            // Initialize FunctionCallDecoder
-            var decoder = new ParameterDecoder();
-            // Define the parameter types
-            var parameterTypes = abiTypes.Select(type => new Parameter(type.Type)).ToArray();
-
-            // Decode the parameters
-            var decodedParameters = decoder.DecodeDefaultData(eventDataBytes, abiTypes);
-
-            var arrayTypeDecoder = ArrayType.CreateABIType("uint256[]");
-
-            var list = arrayTypeDecoder.Decode<List<BigInteger>>(eventData);
-
-            for ( var i = 0;i<abiTypes.Length; i++)
-            {
-
-                var decodedParameter = arrayTypeDecoder.Decode(eventDataBytes, typeof(BigInteger));
-
-                List<dynamic> result = new List<dynamic>();
-                result.Add(decodedParameter);
+                // Convert the byte array to a hexadecimal string and format it as a checksum address
+                return new AddressUtil().ConvertToChecksumAddress(addressBytes.ToHex());
             }
-            return new RetryableMessageParams();
+            var destAddress = AddressFromBigNumber(decodedFunction.Dest);
+            var l2CallValue = decodedFunction.L2CallValue;
+            var l1Value = decodedFunction.MsgVal;
+            var maxSubmissionFee = decodedFunction.MaxSubmission;
+            var excessFeeRefundAddress = AddressFromBigNumber(decodedFunction.ExcessFeeRefundAddr);
+            var callValueRefundAddress = AddressFromBigNumber(decodedFunction.CallValueRefundAddr);
+            var gasLimit = decodedFunction.MaxGas;
+            var maxFeePerGas = decodedFunction.GasPriceBid;
+            var callDataLength = decodedFunction.DataLength;
 
-            //var eventDataBytes = eventData.HexToByteArray();
-            //var parameterDecoder = new ParameterDecoder();
+            string data;
+            if (eventData.StartsWith("0x"))
+            {
+                // Assuming eventDataString is a hexadecimal string
+                int dataOffset = eventData.Length - 2 * (int)callDataLength;
 
-            //var decodedValues = parameterDecoder.DecodeParameters(abiTypes, eventDataBytes);
+                data = "0x" + eventData.Substring(dataOffset);
+            }
+            else
+            {
+                // Assuming eventDataBytes is byte array data
+                byte[] dataBytes = new byte[(int)callDataLength];
 
-            //var eventDataBytes = eventData.HexToByteArray();
-            //// Decode the ABI-encoded data
-            //var stringTypeDecoder = new AddressTypeDecoder(); 
+                //Array.Copy(dataBytes, dataBytes.Length - callDataLength, dataBytes, 0, callDataLength);
+                data = "0x" + BitConverter.ToString(dataBytes).Replace("-", string.Empty).ToLower();
+            }
+            var dataStartIndex = eventData.Length - (int)(callDataLength * 2);
+            //var data = dataStartIndex >= 0 ? "0x" + eventData.Substring(dataStartIndex) : string.Empty;
 
-            //var parsed = stringTypeDecoder.Decode<dynamic>(eventDataBytes); 
-
-            //string AddressFromBigInteger(BigInteger bn)
-            //{
-            //    byte[] addressBytes = bn.ToByteArray();
-            //    // Ensure the byte array is 20 bytes long
-            //    if (addressBytes.Length < 20)
-            //    {
-            //        // Pad with zeros if necessary
-            //        byte[] paddedAddressBytes = new byte[20];
-            //        Array.Copy(addressBytes, 0, paddedAddressBytes, 20 - addressBytes.Length, addressBytes.Length);
-            //        addressBytes = paddedAddressBytes;
-            //    }
-            //    else if (addressBytes.Length > 20)
-            //    {
-            //        // Ethereum address should be 20 bytes long, truncate if longer
-            //        addressBytes = addressBytes[..20];
-            //    }
-            //    // Convert to checksum address
-            //    string checksumAddress = new AddressUtil().ConvertToChecksumAddress(addressBytes);
-            //    return checksumAddress;
-            //}
-            //var destAddress = AddressFromBigInteger((BigInteger)parsed[0]);
-            //var l2CallValue = (BigInteger)parsed[1];
-            //var l1Value = (BigInteger)parsed[2];
-            //var maxSubmissionFee = (BigInteger)parsed[3];
-            //var excessFeeRefundAddress = AddressFromBigInteger((BigInteger)parsed[4]);
-            //var callValueRefundAddress = AddressFromBigInteger((BigInteger)parsed[5]);
-            //var gasLimit = (BigInteger)parsed[6];
-            //var maxFeePerGas = (BigInteger)parsed[7];
-            //var callDataLength = (BigInteger)parsed[8];
             //var data = "0x" + eventData.Substring(eventData.Length - (int)(callDataLength * 2));
-            //return new RetryableMessageParams
-            //{
-            //    DestAddress = destAddress,
-            //    L2CallValue = l2CallValue,
-            //    L1Value = l1Value,
-            //    MaxSubmissionFee = maxSubmissionFee,
-            //    ExcessFeeRefundAddress = excessFeeRefundAddress,
-            //    CallValueRefundAddress = callValueRefundAddress,
-            //    GasLimit = gasLimit,
-            //    MaxFeePerGas = maxFeePerGas,
-            //    Data = data.HexToByteArray()
-            //};
+
+            return new RetryableMessageParams
+            {
+                DestAddress = destAddress,
+                L2CallValue = l2CallValue,
+                L1Value = l1Value,
+                MaxSubmissionFee = maxSubmissionFee,
+                ExcessFeeRefundAddress = excessFeeRefundAddress,
+                CallValueRefundAddress = callValueRefundAddress,
+                GasLimit = gasLimit,
+                MaxFeePerGas = maxFeePerGas,
+                Data = data
+            };
 
         }
     }

@@ -1,76 +1,10 @@
-﻿using Nethereum.ABI.FunctionEncoding.Attributes;
-using Nethereum.ABI.FunctionEncoding;
-using System.Numerics;
-using System.Text.Json;
+﻿using Nethereum.ABI.Decoders;
 using Nethereum.Hex.HexConvertors.Extensions;
-using Nethereum.ABI.Decoders;
-using Arbitrum.DataEntities;
 using Nethereum.RPC.Eth.DTOs;
-using Arbitrum.Utils;
-using Nethereum.Util;
-using System.Formats.Asn1;
-using Nethereum.ABI.ABIDeserialisation;
-using Nethereum.ABI;
-using Newtonsoft.Json.Linq;
+using System.Numerics;
 
-namespace Arbitrum.DataEntities
+namespace Arbitrum.src.Lib.DataEntities
 {
-    [FunctionOutput]
-    public class RetryableData
-    {
-        // Equivalent of TypeScript's RetryableData interface
-        public static readonly string[] AbiTypes = {
-            "address",
-            "address",
-            "uint256",
-            "uint256",
-            "uint256",
-            "address",
-            "address",
-            "uint256",
-            "uint256",
-            "address"
-        };
-
-        [Parameter("address", "from", 1)]
-        public string? From { get; set; }
-
-        [Parameter("address", "to", 2)]
-        public string? To { get; set; }
-
-        [Parameter("uint256", "l2CallValue", 3)]
-        public BigInteger? L2CallValue { get; set; }
-
-        [Parameter("uint256", "deposit", 4)]
-        public BigInteger? Deposit { get; set; }
-
-        [Parameter("uint256", "maxSubmissionCost", 5)]
-        public BigInteger? MaxSubmissionCost { get; set; }
-
-        [Parameter("address", "excessFeeRefundAddress", 6)]
-        public string? ExcessFeeRefundAddress { get; set; }
-
-        [Parameter("address", "callValueRefundAddress", 7)]
-        public string? CallValueRefundAddress { get; set; }
-
-        [Parameter("uint256", "gasLimit", 8)]
-        public BigInteger? GasLimit { get; set; }
-
-        [Parameter("uint256", "maxFeePerGas", 9)]
-        public BigInteger? MaxFeePerGas { get; set; }
-
-        [Parameter("bytes", "data", 10)]
-        public byte[]? Data { get; set; }
-    }
-
-    // Define the params type for the CreateRetryableTicket method
-    public class CreateRetryableTicketParams
-    {
-        public L1ToL2MessageParams? L1ToL2MessageParams { get; set; }
-        public L1ToL2MessageGasParams? L1ToL2MessageGasParams { get; set; }
-        public PayableOverrides? Overrides { get; set; }
-    }
-
     public class PayableOverrides : Overrides
     {
         public BigInteger? Value { get; set; }
@@ -85,122 +19,92 @@ namespace Arbitrum.DataEntities
         public BigInteger? Nonce { get; set; }
         public int? Type { get; set; }
         public List<AccessList>? AccessList { get; set; }
-        //public Record<string, object> CustomData { get; set; }
         public bool? CcipReadEnabled { get; set; }
     }
 
-    /**
-     * Tools for parsing retryable data from errors.
-     * When calling createRetryableTicket on Inbox.sol special values
-     * can be passed for gasLimit and maxFeePerGas. This causes the call to revert
-     * with the info needed to estimate the gas needed for a retryable ticket using
-     * L1ToL2GasPriceEstimator.
-     */
+    public class RetryableData
+    {
+        public string From { get; set; }
+        public string To { get; set; }
+        public BigInteger? L2CallValue { get; set; }
+        public BigInteger? Value { get; set; }
+        public BigInteger? MaxSubmissionCost { get; set; }
+        public string ExcessFeeRefundAddress { get; set; }
+        public string CallValueRefundAddress { get; set; }
+        public BigInteger? GasLimit { get; set; }
+        public BigInteger? MaxFeePerGas { get; set; }
+        public byte[]? Data { get; set; }
+    }
 
-    public class RetryableDataTools
+    public static class RetryableDataTools
     {
         public static RetryableData ErrorTriggeringParams => new RetryableData
         {
-            GasLimit = 1,
-            MaxFeePerGas = 1
+            GasLimit = BigInteger.One,
+            MaxFeePerGas = BigInteger.One,
         };
 
-        private static bool IsErrorData(object maybeErrorData)
-        {
-            if (maybeErrorData is { } && maybeErrorData.GetType().GetProperty("errorData") != null)
-            {
-                return true;
-            }
-
-            return false;
-        }
-
-        private static string TryGetErrorData(dynamic ethersJsError)
-        {
-            if (IsErrorData(ethersJsError))
-            {
-                return ethersJsError.errorData;
-            }
-            else
-            {
-                dynamic typedError = ethersJsError;
-
-                if (!string.IsNullOrEmpty(typedError.data))
-                {
-                    return typedError.data;
-                }
-                else if (!string.IsNullOrEmpty(typedError.error?.error?.body))
-                {
-                    var maybeData = JObject.Parse(typedError.error?.error?.body)?.SelectToken("error.data")?.Value<string>();
-                    if (string.IsNullOrEmpty(maybeData))
-                        return null!;
-                    return maybeData!;
-                }
-                else if (!string.IsNullOrEmpty(typedError.error?.error?.data))
-                {
-                    return typedError?.error?.error?.data!;
-                }
-                else
-                {
-                    return null!;
-                }
-            }
-        }
-
-        /**
-        * Try to parse a retryable data struct from the supplied ethersjs error, or any explicitly supplied error data
-        * @param ethersJsErrorOrData
-        * @returns
-        */
-
-        public static RetryableData TryParseError(string errorDataHex)
+        public static RetryableData? TryParseError(string errorData)
         {
             try
             {
-                if (errorDataHex.StartsWith("0x"))
-                {
-                    errorDataHex = errorDataHex.Substring(2);
-                }
-                errorDataHex = errorDataHex.Substring(8);
-                //var decodedDataTest = new List<dynamic>();
+                errorData = errorData.StartsWith("0x") ? errorData[10..] : errorData[8..];
 
-                //// Create ABIType array from AbiTypes
-                //var abiTypeArray = new ABIType[RetryableData.AbiTypes.Length];
-                //for (int i = 0; i < RetryableData.AbiTypes.Length; i++)
-                //{
-                //    abiTypeArray[i] = ABIType.CreateABIType(RetryableData.AbiTypes[i]);
-                //    var a = abiTypeArray[i].Decode<dynamic>(errorDataHex);
-                //    decodedDataTest.Add(a);
-                //}
-                // Decode the encoded string using ABIEncode
-                var abiDecoder = new ABIEncode();
-                
-                var decodedData = abiDecoder.DecodeEncodedString(errorDataHex.HexToByteArray());
+                var _addressDecoder = new AddressTypeDecoder();
+                var _intDecoder = new IntTypeDecoder(true);
+                var _bytesDecoder = new BytesTypeDecoder();
 
-                if (decodedData.Length != RetryableData.AbiTypes.Length)
-                {
-                    return null!;
-                }
-                else
-                {
-                    return new RetryableData
-                    {
-                        From = AddressUtil.Current.ConvertToChecksumAddress(decodedData[0].ToString().ToHexUTF8()),
-                        To = AddressUtil.Current.ConvertToChecksumAddress(decodedData[1].ToString().ToHexUTF8()),
-                        L2CallValue = BigInteger.Parse(decodedData[2].ToString()),
-                        Deposit = BigInteger.Parse(decodedData[3].ToString()),
-                        MaxSubmissionCost = BigInteger.Parse(decodedData[4].ToString()),
-                        ExcessFeeRefundAddress = AddressUtil.Current.ConvertToChecksumAddress(decodedData[5].ToString().ToHexUTF8()),
-                        CallValueRefundAddress = AddressUtil.Current.ConvertToChecksumAddress(decodedData[6].ToString().ToHexUTF8()),
-                        GasLimit = BigInteger.Parse(decodedData[7].ToString()),
-                        MaxFeePerGas = BigInteger.Parse(decodedData[8].ToString()),
-                        Data = decodedData[9].ToString().HexToByteArray()
-                    };
-                }
+                var encodedData = errorData.HexToByteArray();
+
+                var retryableData = new RetryableData();
+                int offset = 0;
+                int chunkSize = 32; // Standard size for most encoded ABI types
+
+                // Decoding "From" (address type)
+                retryableData.From = (string)_addressDecoder.Decode(encodedData.Skip(offset).Take(chunkSize).ToArray(), typeof(string));
+                offset += chunkSize;
+
+                // Decoding "To" (address type)
+                retryableData.To = (string)_addressDecoder.Decode(encodedData.Skip(offset).Take(chunkSize).ToArray(), typeof(string));
+                offset += chunkSize;
+
+                // Decoding "L2CallValue" (uint256)
+                retryableData.L2CallValue = (BigInteger?)_intDecoder.Decode(encodedData.Skip(offset).Take(chunkSize).ToArray(), typeof(BigInteger));
+                offset += chunkSize;
+
+                // Decoding "Value" (uint256)
+                retryableData.Value = (BigInteger?)_intDecoder.Decode(encodedData.Skip(offset).Take(chunkSize).ToArray(), typeof(BigInteger));
+                offset += chunkSize;
+
+                // Decoding "MaxSubmissionCost" (uint256)
+                retryableData.MaxSubmissionCost = (BigInteger?)_intDecoder.Decode(encodedData.Skip(offset).Take(chunkSize).ToArray(), typeof(BigInteger));
+                offset += chunkSize;
+
+                // Decoding "ExcessFeeRefundAddress" (address type)
+                retryableData.ExcessFeeRefundAddress = (string)_addressDecoder.Decode(encodedData.Skip(offset).Take(chunkSize).ToArray(), typeof(string));
+                offset += chunkSize;
+
+                // Decoding "CallValueRefundAddress" (address type)
+                retryableData.CallValueRefundAddress = (string)_addressDecoder.Decode(encodedData.Skip(offset).Take(chunkSize).ToArray(), typeof(string));
+                offset += chunkSize;
+
+                // Decoding "GasLimit" (uint256)
+                retryableData.GasLimit = (BigInteger?)_intDecoder.Decode(encodedData.Skip(offset).Take(chunkSize).ToArray(), typeof(BigInteger));
+                offset += chunkSize;
+
+                // Decoding "MaxFeePerGas" (uint256)
+                retryableData.MaxFeePerGas = (BigInteger?)_intDecoder.Decode(encodedData.Skip(offset).Take(chunkSize).ToArray(), typeof(BigInteger));
+                offset += chunkSize;
+
+                // Decoding "Data" (bytes type) (can have variable length)
+                int dataLength = BitConverter.ToInt32(encodedData.Skip(offset).Take(32).ToArray().Reverse().ToArray(), 0);
+                retryableData.Data = (byte[]?)_bytesDecoder.Decode(encodedData.Skip(offset + 32).Take(dataLength).ToArray(), typeof(byte[]));
+
+                return retryableData;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return null!;
+                throw new Exception("Parsing error", ex.InnerException);
             }
         }
     }

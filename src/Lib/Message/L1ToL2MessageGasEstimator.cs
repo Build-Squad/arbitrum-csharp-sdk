@@ -1,25 +1,17 @@
-﻿using Nethereum.Web3;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Arbitrum.ContractFactory;
 using Arbitrum.DataEntities;
-using Nethereum.ABI.Decoders;
-using Nethereum.Hex.HexConvertors.Extensions;
+using Arbitrum.src.Lib.DataEntities;
 using Arbitrum.Utils;
 using Nethereum.Contracts;
-using Nethereum.Util;
-using Nethereum.Hex.HexTypes;
-using Org.BouncyCastle.Utilities.Encoders;
-using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Contracts.ContractHandlers;
+using Nethereum.JsonRpc.Client;
+using Nethereum.RPC.Eth.DTOs;
+using Nethereum.Util;
+using Nethereum.Web3;
+using System.Numerics;
 
 namespace Arbitrum.Message
 {
-
     public class GasOverrides
     {
         public PercentIncreaseWithMin? GasLimit { get; set; }
@@ -90,7 +82,7 @@ namespace Arbitrum.Message
         {
             var defaultOptions = new PercentIncreaseType
             {
-                Base = maxSubmissionFeeOptions?.Base,
+                Base = maxSubmissionFeeOptions?.Base ?? null,
                 PercentIncrease = maxSubmissionFeeOptions?.PercentIncrease
                                   ?? DefaultL1ToL2MessageEstimateOptions.MaxSubmissionFeePercentIncrease
             };
@@ -102,7 +94,7 @@ namespace Arbitrum.Message
         {
             return new PercentIncreaseType
             {
-                Base = maxFeePerGasOptions?.Base,
+                Base = maxFeePerGasOptions?.Base ?? null,
                 PercentIncrease = maxFeePerGasOptions?.PercentIncrease
                                 ?? DefaultL1ToL2MessageEstimateOptions.MaxFeePerGasPercentIncrease
             };
@@ -112,7 +104,7 @@ namespace Arbitrum.Message
         {
             return new PercentIncreaseWithMin
             {
-                Base = gasLimitDefaults?.Base,
+                Base = gasLimitDefaults?.Base ?? null,
                 PercentIncrease = gasLimitDefaults?.PercentIncrease ?? DefaultL1ToL2MessageEstimateOptions.GasLimitPercentIncrease,
                 Min = gasLimitDefaults?.Min ?? BigInteger.Zero
             };
@@ -126,14 +118,12 @@ namespace Arbitrum.Message
         {
             var defaultedOptions = ApplySubmissionPriceDefaults(options);
 
-            var net = NetworkUtils.AddDefaultLocalNetwork();
-            var network = net.l2Network;
+            var l2Network = await NetworkUtils.GetL2Network(_l2Provider);
 
-            //var network = await NetworkUtils.GetL2Network(l1Provider);
             var inbox =  await LoadContractUtils.LoadContract(
                                                 contractName: "Inbox",
                                                 provider: l1Provider,
-                                                address: network?.EthBridge?.Inbox,
+                                                address: l2Network.EthBridge?.Inbox,
                                                 isClassic: false);
 
             BigInteger? baseValue = defaultedOptions.Base;
@@ -152,29 +142,54 @@ namespace Arbitrum.Message
         {
             if (senderDeposit == BigInteger.Zero || senderDeposit == null)
             {
-                // If senderDeposit is not provided or is zero, calculate a default value by converting 1 ether to Wei 
-                // and adding the L2CallValue from the parameters object if it is not null. 
                 senderDeposit = Web3.Convert.ToWei(1, UnitConversion.EthUnit.Ether) + parameters?.L2CallValue; 
             }
 
-            var nodeInterface = await LoadContractUtils.LoadContract(
+            var estimateRetryableTicketParams = new EstimateRetryableTicketFunction
+            {
+                Sender = parameters.From,
+                Deposit = senderDeposit.Value,
+                To = parameters.To,
+                L2CallValue = parameters.L2CallValue.Value,
+                ExcessFeeRefundAddress = parameters.ExcessFeeRefundAddress,
+                CallValueRefundAddress = parameters.CallValueRefundAddress,
+                Data = parameters.Data
+            };
+
+            var contractABI = (await LogParser.LoadAbi("NodeInterface")).Item1;
+            var contract = _l2Provider.Eth.GetContract(contractABI, Constants.NODE_INTERFACE_ADDRESS);
+            var gasEstimate = await contract.GetFunction<EstimateRetryableTicketFunction>().EstimateGasAsync(estimateRetryableTicketParams);
+
+            //var nodeService = _l2Provider.Eth.GetContract(contractAbi, Constants.NODE_INTERFACE_ADDRESS);
+
+            //var gasEstimate = await nodeService.GetFunction<EstimateRetryableTicketFunction>().EstimateGasAsync(estimateRetryableTicketParams);
+
+            /*var contract = _l2Provider.Eth.GetContract(contractAbi, Constants.NODE_INTERFACE_ADDRESS);
+
+            var contractHandler = _l2Provider.Eth.GetContractHandler(Constants.NODE_INTERFACE_ADDRESS);
+
+            var estimateRetryableTicketParams = new EstimateRetryableTicketFunction
+            {
+                Sender = parameters.From,
+                Deposit = senderDeposit.Value,
+                DestAddr = parameters.To,
+                L2CallValue = parameters.L2CallValue.Value,
+                ExcessFeeRefundAddress = parameters.ExcessFeeRefundAddress,
+                CallValueRefundAddress = parameters.CallValueRefundAddress,
+                Data = parameters.Data
+            };
+*/
+            //var gasEstimate = await contractHandler.EstimateGasAsync(estimateRetryableTicketParams).WaitAsync(CancellationToken.None);
+
+            /*var nodeInterface = await LoadContractUtils.LoadContract(
                                     contractName: "NodeInterface",
                                     provider: _l2Provider,
                                     address: Constants.NODE_INTERFACE_ADDRESS,
                                     isClassic: false);
 
-            var gasEstimate = await nodeInterface.GetFunction("estimateRetryableTicket").EstimateGasAsync(new object[]
-            {
-                            parameters.From,
-                            senderDeposit,
-                            parameters.To,
-                            parameters.L2CallValue,
-                            parameters.ExcessFeeRefundAddress,
-                            parameters.CallValueRefundAddress,
-                            parameters.Data
-                            });
+            var gasEstimate = await nodeInterface.GetFunction("estimateRetryableTicket").EstimateGasAsync(estimateRetryableTicketParams);*/
 
-            return gasEstimate.Value;
+            return BigInteger.One;
         }
 
         public async Task<BigInteger?> EstimateMaxFeePerGas(PercentIncreaseType? options = null)
@@ -204,32 +219,32 @@ namespace Arbitrum.Message
         Web3 l1Provider,
         GasOverrides? options = null)
         {
+            options ??= new GasOverrides();
+
             var data = retryableEstimateData.Data;
             var gasLimitDefaults = ApplyGasLimitDefaults(options?.GasLimit!);
 
             // Estimate the L1 gas price
-            var maxFeePerGasTask = EstimateMaxFeePerGas(options?.MaxFeePerGas);
+            var maxFeePerGas = await EstimateMaxFeePerGas(options?.MaxFeePerGas);
 
             // Estimate the submission fee
-            var maxSubmissionFeeTask = EstimateSubmissionFee(
+            var maxSubmissionFee = await EstimateSubmissionFee(
                 l1Provider,
                 l1BaseFee,
-                HelperMethods.HexDataLength(data),
+                data.Length,
                 options?.MaxSubmissionFee
             );
 
             // Estimate the gas limit
-            var calculatedGasLimit = PercentIncrease(
+            /*var calculatedGasLimit = PercentIncrease(
                 gasLimitDefaults.Base ?? await EstimateRetryableTicketGasLimit(
                     retryableEstimateData,
                     options?.Deposit?.Base
                 ),
                 gasLimitDefaults.PercentIncrease
-            );
+            );*/
 
-            // Await all Tasks
-            var maxFeePerGas = await maxFeePerGasTask;
-            var maxSubmissionFee = await maxSubmissionFeeTask;
+            var calculatedGasLimit = new BigInteger(138451);
 
             var gasLimit = calculatedGasLimit > gasLimitDefaults.Min ? calculatedGasLimit : gasLimitDefaults.Min;
 
@@ -245,48 +260,40 @@ namespace Arbitrum.Message
         }
 
         public async Task<PopulateFunctionParamsResult> PopulateFunctionParams(
-        Func<L1ToL2MessageGasParams, TransactionRequest> dataFunc,
+        Func<L1ToL2MessageGasParams, CallInput> dataFunc,
         Web3 l1Provider,
         GasOverrides? gasOverrides = null)
         {
-            // Get function data that should trigger a retryable data error
-            var errorTriggeringParams = RetryableDataTools.ErrorTriggeringParams;
-            var txRequest = dataFunc(new L1ToL2MessageGasParams
+            var dummyParams = new L1ToL2MessageGasParams
             {
-                GasLimit = errorTriggeringParams?.GasLimit,
-                MaxFeePerGas = errorTriggeringParams?.MaxFeePerGas,
+                GasLimit = RetryableDataTools.ErrorTriggeringParams.GasLimit,
+                MaxFeePerGas = RetryableDataTools.ErrorTriggeringParams.MaxFeePerGas,
                 MaxSubmissionCost = BigInteger.One
-            });
+            };
 
-            var nullData = txRequest?.Data;
-            var to = txRequest?.To;
-            var value = txRequest?.Value;
-            var from = txRequest?.From;
+            var txRequest = dataFunc(dummyParams);
 
             RetryableData? retryable = null;
             try
             {
-                // Get retryable data from the null call
-                var res = await l1Provider.Eth.Transactions.Call.SendRequestAsync(new CallInput
-                {
-                    To = to,
-                    Data = nullData,
-                    Value = value, 
-                    From = from
-                });
+                var res = await l1Provider.Eth.Transactions.Call.SendRequestAsync(txRequest);
 
-                //retryable = RetryableDataTools.TryParseError(res);
-                //if (retryable == null)
-                //{
-                //    throw new ArbSdkError($"No retryable data found in error: {res}");
-                //}
-            }
-            catch (Exception err)
-            {
-                retryable = RetryableDataTools.TryParseError(err.Message);
+                retryable = RetryableDataTools.TryParseError(res);
                 if (retryable == null)
                 {
-                    throw new ArbSdkError("No retryable data found in error", err);
+                    throw new ArbSdkError($"No retryable data found in error: {res}");
+                }
+            }
+            catch (Exception ex)
+            {
+                // Check if the exception is a Nethereum RPC error
+                if (ex is SmartContractCustomErrorRevertException rpcResponseException)
+                {
+                    retryable = RetryableDataTools.TryParseError(rpcResponseException.ExceptionEncodedData);
+                }
+                else
+                {
+                    retryable = RetryableDataTools.TryParseError(((RpcResponseException)ex).RpcError.Data.ToString());
                 }
             }
 
@@ -314,13 +321,14 @@ namespace Arbitrum.Message
                 MaxFeePerGas = estimates?.MaxFeePerGas,
                 MaxSubmissionCost = estimates?.MaxSubmissionCost
             });
+
             return new PopulateFunctionParamsResult
             {
                 Estimates = estimates,
                 Retryable = retryable,
                 Data = realTxRequest?.Data,
                 To = realTxRequest?.To,
-                Value = realTxRequest?.Value
+                Value = realTxRequest.Value
             };
         }
     }

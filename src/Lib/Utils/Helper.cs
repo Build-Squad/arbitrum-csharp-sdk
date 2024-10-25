@@ -1,22 +1,13 @@
-﻿using System;
-using System.IO;
-using System.Numerics;
-using System.Text.Json;
-using Nethereum.Contracts;
-using Nethereum.Web3;
-using Arbitrum.DataEntities;
-using Nethereum.Util;
+﻿using Arbitrum.DataEntities;
 using Nethereum.ABI.FunctionEncoding.Attributes;
 using Nethereum.ABI.Model;
-using System.Reflection;
-using Nethereum.Web3.Accounts;
 using Nethereum.Hex.HexConvertors.Extensions;
 using Nethereum.RLP;
-using Nethereum.ABI.ABIDeserialisation;
-using Nethereum.ABI.FunctionEncoding;
-using Nethereum.Hex.HexTypes;
-using Org.BouncyCastle.Math.EC.Multiplier;
-using Nethereum.RPC.TransactionReceipts;
+using Nethereum.Util;
+using Nethereum.Web3;
+using System.Numerics;
+using System.Reflection;
+using Contract = Nethereum.Contracts.Contract;
 
 namespace Arbitrum.Utils
 {
@@ -224,17 +215,13 @@ namespace Arbitrum.Utils
             Contract contract;
             try
             {
-
+                string contractAddress = string.Empty;
                 var web3Provider = GetWeb3Provider(provider);
 
-                var (abi, contractAddress) = await LogParser.LoadAbi(contractName, isClassic);
-                // Ensure the address is exactly 42 characters long, including '0x' prefix
-                if (contractAddress.Length < 42)
-                {
-                    contractAddress = contractAddress.PadRight(42, '0');
-                }
+                var (abi, bytecode) = await LogParser.LoadAbi(contractName, isClassic);
 
-                contract = web3Provider.Eth.GetContract(abi, contractAddress);
+                contractAddress = address;
+                contract = web3Provider.Eth.GetContract(abi, contractAddress);                
             }
             catch (Exception ex) 
             {
@@ -266,20 +253,22 @@ namespace Arbitrum.Utils
                     }
                 }
             }
-            var gas = await provider.Eth.DeployContract.EstimateGasAsync(abi: contractAbi, contractByteCode: contractByteCode, from: deployerAddress, values: constructorArgs);
+
+            var byteCode = string.Empty;
+            if (!contractByteCode.StartsWith("0x")) byteCode = string.Concat("0x", contractByteCode);
+
+            var gas = await provider.Eth.DeployContract.EstimateGasAsync(abi: contractAbi, contractByteCode: byteCode, from: deployerAddress, values: constructorArgs);
 
             var txn = await provider.Eth.DeployContract.SendRequestAsync(
                 abi: contractAbi,
-                contractByteCode: contractByteCode,
+                contractByteCode: byteCode,
                 from: deployerAddress,
                 gas: gas,
                 values: constructorArgs);
 
-            var pollService = new TransactionReceiptPollingService(provider.TransactionManager);
+            var txReceipt = await provider.TransactionManager.TransactionReceiptService.PollForReceiptAsync(txn);
 
-            var receipt = await pollService.PollForReceiptAsync(txn);
-
-            return provider.Eth.GetContract(contractAbi, receipt.ContractAddress);
+            return provider.Eth.GetContract(contractAbi, txReceipt.ContractAddress);
         }
 
         public static Web3 GetWeb3Provider(object provider)
@@ -297,6 +286,7 @@ namespace Arbitrum.Utils
                 return (Web3)provider;
             }
         }
+
         public static string GetContractAddress(string senderAddress, BigInteger nonce)
         {
             var encodedData = RLP.EncodeList(RLP.EncodeElement(senderAddress.Substring(2).HexToByteArray()), RLP.EncodeElement(nonce.ToByteArray()));

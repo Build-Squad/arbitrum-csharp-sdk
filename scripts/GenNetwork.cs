@@ -1,19 +1,11 @@
-﻿using System;
-using System.IO;
-using System.Net.Http;
-using System.Text.Json;
-using System.Threading.Tasks;
-using Nethereum.Web3;
-using Nethereum.Web3.Accounts;
-using Nethereum.Web3.Accounts.Managed;
-using Arbitrum.DataEntities;
-using Nethereum.JsonRpc.Client;
+﻿using Arbitrum.DataEntities;
 using Arbitrum.Scripts;
+using Nethereum.JsonRpc.Client;
+using Nethereum.Web3;
+using System.Text.Json;
 
 namespace Abitrum.Scripts
 {
-    //configuring and initializing a web3 provider for Ethereum and Arbitrum networks,
-    //setting up deployers, signing transactions, and then saving network configurations to a JSON file.
     class GenNetwork
     {
 
@@ -22,16 +14,8 @@ namespace Abitrum.Scripts
             var ethProvider = new Web3(new RpcClient(new Uri(TestSetupUtils.Config["ETH_URL"])));
             var arbProvider = new Web3(new RpcClient(new Uri(TestSetupUtils.Config["ARB_URL"])));
 
-            // Inject middleware for Ethereum provider       ///////////
-            //ethProvider.Client.OverridingRequestInterceptor = new AccountTransactionSigningInterceptor();
-
-            //// Inject middleware for Arbitrum provider      ////////////
-            //arbProvider.Client.OverridingRequestInterceptor = new RequestInterceptor();
-
             var l1Deployer = await TestSetupUtils.GetSigner(ethProvider, TestSetupUtils.Config["ETH_KEY"]);
             var l2Deployer = await TestSetupUtils.GetSigner(arbProvider, TestSetupUtils.Config["ARB_KEY"]);
-
-            //////////////////
 
             var l1Signer = new SignerOrProvider(l1Deployer, ethProvider);
             var l2Signer = new SignerOrProvider(l2Deployer, arbProvider);

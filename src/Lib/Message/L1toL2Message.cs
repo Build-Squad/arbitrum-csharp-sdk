@@ -1,32 +1,16 @@
-﻿using System;
-using System.Numerics;
-using System.Threading.Tasks;
-using Serilog;
-using Nethereum.RLP;
-using Nethereum.Web3;
-using Nethereum.Util.ByteArrayConvertors;
-using Nethereum.Hex.HexConvertors.Extensions;
-using Nethereum.Util;
-using Nethereum.Signer;
-using Arbitrum.DataEntities;
-using Nethereum.RPC.Eth.DTOs;
-using Nethereum.JsonRpc.Client;
-
-using Arbitrum;
+﻿using Arbitrum.DataEntities;
 using Arbitrum.Utils;
-using static Arbitrum.Message.L1ToL2MessageUtils;
-using static Arbitrum.DataEntities.NetworkUtils;
-using Nethereum.RPC.Eth.Services;
-using Nethereum.Contracts;
 using Nethereum.ABI.FunctionEncoding;
+using Nethereum.Hex.HexConvertors.Extensions;
 using Nethereum.Hex.HexTypes;
-using System.Linq;
-using System.ComponentModel.DataAnnotations;
-using System.Text;
-using Org.BouncyCastle.Utilities.Encoders;
-using Arbitrum.Message;
-using Nethereum.Web3.Accounts;
-using System.Reflection;
+using Nethereum.RLP;
+using Nethereum.RPC.Eth.DTOs;
+using Nethereum.Util;
+using Nethereum.Web3;
+using Serilog;
+using System.Numerics;
+using static Arbitrum.DataEntities.NetworkUtils;
+using static Arbitrum.Message.L1ToL2MessageUtils;
 
 namespace Arbitrum.Message
 
@@ -504,11 +488,8 @@ namespace Arbitrum.Message
          */
         public async Task<TransactionReceipt?> GetRetryableCreationReceipt(int? confirmations = null, int? timeout = null)
         {
-            if (_retryableCreationReceipt == null)
-            {
-                // Ensure you're accessing _l2Provider through an instance
-                _retryableCreationReceipt = await Lib.GetTransactionReceiptAsync(_l2Provider, RetryableCreationId, confirmations, timeout);
-            }
+            // Ensure you're accessing _l2Provider through an instance
+            _retryableCreationReceipt ??= await Lib.GetTransactionReceiptAsync(_l2Provider, RetryableCreationId, confirmations, timeout);
 
             return _retryableCreationReceipt;
         }
@@ -552,8 +533,6 @@ namespace Arbitrum.Message
 
             if (creationReceipt == null)
             {
-                // retryable was never created, or not created yet
-                // therefore it cant have been redeemed or be expired
                 return new L1ToL2MessageWaitResult { Status = L1ToL2MessageStatus.NOT_YET_CREATED };
             }
 
@@ -562,7 +541,6 @@ namespace Arbitrum.Message
                 return new L1ToL2MessageWaitResult { Status = L1ToL2MessageStatus.CREATION_FAILED };
             }
 
-            // check the auto redeem first to avoid doing costly log queries in the happy case
             var autoRedeem = await GetAutoRedeemAttempt();
             if (autoRedeem != null && autoRedeem.Status.Value == 1)
             {
@@ -571,20 +549,11 @@ namespace Arbitrum.Message
 
             if (await RetryableExists())
             {
-                // the retryable was created and still exists
-                // therefore it cant have been redeemed or be expired
                 return new L1ToL2MessageWaitResult { Status = L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2 };
             }
 
-            // from this point on we know that the retryable was created but does not exist,
-            // so the retryable was either successfully redeemed, or it expired
-
-            // the auto redeem didnt exist or wasnt successful, look for a later manual redeem
-            // to do this we need to filter through the whole lifetime of the ticket looking
-            // for relevant redeem scheduled events
-            // **below there are several explicit castings to int**
             int increment = 1000;
-            BlockWithTransactions fromBlock = await _l2Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(new BlockParameter(creationReceipt.BlockNumber));
+            var fromBlock = await _l2Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(new BlockParameter(creationReceipt.BlockNumber));
 
             int timeout = (int)fromBlock.Timestamp.Value + l2Network.RetryableLifetimeSeconds;
 
@@ -596,8 +565,6 @@ namespace Arbitrum.Message
             {
                 int toBlockNumber = Math.Min((int)fromBlock.Number.Value + increment, (int)maxBlock.Value);
 
-                // using fromBlock.number would lead to 1 block overlap
-                // not fixing it here to keep the code simple
                 var outerBlockRange = ((int)fromBlock.Number.Value, toBlockNumber);
 
                 queriedRange.Add(outerBlockRange);
@@ -605,7 +572,7 @@ namespace Arbitrum.Message
                 var redeemEvents = await eventFetcher.GetEventsAsync<RedeemScheduledEvent>(
                                                             contractFactory: "ArbRetryableTx",
                                                             eventName: "RedeemScheduled",
-                                                            argumentFilters: new Dictionary<string, object> { { "ticketId", this.RetryableCreationId } },
+                                                            argumentFilters: new Dictionary<string, object> { { "ticketId", RetryableCreationId } },
                                                             filter: new NewFilterInput
                                                             {
                                                                 FromBlock = new BlockParameter(outerBlockRange.Item1.ToHexBigInteger()),
@@ -613,13 +580,13 @@ namespace Arbitrum.Message
                                                                 Address = new string[] { Constants.ARB_RETRYABLE_TX_ADDRESS }
                                                             },
                                                             isClassic: false
-                                                            ); ;
+                                                            );
 
                 var successfulRedeem = new List<TransactionReceipt>();
 
                 foreach (var e in redeemEvents)
                 {
-                    var receipt = await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(e.TransactionHash); //////
+                    var receipt = await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(e.TransactionHash);
                     if (receipt != null && receipt.Status.Value == 1)
                     {
                         successfulRedeem.Add(receipt);
@@ -628,7 +595,7 @@ namespace Arbitrum.Message
 
                 if (successfulRedeem.Count > 1)
                 {
-                    throw new ArbSdkError($"Unexpected number of successful redeems. Expected only one redeem for ticket {this.RetryableCreationId}, but found {successfulRedeem.Count}.");
+                    throw new ArbSdkError($"Unexpected number of successful redeems. Expected only one redeem for ticket {RetryableCreationId}, but found {successfulRedeem.Count}.");
                 }
 
                 if (successfulRedeem.Count == 1)
@@ -646,7 +613,7 @@ namespace Arbitrum.Message
                         var keepAliveEvents = await eventFetcher.GetEventsAsync<LifetimeExtendedEvent>(
                                                                            contractFactory: "ArbRetryableTx",
                                                                            eventName: "LifetimeExtended",
-                                                                           argumentFilters: new Dictionary<string, object> { { "ticketId", this.RetryableCreationId } },
+                                                                           argumentFilters: new Dictionary<string, object> { { "ticketId", RetryableCreationId } },
                                                                            filter: new NewFilterInput
                                                                            {
                                                                                FromBlock = new BlockParameter(blockRange.from.ToHexBigInteger()),
@@ -668,14 +635,11 @@ namespace Arbitrum.Message
                         queriedRange.RemoveAt(0);
                     }
 
-                    // the retryable no longer exists, but we've searched beyond the timeout
-                    // so it must have expired
                     if (toBlock.Timestamp.Value > timeout)
                     {
                         break;
                     }
 
-                    // It is possible to have another keepalive in the last range as it might include block after previous timeout
                     while (queriedRange.Count > 1)
                     {
                         queriedRange.RemoveAt(0);
@@ -685,16 +649,12 @@ namespace Arbitrum.Message
                 int processedSeconds = (int)(toBlock.Timestamp.Value - fromBlock.Timestamp.Value);
                 if (processedSeconds != 0)
                 {
-                    // find the increment that cover ~ 1 day
-                    //explicitly casting the result of the division operation to either decimal to make the compiler choose the appropriate overload.
                     increment = (int)Math.Ceiling((decimal)(increment * 86400) / processedSeconds);
                 }
 
                 fromBlock = toBlock;
             }
 
-            // we know from earlier that the retryable no longer exists, so if we havent found the redemption
-            // we know that it must have expired
             return new L1ToL2MessageWaitResult { Status = L1ToL2MessageStatus.EXPIRED };
         }
 
@@ -705,7 +665,7 @@ namespace Arbitrum.Message
          */
         public async Task<bool> IsExpired()
         {
-            return await this.RetryableExists();
+            return await RetryableExists();
         }
 
         public async Task<bool> RetryableExists()
@@ -738,7 +698,7 @@ namespace Arbitrum.Message
 
         public async Task<L1ToL2MessageStatus> Status()
         {
-            return (await this.GetSuccessfulRedeem()).Status;
+            return (await GetSuccessfulRedeem()).Status;
         }
 
         /**
@@ -755,26 +715,22 @@ namespace Arbitrum.Message
          */
         public async Task<L1ToL2MessageWaitResult> WaitForStatus(int? confirmations = null, int? timeout = null)
         {
-            var l2network = await GetL2Network(this.ChainId);
+            var l2network = await GetL2Network((int)ChainId);
 
             var chosenTimeout = timeout.HasValue ? timeout : l2network.DepositTimeout;
 
             // try to wait for the retryable ticket to be created
-            var _retryableCreationReceipt = await this.GetRetryableCreationReceipt(
-                confirmations,
-                chosenTimeout
-                );
+            var _retryableCreationReceipt = await GetRetryableCreationReceipt(confirmations, chosenTimeout);
 
             if (_retryableCreationReceipt != null)
             {
                 if (confirmations != null || chosenTimeout != null)
                 {
-                    throw new ArbSdkError(
-                        "Retryable creation script not found ${this."
-                        );
+                    throw new ArbSdkError($"Retryable creation script not found {RetryableCreationId}");
                 }
             }
-            return await this.GetSuccessfulRedeem();
+
+            return await GetSuccessfulRedeem();
         }
 
         /**
@@ -903,15 +859,11 @@ namespace Arbitrum.Message
          */
         public async Task<TransactionReceipt> GetRetryableCreationReceipt(int? confirmations = null, int? timeout = null)
         {
-            if (RetryableCreationReceipt == null)
-            {
-                RetryableCreationReceipt = await Lib.GetTransactionReceiptAsync(
-                    L2Provider,
-                    RetryableCreationId,
-                    confirmations,
-                    timeout
-                );
-            }
+            RetryableCreationReceipt ??= await Lib.GetTransactionReceiptAsync(
+                                            L2Provider,
+                                            RetryableCreationId,
+                                            confirmations,
+                                            timeout);
 
             return RetryableCreationReceipt;
         }
@@ -957,7 +909,7 @@ namespace Arbitrum.Message
             {
                 throw new ArbSdkError("Signer not connected to provider.");
             }
-            this._l2Signer = l2Signer;
+            _l2Signer = l2Signer;
         }
 
         /**
@@ -1206,7 +1158,7 @@ namespace Arbitrum.Message
 
         public async Task<TransactionReceipt> Wait(int? confirmations = null, int? timeout = null)
         {
-            var l2Network = await GetL2Network(this.L2ChainId);
+            var l2Network = await GetL2Network(L2ChainId);
 
             var chosenTimeout = timeout ?? l2Network?.DepositTimeout;
 

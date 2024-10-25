@@ -116,24 +116,8 @@ namespace Arbitrum.DataEntities
             Web3 provider;
             Account account;
 
-            if (signerOrProvider is SignerOrProvider)
-            {
-                provider = (signerOrProvider as SignerOrProvider)?.Provider;
-                account = (signerOrProvider as SignerOrProvider)?.Account;
-            }
-            else if (signerOrProvider is Web3)
-            {
-                provider = signerOrProvider as Web3;
-            }
-            else
-            {
-                provider = null!;
-            }
-
-            if (provider == null)
-            {
-                throw new MissingProviderArbSdkError("signerOrProvider");
-            }
+            provider = GetProvider(signerOrProvider);
+            if (provider == null) throw new MissingProviderArbSdkError("signerOrProvider");
 
             int providerChainId = (int)(await provider.Eth.ChainId.SendRequestAsync()).Value;
             if (providerChainId != chainId)
