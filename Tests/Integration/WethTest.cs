@@ -3,12 +3,9 @@ using Arbitrum.Message;
 using Arbitrum.Scripts;
 using Arbitrum.Utils;
 using Nethereum.Hex.HexTypes;
-using Nethereum.Model;
-using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Signer;
 using Nethereum.Util;
 using Nethereum.Web3;
-using Nethereum.Web3.Accounts;
 using NUnit.Framework;
 using System.Numerics;
 
@@ -41,16 +38,14 @@ namespace Arbitrum.Tests.Integration
 
             var l1WETH = await LoadContractUtils.LoadContract("AeWETH", l1Provider, l2Network.TokenBridge.L1Weth, true);
 
-            var txRequest = new TransactionInput
+            var txRequest = new DepositFunction
             {
-                Value = new HexBigInteger(wethToWrap),
-                From = l1Signer.Account.Address,
+                FromAddress = l1Signer.Account.Address,
+                AmountToSend = new HexBigInteger(wethToWrap)
             };
 
-            txRequest.Gas ??= await l1Provider.Eth.TransactionManager.EstimateGasAsync(txRequest);
-
-            var txHash = await l1WETH.GetFunction("deposit").SendTransactionAsync(txRequest);
-            await l1Provider.Eth.TransactionManager.TransactionReceiptService.PollForReceiptAsync(txHash);
+            var l1WethHandler = l1Provider.Eth.GetContractHandler(l1WETH.Address);
+            await l1WethHandler.SendRequestAndWaitForReceiptAsync(txRequest);
 
             await TestHelpers.DepositToken(
                 depositAmount: wethToDeposit,
@@ -81,7 +76,6 @@ namespace Arbitrum.Tests.Integration
             var privateKey = EthECKey.GenerateKey().GetPrivateKey();
             var account = new Nethereum.Web3.Accounts.Account(privateKey);
 
-            //random address
             var randomAddr = account.Address;
 
             var withdrawToFunction = new WithdrawToFunction
@@ -91,7 +85,7 @@ namespace Arbitrum.Tests.Integration
             };
 
             var contractHandler = l2Provider.Eth.GetContractHandler(l2Weth.Address);            
-            var withdrawToFunctionTxnReceipt = await contractHandler.SendRequestAndWaitForReceiptAsync(withdrawToFunction);
+            await contractHandler.SendRequestAndWaitForReceiptAsync(withdrawToFunction);
 
             var afterBalance = await l2Provider.Eth.GetBalance.SendRequestAsync(randomAddr);
             Assert.That(afterBalance.Value, Is.EqualTo(wethToDeposit));
@@ -113,6 +107,7 @@ namespace Arbitrum.Tests.Integration
             var erc20Bridger = setupState.Erc20Bridger;
 
             await TestHelpers.FundL1(setupState.L1Deployer.Provider, address: l1Signer.Account.Address);
+            await Task.Delay(2000);
             await TestHelpers.FundL2(setupState.L2Deployer.Provider, address: l2Signer.Account.Address);
 
             var l2Weth = await LoadContractUtils.LoadContract(
@@ -122,31 +117,33 @@ namespace Arbitrum.Tests.Integration
                 isClassic: true
             );
 
-            var txRequest = new TransactionInput
+            var txRequest = new DepositFunction
             {
-                From = l2Signer.Account.Address,
-                Value = new HexBigInteger(wethToWrap)
+                FromAddress = l2Signer.Account.Address,
+                AmountToSend = new HexBigInteger(wethToWrap)
             };
 
-            txRequest.Gas ??= await l1Provider.Eth.TransactionManager.EstimateGasAsync(txRequest);
+            var l2WethHandler = l2Provider.Eth.GetContractHandler(l2Weth.Address);
+            var txReceipt = await l2WethHandler.SendRequestAndWaitForReceiptAsync(txRequest);
 
-            var txHash = await l2Weth.GetFunction("deposit").SendTransactionAsync(txRequest);
-            var txReceipt = await l2Provider.Eth.TransactionManager.TransactionReceiptService.PollForReceiptAsync(txHash);
+            Assert.That(txReceipt.Status.Value, Is.EqualTo(BigInteger.One));
 
-            Assert.That(txReceipt.Status, Is.EqualTo(1));
-
-            await TestHelpers.WithdrawToken(new WithdrawalParams
-            {
-                Amount = wethToWithdraw,
-                Erc20Bridger = erc20Bridger,
-                GatewayType = GatewayType.WETH,
-                L1Signer = l1Signer,
-                L1Token= await LoadContractUtils.LoadContract(
+            var l1Token = await LoadContractUtils.LoadContract(
                     provider: l1Provider,
                     address: l2Network.TokenBridge.L1Weth,
                     contractName: "ERC20",
                     isClassic: true
-                ),
+                );
+
+            await TestHelpers.WithdrawToken(new WithdrawalParams
+            {
+                L1FundProvider = setupState.L1Deployer.Provider,
+                L2FundProvider = setupState.L2Deployer.Provider,
+                Amount = wethToWithdraw,
+                Erc20Bridger = erc20Bridger,
+                GatewayType = GatewayType.WETH,
+                L1Signer = l1Signer,
+                L1Token= l1Token,
                 L2Signer = setupState.L2Signer,
                 StartBalance = wethToWrap
             }, l2Network);

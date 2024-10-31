@@ -34,11 +34,11 @@ namespace Arbitrum.Tests.Integration
             var miner1 = new SignerOrProvider(miner1Account, l1Signer.Provider);
             var miner2 = new SignerOrProvider(miner2Account, l2Signer.Provider);
 
-            await TestHelpers.FundL1(setupState.L1Deployer.Provider, Web3.Convert.ToWei(0.1, UnitConversion.EthUnit.Ether), miner1.Account.Address);
-            await TestHelpers.FundL2(setupState.L2Deployer.Provider, Web3.Convert.ToWei(0.1, UnitConversion.EthUnit.Ether), miner2.Account.Address);
+            await TestHelpers.FundL1(setupState.L1Deployer.Provider, address: miner1.Account.Address);
+            await TestHelpers.FundL2(setupState.L2Deployer.Provider, address: miner2.Account.Address);
             var state = new Dictionary<string, object> { { "mining", true } };
 
-            await TestHelpers.FundL2(setupState.L2Deployer.Provider, Web3.Convert.ToWei(0.1, UnitConversion.EthUnit.Ether), l2Signer.Account.Address);
+            await TestHelpers.FundL2(setupState.L2Deployer.Provider, address: l2Signer.Account.Address);
 
             var randomAddress = new Account(EthECKey.GenerateKey().GetPrivateKey()).Address;
 

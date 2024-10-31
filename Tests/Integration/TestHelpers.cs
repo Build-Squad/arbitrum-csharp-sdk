@@ -5,9 +5,7 @@ using NBitcoin;
 using Nethereum.Contracts;
 using Nethereum.HdWallet;
 using Nethereum.Hex.HexTypes;
-using Nethereum.JsonRpc.Client;
 using Nethereum.RPC.Eth.DTOs;
-using Nethereum.Util;
 using Nethereum.Web3;
 using Nethereum.Web3.Accounts;
 using NUnit.Framework;
@@ -15,22 +13,6 @@ using System.Numerics;
 using static Arbitrum.Message.L1ToL2MessageUtils;
 namespace Arbitrum.Tests.Integration
 {
-    public static class Config
-    {
-        private static readonly Dictionary<string, string> Values = new Dictionary<string, string>
-        {
-            { "ARB_URL", Environment.GetEnvironmentVariable("ARB_URL") },
-            { "ETH_URL", Environment.GetEnvironmentVariable("ETH_URL") },
-            { "ARB_KEY", Environment.GetEnvironmentVariable("ARB_KEY") },
-            { "ETH_KEY", Environment.GetEnvironmentVariable("ETH_KEY") }
-        };
-
-        public static string ARB_URL => Values["ARB_URL"];
-        public static string ETH_URL => Values["ETH_URL"];
-        public static string ARB_KEY => Values["ARB_KEY"];
-        public static string ETH_KEY => Values["ETH_KEY"];
-    }
-
     public enum GatewayType
     {
         STANDARD = 1,
@@ -60,12 +42,8 @@ namespace Arbitrum.Tests.Integration
     [TestFixture]
     public static class TestHelpers
     {
-
-        private static readonly BigInteger PRE_FUND_AMOUNT = Web3.Convert.ToWei(0.1, UnitConversion.EthUnit.Ether);
-
         public static async Task MineUntilStop(SignerOrProvider miner, Dictionary<string, object> state)
         {
-            var provider = miner.Provider;
             while ((bool)state["mining"])
             {
                 var tx = new TransactionRequest
@@ -73,26 +51,23 @@ namespace Arbitrum.Tests.Integration
                     From = miner.Account.Address,
                     To = miner.Account.Address,
                     Value = new HexBigInteger(0),
-                    ChainId = await provider.Eth.ChainId.SendRequestAsync(), // Assuming Provider has an eth property
-                    GasPrice = await provider.Eth.GasPrice.SendRequestAsync(), // Assuming Provider has an eth property
-                    Nonce = await provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(miner.Account.Address) // Assuming Provider has an eth property
+                    ChainId = await miner.Provider.Eth.ChainId.SendRequestAsync(),
+                    GasPrice = await miner.Provider.Eth.GasPrice.SendRequestAsync(),
+                    Nonce = await miner.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(miner.Account.Address)
                 };
 
-                // Estimate gas asynchronously
-                var gasEstimate = await provider.TransactionManager.EstimateGasAsync(tx);
+                tx.Gas ??= await miner.Provider.TransactionManager.EstimateGasAsync(tx);
 
-                tx.Gas = gasEstimate;
-            var web3 = new Web3(miner.Account);
-            var rawTransaction = await miner.Account.TransactionManager.SignTransactionAsync(tx);
+                var rawTransaction = await miner.Provider.TransactionManager.SignTransactionAsync(tx);
 
-            var txnHash = await provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(rawTransaction);
+                var txnHash = await miner.Provider.Eth.Transactions.SendRawTransaction.SendRequestAsync(rawTransaction);
 
-            // Get transaction receipt
-            var transactionReceipt = await provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(txnHash);
+                var transactionReceipt = await miner.Provider.TransactionManager.TransactionReceiptService.PollForReceiptAsync(txnHash);
 
-            Task.Delay(15000).Wait(); // Delay for 15 seconds
+                await Task.Delay(TimeSpan.FromSeconds(15));
             }
         }
+
         public static async Task WithdrawToken(WithdrawalParams parameters, L2Network l2Network)
         {
             var l1Provider = parameters.L1Signer.Provider;
@@ -104,13 +79,11 @@ namespace Arbitrum.Tests.Integration
                     Amount = parameters.Amount,
                     Erc20L1Address = parameters?.L1Token?.Address,
                     DestinationAddress = parameters?.L2Signer?.Account?.Address,
-                    From = parameters?.L2Signer?.Account?.Address
+                    From = parameters?.L2Signer?.Account?.Address,
+                    L2Signer = parameters?.L2Signer
                 });
 
-            var l1GasEstimate = withdrawalParams.EstimateL1GasLimit = async (IClient l1provider) =>
-            {
-                return await l1Provider.TransactionManager.EstimateGasAsync(withdrawalParams.TxRequest);
-            };
+            var l1GasEstimate = await withdrawalParams.EstimateL1GasLimit(l1Provider);
 
             var withdrawRec = await parameters.Erc20Bridger.Withdraw(new Erc20WithdrawParams()
             {
@@ -121,13 +94,13 @@ namespace Arbitrum.Tests.Integration
                 L1Signer = parameters.L1Signer
             });
 
-            Assert.That(withdrawRec.Status, Is.EqualTo(1), "initiate token withdraw txn failed");
+            Assert.That(withdrawRec.Status.Value, Is.EqualTo(BigInteger.One), "initiate token withdraw txn failed");
 
-            var message = (await withdrawRec.GetL2ToL1Messages(parameters.L1Signer)).FirstOrDefault();
+            var message = (await withdrawRec.GetL2ToL1Messages(parameters.L1Signer, withdrawRec.ContractAddress)).FirstOrDefault();
 
             Assert.That(message, Is.Not.Null, "withdraw message not found");
 
-            var messageStatus = message.StatusBase(new SignerOrProvider(l2Provider));
+            var messageStatus = await message.StatusBase(new SignerOrProvider(l2Provider));
 
             Assert.That(messageStatus, Is.EqualTo(L2ToL1MessageStatus.UNCONFIRMED), "invalid withdraw status");
 
@@ -143,9 +116,9 @@ namespace Arbitrum.Tests.Integration
 
             var gatewayAddress = await parameters.Erc20Bridger.GetL2GatewayAddress(parameters.L2Signer, l2Network, parameters.L1Token.Address);
 
-            var expectedGateways = GetGateways(parameters.GatewayType, parameters.Erc20Bridger.L2Network);
+            var (expectedL1Gateway, expectedL2Gateway) = GetGateways(parameters.GatewayType, parameters.Erc20Bridger.L2Network);
 
-            Assert.That(gatewayAddress, Is.EqualTo(expectedGateways.expectedL2Gateway), "Gateway is not custom gateway");
+            Assert.That(gatewayAddress, Is.EqualTo(expectedL2Gateway), "Gateway is not custom gateway");
 
             var gatewayWithdrawEvents = await parameters.Erc20Bridger.GetL2WithdrawalEvents(
                 l2Provider,
@@ -153,7 +126,7 @@ namespace Arbitrum.Tests.Integration
                 new NewFilterInput()
                 {
                     FromBlock = new BlockParameter(withdrawRec.BlockNumber),
-                    ToBlock = BlockParameter.CreateLatest()
+                    ToBlock = new BlockParameter()
                 },
                 parameters.L1Token.Address,
                 walletAddress);
@@ -162,50 +135,47 @@ namespace Arbitrum.Tests.Integration
 
             var balBefore = await parameters.L1Token.GetFunction("balanceOf").CallAsync<BigInteger>(parameters.L1Signer.Account.Address);
 
-            //creating a random wallet
             string mnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve).ToString();
 
-            // Connect the wallet to the provider
             var miner1Seed = new Wallet(mnemonic, "");
             var miner2Seed = new Wallet(mnemonic, "");
 
-            //private keys of miners
             var miner1PrivateKey = miner1Seed.GetPrivateKey(0);
             var miner2PrivateKey = miner2Seed.GetPrivateKey(0);
 
-            //accounts of miners
-            var miner1Account = new Account(miner1PrivateKey);
-            var miner2Account = new Account(miner2PrivateKey);
+            var miner1Account = new Account(miner1PrivateKey, Nethereum.Signer.Chain.Private);
+            var miner2Account = new Account(miner2PrivateKey, new BigInteger(412346));
 
             var miner1 = new SignerOrProvider(miner1Account, l1Provider);
             var miner2 = new SignerOrProvider(miner2Account, l2Provider);
 
-            await FundL1(parameters.L1FundProvider, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether), miner1.Account.Address);
-            await FundL2(parameters.L2FundProvider, UnitConversion.Convert.ToWei(1, UnitConversion.EthUnit.Ether), miner2.Account.Address);
+            await FundL1(parameters.L1FundProvider, address:  miner1.Account.Address);
+            await FundL2(parameters.L2FundProvider, address: miner2.Account.Address);
+
             var state = new Dictionary<string, object> { { "mining", true } };
 
             await Task.WhenAny(
                 MineUntilStop(miner1, state),
                 MineUntilStop(miner2, state),
-                message.WaitUntilReadyToExecuteBase(parameters.L2Signer)
+                message.WaitUntilReadyToExecuteBase(parameters?.L2Signer)
             );
 
             state["mining"] = false;
 
+        /* Not to be tested on local node
             Assert.That(await message.StatusBase(new SignerOrProvider(l2Provider)), Is.EqualTo(L2ToL1MessageStatus.CONFIRMED), "confirmed status");
 
-            var execTx = await message.WaitUntilReadyToExecuteBase(new SignerOrProvider(l2Provider));
+            var execTx = await message.Execute(parameters.L2Signer.Provider);
 
-            //var execTx = await message.Execute(parameters.L2Signer.Provider);    //////////////
-            //var execRec = await execTx.Wait();
-
-            //Assert.That(execRec.GasUsed.ToBigInteger(), Is.LessThan(l1GasEstimate), "Gas used greater than estimate");
+            Assert.That(execTx.GasUsed.Value, Is.LessThan(l1GasEstimate), "Gas used greater than estimate");
 
             Assert.That(await message.StatusBase(new SignerOrProvider(l2Provider)), Is.EqualTo(L2ToL1MessageStatus.EXECUTED), "executed status");
 
             var balAfter = await parameters.L1Token.GetFunction("balanceOf").CallAsync<BigInteger>(parameters.L1Signer.Account.Address);
             Assert.That(balBefore + parameters.Amount, Is.EqualTo(balAfter), "Not withdrawn");
+        */
         }
+
         public static (string? expectedL1Gateway, string? expectedL2Gateway) GetGateways(GatewayType? gatewayType, L2Network l2Network)
         {
             switch (gatewayType)
@@ -274,6 +244,7 @@ namespace Arbitrum.Tests.Integration
                 RetryableGasOverrides = retryableOverrides
             });
 
+            await Task.Delay(1000);
             var finalBridgeTokenBalance = await l1Token.GetFunction("balanceOf").CallAsync<BigInteger>(expectedL1GatewayAddress);
 
             BigInteger expectedBalance = expectedGatewayType == GatewayType.WETH ? 0 : initialBridgeTokenBalance + depositAmount;
@@ -284,18 +255,15 @@ namespace Arbitrum.Tests.Integration
 
             Assert.That(userBalAfter, Is.EqualTo(userBalBefore - depositAmount), "user bal after");
 
-            /*
-            // Not to be tested on local network
-            var waitRes = await depositRec.WaitForL2(l2Signer.Provider);
+            var waitRes = await depositRec.WaitForL2(l2Signer);
             Assert.That(waitRes.Result.Status, Is.EqualTo(expectedStatus), "Unexpected status");
-            */
 
             if (retryableOverrides != null)
             {
                 return new DepositTokenResults
                 {
                     L1Token = l1Token,
-                    //WaitRes = waitRes
+                    WaitRes = waitRes
                 };
             }
 
@@ -317,7 +285,7 @@ namespace Arbitrum.Tests.Integration
 
             Assert.That(l1Erc20Addr.ToLower(), Is.EqualTo(l1TokenAddress.ToLower()), "getERC20L1Address/getERC20L2Address failed with proper token address");
 
-            Task.Delay(1000).Wait();
+            await Task.Delay(3000);
 
             var testWalletL2Balance = await l2Token.GetFunction("balanceOf").CallAsync<BigInteger>(l2Signer.Account.Address);
 
@@ -326,7 +294,7 @@ namespace Arbitrum.Tests.Integration
             return new DepositTokenResults
             {
                 L1Token = l1Token,
-                //WaitRes = waitRes,
+                WaitRes = waitRes,
                 L2Token = l2Token
             };
         }

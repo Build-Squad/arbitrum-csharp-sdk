@@ -1,11 +1,11 @@
 ﻿using Arbitrum.ContractFactory;
 using Arbitrum.ContractFactory.Bridge;
+using Arbitrum.ContractFactory.L1ERC20Gateway;
 using Arbitrum.DataEntities;
 using Nethereum.Contracts;
 using Nethereum.Hex.HexConvertors.Extensions;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Web3;
-using System.Numerics;
 using static Arbitrum.Message.L1ToL2MessageUtils;
 
 namespace Arbitrum.Message
@@ -15,16 +15,6 @@ namespace Arbitrum.Message
         public EventLog<InboxMessageDeliveredEventDTO>? InboxMessageEvent { get; set; }
         public EventLog<MessageDeliveredEventDTO>? BridgeMessageEvent { get; set; }
     }
-
-    public class TokenDepositEvent
-    {
-        public string? L1Token { get; set; }
-        public string? From { get; set; }
-        public string? To { get; set; }
-        public BigInteger? SequenceNumber { get; set; }
-        public BigInteger? Amount { get; set; }
-    }
-
 
     public class L1ContractTransaction : ContractTransactionVO
     {
@@ -41,7 +31,6 @@ namespace Arbitrum.Message
 
     public class L1TransactionReceipt : TransactionReceipt
     {
-
         public L1TransactionReceipt(TransactionReceipt tx) : base()
         {
             To = tx?.To;
@@ -81,23 +70,24 @@ namespace Arbitrum.Message
 
         public async Task<IEnumerable<MessageEvents>> GetMessageEvents(Web3 provider, string? address = null)
         {
-            // Fetch bridge and inbox messages
             var bridgeMessages = await GetMessageDeliveredEvents(provider, address);
             var inboxMessages = await GetInboxMessageDeliveredEvents(provider, address);
 
-            // Converting the events to dictionaries for efficient lookup
-            var bridgeMessageDict = bridgeMessages.ToDictionary(m => m.Event.MessageIndex);
-            var inboxMessageDict = inboxMessages.ToDictionary(m => m.Event.MessageNum);
+            var bridgeMessageDict = bridgeMessages
+                .GroupBy(m => m.Event.MessageIndex)
+                .ToDictionary(g => g.Key, g => g.First());
 
-            // Check if the counts match
+            var inboxMessageDict = inboxMessages
+                .GroupBy(m => m.Event.MessageNum)
+                .ToDictionary(g => g.Key, g => g.First());
+
             if (bridgeMessageDict.Count != inboxMessageDict.Count)
             {
-                //throw new ArbSdkError($"Unexpected missing events. Inbox message count: {inboxMessageDict.Count} does not equal bridge message count: {bridgeMessageDict.Count}.");
+                throw new ArbSdkError($"Unexpected missing events. Inbox message count: {inboxMessageDict.Count} does not equal bridge message count: {bridgeMessageDict.Count}.");
             }
 
-            List<MessageEvents> messages = new List<MessageEvents>();
+            var messages = new List<MessageEvents>();
 
-            // Combining bridge and inbox messages
             foreach (var bridgeMessage in bridgeMessageDict.Values)
             {
                 if (!inboxMessageDict.TryGetValue(bridgeMessage.Event.MessageIndex, out var inboxMessage))
@@ -143,7 +133,6 @@ namespace Arbitrum.Message
             var chainID = network.ChainID;
             var isClassic = await IsClassic(l2Provider);
 
-            // Throw on nitro events
             if (!isClassic)
             {
                 throw new Exception("This method is only for classic transactions. Use 'GetL1ToL2Messages' for nitro transactions.");
@@ -160,9 +149,8 @@ namespace Arbitrum.Message
             );
         }
 
-        public async Task<IEnumerable<L1ToL2MessageReaderOrWriter>> GetL1ToL2Messages(Web3 l2SignerOrProvider, string? address = null)
+        public async Task<IEnumerable<L1ToL2MessageReaderOrWriter>> GetL1ToL2Messages(dynamic l2SignerOrProvider, string? address = null)
         {
-
             var provider = SignerProviderUtils.GetProviderOrThrow(l2SignerOrProvider);
             var network = await NetworkUtils.GetL2Network(provider);
 
@@ -176,15 +164,15 @@ namespace Arbitrum.Message
 
             var events = await GetMessageEvents(provider, address);
 
-            return events
+            return ((IEnumerable<MessageEvents>)events)
                 .Where(e =>
                     e.BridgeMessageEvent.Event.Kind == (int)InboxMessageKind.L1MessageType_submitRetryableTx &&
                     e.BridgeMessageEvent.Event.Inbox.ToLower() == network?.EthBridge?.Inbox?.ToLower())
-                .Select(mn =>
+                .Select((Func<MessageEvents, L1ToL2MessageReaderOrWriter>)(mn =>
                 {
                     var inboxMessageData = SubmitRetryableMessageDataParser.Parse(mn.InboxMessageEvent.Event.Data.ToHex());
 
-                    return L1ToL2Message.FromEventComponents(    
+                    return L1ToL2Message.FromEventComponents(
                         l2SignerOrProvider,
                         chainID,
                         mn?.BridgeMessageEvent?.Event?.Sender,
@@ -192,13 +180,13 @@ namespace Arbitrum.Message
                         mn.BridgeMessageEvent.Event.BaseFeeL1,
                         inboxMessageData
                     );
-                });
+                }));
         }
 
-        /*public async Task<IEnumerable<EventLog<TokenDepositEvent>>> GetTokenDepositEvents(Web3 provider)
+        public async Task<IEnumerable<EventLog<DepositInitiatedEventDTO>>> GetTokenDepositEvents(Web3 provider, string address)
         {
-            return await LogParser.ParseTypedLogs<TokenDepositEvent, Contract>(provider, "L1ERC20Gateway", Logs, "DepositInitiated", isClassic: true);
-        }*/
+            return LogParser.ParseTypedLogs<DepositInitiatedEventDTO>(provider, Logs, address);
+        }
 
         public static L1TransactionReceipt MonkeyPatchWait(TransactionReceipt contractTransaction)
         {
@@ -231,32 +219,24 @@ namespace Arbitrum.Message
             TransactionHash = tx?.TransactionHash;
             Logs = tx?.Logs;
             BlockNumber = tx?.BlockNumber;
-            //Confirmations = tx.Confirmations;
             CumulativeGasUsed = tx?.CumulativeGasUsed;
             EffectiveGasPrice = tx?.EffectiveGasPrice;
-            //Byzantium = tx.Byzantium;
             Type = tx?.Type;
             Status = tx?.Status;
         }
-        public async Task<L1EthDepositTransactionReceiptResults> WaitForL2(
-            Web3 l2Provider,
-            int? confirmations = null,
-            int? timeout = null)
+
+        public async Task<L1EthDepositTransactionReceiptResults> WaitForL2(Web3 l2Provider, int? confirmations = null, int? timeout = null)
         {
             var ethDeposits = await GetEthDeposits(l2Provider);
-            if (ethDeposits.Count() == 0)
+
+            if (!ethDeposits.Any())
             {
                 throw new ArbSdkError("Unexpected missing Eth Deposit message.");
             }
 
-            var message = ethDeposits.FirstOrDefault();
-            if (message == null)
-            {
-                throw new ArbSdkError("Unexpected missing Eth Deposit message.");
-            }
+            var message = ethDeposits.FirstOrDefault() ?? throw new ArbSdkError("Unexpected missing Eth Deposit message.");
 
-            //var result = await message.Wait(confirmations, timeout);
-            TransactionReceipt result = null;
+            var result = await message.Wait(confirmations, timeout);
 
             return new L1EthDepositTransactionReceiptResults()
             {
@@ -282,28 +262,26 @@ namespace Arbitrum.Message
             TransactionHash = tx.TransactionHash;
             Logs = tx.Logs;
             BlockNumber = tx.BlockNumber;
-            //Confirmations = tx.Confirmations;
             CumulativeGasUsed = tx.CumulativeGasUsed;
             EffectiveGasPrice = tx.EffectiveGasPrice;
-            //Byzantium = tx.Byzantium;
             Type = tx.Type;
             Status = tx.Status;
         }
 
         public async Task<L1ContractCallTransactionReceiptResults> WaitForL2(
-        Web3 l2SignerOrProvider,
+        dynamic l2SignerOrProvider,
         int? confirmations = null,
         int? timeout = null)
         {
-            var message = (await GetL1ToL2Messages(l2SignerOrProvider)).FirstOrDefault() 
+            IEnumerable<L1ToL2MessageReaderOrWriter> messages = await GetL1ToL2Messages(l2SignerOrProvider)
                            ?? throw new ArbSdkError("Unexpected missing L1ToL2 message.");
 
-            var res = await message.WaitForStatus(confirmations, timeout);
+            var res = await messages.FirstOrDefault().WaitForStatus(confirmations, timeout);
 
             return new L1ContractCallTransactionReceiptResults
             {
                 Complete = res.Status == L1ToL2MessageStatus.REDEEMED,
-                Message = message,
+                Message = messages.FirstOrDefault(),
                 Result = res
             };
         }

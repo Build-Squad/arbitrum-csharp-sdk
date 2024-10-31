@@ -1,4 +1,5 @@
-﻿using Arbitrum.Utils;
+﻿using Arbitrum.ContractFactory;
+using Arbitrum.Utils;
 using Nethereum.ABI.FunctionEncoding.Attributes;
 using Nethereum.Contracts;
 using Nethereum.Hex.HexConvertors.Extensions;
@@ -29,23 +30,9 @@ namespace Arbitrum.DataEntities
         public int NumBlocks { get; set; }
     }
 
-    public class NodeCreatedEvent : L2ToL1TransactionEvent
-    {
-        public int? NodeNum { get; set; }
-        public string? ParentNodeHash { get; set; }
-        public string? NodeHash { get; set; }
-        public string? ExecutionHash { get; set; }
-        public AssertionStructOutput? Assertion { get; set; }
-        public string? AfterInboxBatchAcc { get; set; }
-        public string? WasmModuleRoot { get; set; }
-        public int? InboxMaxCount { get; set; }
-
-        public FilterLog Log => throw new NotImplementedException();
-    }
-
     public static class LogParser
     {
-        public static IEnumerable<EventLog<T>> ParseTypedLogs<T>(Web3 web3, JArray logs, string address) where T: IEventDTO, new()
+        public static IEnumerable<EventLog<T>> ParseTypedLogs<T>(Web3 web3, JArray logs, string? address = null) where T: IEventDTO, new()
         {
             try
             {

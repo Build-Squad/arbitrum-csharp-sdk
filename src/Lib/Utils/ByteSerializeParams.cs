@@ -1,17 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using System.Reflection.Metadata;
-using System.Threading.Tasks;
-using Arbitrum.DataEntities;
+﻿using Arbitrum.DataEntities;
 using Arbitrum.Message;
-using Arbitrum.Utils;
-using Nethereum.ABI.Model;
 using Nethereum.Hex.HexConvertors.Extensions;
-using Nethereum.Hex.HexTypes;
 using Nethereum.Util;
 using Nethereum.Web3;
+using System.Numerics;
 
 // Define the PrimativeType type
 namespace Arbitrum.Utils
@@ -59,7 +51,8 @@ namespace Arbitrum.Utils
             Value = value;
         }
     }
-    // Define the PrimativeArray class to hold a list of PrimativeType objects
+
+ // Define the PrimativeArray class to hold a list of PrimativeType objects
 public class PrimativeArray
 {
     // Property to hold a list of PrimativeType objects

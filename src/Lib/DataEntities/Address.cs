@@ -1,8 +1,7 @@
-﻿using System;
+﻿using Nethereum.Util;
+using Nethereum.Web3;
 using System.Globalization;
 using System.Numerics;
-using Nethereum.Util;
-using Nethereum.Web3;
 
 namespace Arbitrum.DataEntities
 {

@@ -1,12 +1,8 @@
 ﻿using Nethereum.ABI.FunctionEncoding.Attributes;
-using Nethereum.Hex.HexTypes;
 using System.Numerics;
 
 namespace Arbitrum.DataEntities
 {
-    /* The components of a submit retryable message. 
-     * Can be parsed from the events emitted from the Inbox.
-     */
     [FunctionOutput]
     public class RetryableMessageParams : FunctionOutputDTO
     {
@@ -38,29 +34,23 @@ namespace Arbitrum.DataEntities
         public string Data { get; set; } // Calldata for of the L2 message
     }
 
-
     [FunctionOutput]
     public class RetryableMessageParamsTest : FunctionOutputDTO
     {
-
         [Parameter("address", 1)]
-        public string? destAddr { get; set; } // Destination address for L2 message
+        public string? destAddr { get; set; }
 
         [Parameter("uint256", 2)]
-        public BigInteger l2CallValue { get; set; } // Call value in L2 message
-
-
+        public BigInteger l2CallValue { get; set; }
     }
 
-
-        public enum InboxMessageKind
+    public enum InboxMessageKind
     {
         L1MessageType_submitRetryableTx = 9,
         L1MessageType_ethDeposit = 12,
         L2MessageType_signedTx = 4
     }
 
-    /* L2ToL1 message status */
     public enum L2ToL1MessageStatus
     {
         UNCONFIRMED,

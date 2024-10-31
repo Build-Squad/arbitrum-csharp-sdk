@@ -1,20 +1,11 @@
-﻿using System;
-using System.Numerics;
-using Arbitrum.DataEntities;
-using Nethereum.ABI;
-using Nethereum.ABI.Decoders;
-using Nethereum.Hex.HexConvertors.Extensions;
-using Nethereum.Signer;
-using Nethereum.Util;
-using System.Formats.Asn1;
-using System.Text;
-using Nethereum.ABI.Model;
+﻿using Arbitrum.DataEntities;
 using Nethereum.ABI.FunctionEncoding;
-using Nethereum.ABI.Encoders;
-using Nethereum.RPC.Eth.DTOs;
 using Nethereum.ABI.FunctionEncoding.Attributes;
+using Nethereum.ABI.Model;
 using Nethereum.Contracts;
-using Nethereum.Hex.HexTypes;
+using Nethereum.Hex.HexConvertors.Extensions;
+using Nethereum.Util;
+using System.Numerics;
 
 namespace Arbitrum.Message
 {
@@ -53,26 +44,20 @@ namespace Arbitrum.Message
     {
         public static RetryableMessageParams Parse(string eventData)
         {
-
             var parsed = new DecodeFunction().DecodeInput(eventData);
 
             var functionCallDecoder = new FunctionCallDecoder();
 
-            // Create an instance of the TransferFunction
             var transferFunction = new DecodeFunction();
 
-            // Decode the input data into the TransferFunction object
-            var decodedFunction = functionCallDecoder.DecodeFunctionInput<DecodeFunction>(transferFunction, "a9059cbb", eventData);
+            var decodedFunction = functionCallDecoder.DecodeFunctionInput(transferFunction, "a9059cbb", eventData);
 
             string AddressFromBigNumber(BigInteger bn)
             {
-                // Convert BigInteger to a byte array
                 byte[] bytes = bn.ToByteArray();
 
-                // Ensure the byte array is 20 bytes long (Ethereum address length)
                 byte[] addressBytes = new byte[20];
 
-                // Check if the system architecture is little-endian and reverse if necessary
                 if (BitConverter.IsLittleEndian)
                 {
                     Array.Reverse(bytes);
@@ -80,12 +65,11 @@ namespace Arbitrum.Message
 
                 int copyLength = Math.Min(bytes.Length, 20);
 
-                // Copy bytes to addressBytes, ensuring it fills from the end
                 Array.Copy(bytes, bytes.Length - copyLength, addressBytes, 20 - copyLength, copyLength);
 
-                // Convert the byte array to a hexadecimal string and format it as a checksum address
                 return new AddressUtil().ConvertToChecksumAddress(addressBytes.ToHex());
             }
+
             var destAddress = AddressFromBigNumber(decodedFunction.Dest);
             var l2CallValue = decodedFunction.L2CallValue;
             var l1Value = decodedFunction.MsgVal;
@@ -99,23 +83,19 @@ namespace Arbitrum.Message
             string data;
             if (eventData.StartsWith("0x"))
             {
-                // Assuming eventDataString is a hexadecimal string
                 int dataOffset = eventData.Length - 2 * (int)callDataLength;
 
-                data = "0x" + eventData.Substring(dataOffset);
+                data = string.Concat("0x", eventData.AsSpan(dataOffset));
             }
             else
             {
-                // Assuming eventDataBytes is byte array data
                 byte[] dataBytes = new byte[(int)callDataLength];
 
-                //Array.Copy(dataBytes, dataBytes.Length - callDataLength, dataBytes, 0, callDataLength);
                 data = "0x" + BitConverter.ToString(dataBytes).Replace("-", string.Empty).ToLower();
             }
-            var dataStartIndex = eventData.Length - (int)(callDataLength * 2);
-            //var data = dataStartIndex >= 0 ? "0x" + eventData.Substring(dataStartIndex) : string.Empty;
 
-            //var data = "0x" + eventData.Substring(eventData.Length - (int)(callDataLength * 2));
+            var dataStartIndex = eventData.Length - (int)(callDataLength * 2);
+            data = dataStartIndex >= 0 ? string.Concat("0x", eventData.AsSpan(dataStartIndex)) : string.Empty;
 
             return new RetryableMessageParams
             {

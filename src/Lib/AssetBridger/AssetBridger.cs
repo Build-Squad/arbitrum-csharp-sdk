@@ -1,5 +1,4 @@
-﻿using Arbitrum.AssetBridger;
-using Arbitrum.DataEntities;
+﻿using Arbitrum.DataEntities;
 using Arbitrum.Message;
 
 namespace Arbitrum.AssetBridgerModule

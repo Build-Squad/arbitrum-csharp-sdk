@@ -1,26 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using System.Numerics;
-using Arbitrum.Utils;
-using Nethereum.Contracts;
-using Nethereum.RPC.Eth.DTOs;
-using Nethereum.Web3;
-using Nethereum.Contracts.Services;
-using Nethereum.JsonRpc.Client;
-using Arbitrum.DataEntities;
-using Nethereum.RPC.Eth.Filters;
-using Nethereum.RPC.Eth.Services;
-using Nethereum.ABI.Model;
-using Nethereum.Hex.HexTypes;
+﻿using Arbitrum.DataEntities;
 using Nethereum.ABI.FunctionEncoding.Attributes;
+using Nethereum.ABI.Model;
+using Nethereum.Contracts;
+using Nethereum.Hex.HexTypes;
+using Nethereum.RPC.Eth.DTOs;
+using Nethereum.Util;
+using Nethereum.Web3;
+using System.Numerics;
 
 
 namespace Arbitrum.Utils
 {
-    public class FetchedEvent<TEventArgs>
+    public class FetchedEvent<IEventDTO>
     {
-        public TEventArgs Event { get; set; }
+        public IEventDTO Event { get; set; }
         public string Topic { get; set; }
         public string Name { get; set; }
         public int BlockNumber { get; set; }
@@ -31,7 +24,7 @@ namespace Arbitrum.Utils
         public string Data { get; set; }
 
         public FetchedEvent(
-            TEventArgs eventArgs,
+            IEventDTO eventArgs,
             string topic,
             string name,
             int blockNumber,
@@ -79,35 +72,26 @@ namespace Arbitrum.Utils
                 throw new ArgumentException("Invalid provider type", nameof(provider));
             }
         }
-        //generic FetchedEvent type(to be tested)
-        public async Task<List<FetchedEvent<TEventArgs>>> GetEventsAsync<TEventArgs>(
-            dynamic contractFactory,
-            string eventName,
-            Dictionary<string, object>? argumentFilters = null,
-            NewFilterInput? filter = null,
-            bool isClassic = false)
+
+        public async Task<List<FetchedEvent<T>>> GetEventsAsync<T>(
+        dynamic contractFactory,
+        string eventName,
+        Dictionary<string, object>? argumentFilters = null,
+        NewFilterInput? filter = null,
+        bool isClassic = false) where T : IEventDTO, new()
         {
-
-            // Initialize filter and argumentFilters if they are null
-            if (filter == null)
-                filter = new NewFilterInput();
-
-            if (argumentFilters == null)
-                argumentFilters = new Dictionary<string, object>();
-
-            // Get the contract instance
+            filter ??= new NewFilterInput();
+            argumentFilters ??= new Dictionary<string, object>();
             Contract contract;
 
-            // If the contract factory is a string (indicating the contract address or name),
-            // get the contract address from the filter dictionary.
-            // If the filter contains an "address" key, use its value as the contract address.
-            // Otherwise, use a default address.
             if (contractFactory is string)
             {
-                string contractAddress = LoadContractUtils.GetAddress(!string.IsNullOrEmpty(filter?.Address?.FirstOrDefault())
-                    ? filter?.Address?.FirstOrDefault()
-                    : "0x0000000000000000000000000000000000000000");
-
+                var util = new AddressUtil();
+                var contractAddress = LoadContractUtils.GetAddress(
+                    !string.IsNullOrEmpty(filter?.Address?.FirstOrDefault())
+                        ? filter?.Address?.FirstOrDefault()!
+                        : util.ConvertToChecksumAddress("0x0000000000000000000000000000000000000000")
+                );
 
                 contract = await LoadContractUtils.LoadContract(
                     provider: _provider,
@@ -125,100 +109,75 @@ namespace Arbitrum.Utils
                 throw new ArbSdkError("Invalid contract factory type");
             }
 
-            // Get the event instance
-            var eventInstance = contract.GetEvent(eventName);
+            var eventInstance = contract.GetEvent(eventName)
+                ?? throw new ArgumentException($"Event {eventName} not found in contract");
 
-            if (eventInstance == null)
-                throw new ArgumentException($"Event {eventName} not found in contract");
-
-            // Create event filter
-            BlockParameter fromBlock = new BlockParameter(BigInteger.Zero.ToHexBigInteger());
-            BlockParameter toBlock = new BlockParameter(BigInteger.Zero.ToHexBigInteger());
-
-            if (filter is NewFilterInput filterDict)
-            {
-                if (filterDict.FromBlock!=null)
-                {
-                    fromBlock = filterDict.FromBlock;
-                }
-
-                if (filterDict.ToBlock !=null)
-                {
-                    toBlock = filterDict.ToBlock;
-                }
-            }
-
-            // Create event filter
             var eventFilter = new NewFilterInput
             {
-                FromBlock = fromBlock,
-                ToBlock = toBlock,
+                FromBlock = filter?.FromBlock ?? new BlockParameter(new HexBigInteger(BigInteger.Zero)),
+                ToBlock = filter?.ToBlock ?? BlockParameter.CreateLatest(),
                 Address = new[] { contract.Address },
-                // Merge filter and argumentFilters
-                Topics = MergeTopics(filter!, argumentFilters)
+                Topics = MergeTopics(filter!, argumentFilters, eventInstance.EventABI)
             };
 
             var logs = await _provider.Eth.Filters.GetLogs.SendRequestAsync(eventFilter);
 
-            var fetchedEvents = new List<FetchedEvent<TEventArgs>>();
-            int logCount = 0;
+            var decodedEvents = eventInstance.DecodeAllEventsForEvent<T>(logs.ToArray());
 
-            foreach (var log in logs)
-            {
-                fetchedEvents.Add(new FetchedEvent<TEventArgs>(
-                    //Since the generic type parameter TEventArgs does not have a new() constraint,
-                    //you cannot create an instance of it using the new keyword.
-                    //We need to ensure that TEventArgs has a parameterless constructor. 
-                    //Activator.CreateInstance<TEventArgs>() is used to create an instance of TEventArgs
-                    eventArgs: Activator.CreateInstance<TEventArgs>(),
-                    topic: log.GetTopic(logCount),   ///////
-                    name: eventName,
-                    blockNumber: (int)log.BlockNumber.Value,
-                    blockHash: log.BlockHash,
-                    transactionHash: log.TransactionHash,
-                    address: log.Address,
-                    topics: ConvertToStringList(log.Topics),
-                    data: log.Data));
-                logCount++;
-            }
+            var fetchedEvents = decodedEvents.Select(log => new FetchedEvent<T>(
+                eventArgs: log.Event,
+                topic: log.Log.Topics.FirstOrDefault()?.ToString(),
+                name: eventName,
+                blockNumber: (int)log.Log.BlockNumber.Value,
+                blockHash: log.Log.BlockHash,
+                transactionHash: log.Log.TransactionHash,
+                address: log.Log.Address,
+                topics: ConvertToStringList(log.Log.Topics),
+                data: log.Log.Data
+            )).ToList();
 
             return fetchedEvents;
         }
 
-        // Helper method to merge topics from filter and argumentFilters
-        private string[] MergeTopics(NewFilterInput filter, Dictionary<string, object> argumentFilters)
+        private static string[] MergeTopics(NewFilterInput filter, Dictionary<string, object> argumentFilters, EventABI eventAbi)
         {
-            List<string> topics = new List<string>();
+            var topics = new List<string>();
 
-            // Add topics from filter
-            if (filter.Topics != null  && filter.Topics is string[] filterTopicsArray)
+            if (filter.Topics != null)
             {
-                topics.AddRange(filterTopicsArray);
+                foreach (var topic in filter.Topics)
+                {
+                    if (topic != null) topics.Add(topic?.ToString());
+                }
             }
 
-            // Add topics from argumentFilters
-            if (argumentFilters != null && argumentFilters.TryGetValue("topics", out var argumentFilterTopics) && argumentFilterTopics is string[] argumentFilterTopicsArray)
+            if (argumentFilters != null)
             {
-                topics.AddRange(argumentFilterTopicsArray);
+                foreach (var arg in argumentFilters)
+                {
+                    var param = eventAbi.InputParameters.FirstOrDefault(p => p.Name == arg.Key);
+                    if (param != null)
+                    {
+                        var encodedBytes = param.ABIType.Encode(arg.Value);
+
+                        if (encodedBytes.Length < 32)
+                        {
+                            var paddedBytes = new byte[32];
+                            Buffer.BlockCopy(encodedBytes, 0, paddedBytes, 32 - encodedBytes.Length, encodedBytes.Length);
+                            encodedBytes = paddedBytes;
+                        }
+
+                        topics.Add("0x" + BitConverter.ToString(encodedBytes).Replace("-", "").ToLower());
+                    }
+                }
             }
 
             return topics.ToArray();
         }
 
-        private List<string> ConvertToStringList(object[] topics)
+        private static List<string> ConvertToStringList(object[] topics)
         {
-            if (topics == null)
-                return new List<string>();
-
-            var stringList = new List<string>();
-            foreach (var topic in topics)
-            {
-                if (topic is string str)
-                {
-                    stringList.Add(str);
-                }
-            }
-            return stringList;
+            return topics?.Select(t => t?.ToString()).ToList() ?? new List<string>();
         }
     }
 }

@@ -1,60 +1,12 @@
-﻿using System.Threading.Tasks;
-using Arbitrum.DataEntities;
-using Nethereum.Web3;
-using Nethereum.RPC.Eth.DTOs;
+﻿using Arbitrum.DataEntities;
 using Nethereum.Hex.HexTypes;
-using System.Runtime.Serialization;
-using System.Numerics;
-using static Org.BouncyCastle.Bcpg.Attr.ImageAttrib;
-using Nethereum.ABI.Util;
-using Nethereum.JsonRpc.Client;
-using Microsoft.VisualBasic;
-using Newtonsoft.Json.Linq;
-using System.Net.NetworkInformation;
+using Nethereum.RPC.Eth.DTOs;
+using Nethereum.Web3;
 
 namespace Arbitrum.Utils
 {
-    public class Formats
-    {
-        public Transaction? Transaction { get; set; }
-        public TransactionRequest? TransactionRequest { get; set; }
-        public TransactionReceipt? Receipt { get; set; }
-        public FilterLog? ReceiptLog { get; set; }
-        public Block? Block { get; set; }
-        public BlockWithTransactions? BlockWithTransactions { get; set; }
-        public NewFilterInput? Filter { get; set; }
-        public FilterLog? FilterLog { get; set; }
-    }
     public class ArbFormatter
     {
-        //public Formats GetDefaultFormats()
-        //{
-        //    Formats superFormats = base.GetDefaultFormats();
-
-        //    Func<dynamic, BigInteger> bigNumber = this.BigNumber;
-        //    Func<dynamic, string> hash = this.Hash;
-        //    Func<dynamic, int> number = this.Number;
-
-        //    var arbBlockProps = new
-        //    {
-        //        sendRoot = hash,
-        //        sendCount = bigNumber,
-        //        l1BlockNumber = number
-        //    };
-
-        //    var arbReceiptFormat = new Formats()
-        //    {
-        //        l1BlockNumber = number,
-        //        gasUsedForL1 = bigNumber
-        //    };
-
-        //    return new Formats
-        //    {
-        //        receipt = arbReceiptFormat,
-        //        block = new { superFormats.block, arbBlockProps },
-        //        blockWithTransactions = new { superFormats.blockWithTransactions, arbBlockProps }
-        //    };
-        //}
         public ArbTransactionReceipt Receipt(dynamic receipt)
         {
             if (receipt == null)
@@ -63,9 +15,6 @@ namespace Arbitrum.Utils
             }
             return new ArbTransactionReceipt()
             {
-                // Assign values from `receipt` to the properties of `ArbTransactionReceipt` using null-coalescing
-                //L1BlockNumber = receipt.BlockNumber ?? null,
-                //GasUsedForL1 = receipt.GasUsedForL1 ?? null,
                 TransactionHash = receipt.TransactionHash ?? null,
                 TransactionIndex = receipt.TransactionIndex ?? null,
                 EffectiveGasPrice = receipt.EffectiveGasPrice ?? null,
@@ -93,10 +42,6 @@ namespace Arbitrum.Utils
 
             var formattedBlock = new ArbBlock
             {
-                // Assign values from `block` to the properties of `Block` using null-coalescing
-                //SendRoot = block?.SendRoot ?? null,
-                //SendCount = block?.SendCount ?? null,
-                //L1BlockNumber = block?.L1BlockNumber ?? null,
                 L1BlockNumber = block?.Number?.HexValue,
                 Number = block?.Number,
                 BlockHash = block?.BlockHash,
@@ -136,10 +81,6 @@ namespace Arbitrum.Utils
 
             var formattedBlock = new ArbBlockWithTransactions
             {
-                // Assign values from `block` to the properties of `Block` using null-coalescing
-                //SendRoot = block?.SendRoot ?? null,
-                //SendCount = block?.SendCount ?? null,
-                //L1BlockNumber = block?.L1BlockNumber ?? null,
                 Transactions = block?.Transactions ?? null,
                 Number = block?.Number ?? null,
                 BlockHash = block?.BlockHash ?? null,
@@ -178,42 +119,29 @@ namespace Arbitrum.Utils
 
         public ArbitrumProvider(dynamic provider, string network = null)
         {
-            if (provider is SignerOrProvider signerOrProvider)
-            {
-                Provider = signerOrProvider.Provider;
-            }
-            else if (provider is ArbitrumProvider arbitrumProvider)
-            {
-                Provider = arbitrumProvider.Provider;
-            }
             Provider = provider;
 
-            this.Formatter = new ArbFormatter();
+            Formatter = new ArbFormatter();
         }
+
         public async Task<ArbTransactionReceipt> GetTransactionReceipt(string transactionHash)
         {
             var receipt = await Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(transactionHash);
             return new ArbFormatter().Receipt(receipt);
         }
 
-        public async Task<ArbBlockWithTransactions> GetBlockWithTransactions(string blockIdentifier)
-        {
-            var block = await Provider.Eth.Blocks.GetBlockWithTransactionsByHash.SendRequestAsync(blockIdentifier);  
-            return new ArbFormatter().BlockWithTransactions(block);
-        }
-
-        public async Task<ArbBlock> GetBlock(dynamic blockIdentifier)
+        public async Task<ArbBlock> GetBlock(HexBigInteger blockIdentifier)
         {
             dynamic block;
             try
             {
-                //Console.WriteLine(typeof(blockIdentifier));
                 block = await Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(blockIdentifier);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 throw new Exception(ex.Message);
             }
+
             return new ArbFormatter().Block(block);   
         }
     }

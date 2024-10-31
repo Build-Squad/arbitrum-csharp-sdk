@@ -89,7 +89,7 @@ namespace Arbitrum.Tests.Integration
 
             var l1SubmissionTxReceipt = await l1ToL2MessageCreator.CreateRetryableTicket(l1ToL2TransactionRequest, l2Provider);
 
-            var l1ToL2Messages = await l1SubmissionTxReceipt.GetL1ToL2Messages(l2Provider);
+            var l1ToL2Messages = await l1SubmissionTxReceipt.GetL1ToL2Messages(l2Provider, l1SubmissionTxReceipt.ContractAddress);
 
             Assert.That(l1ToL2Messages.Count(), Is.EqualTo(1));
             /* 

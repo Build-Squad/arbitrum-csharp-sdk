@@ -1,47 +1,32 @@
-﻿using Arbitrum.DataEntities;
-using Arbitrum.Utils;
-using System;
-using System.Collections.Generic;
-using System.Numerics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Nethereum.Web3;
-using Nethereum.RPC.Eth.DTOs;
-using Nethereum.Contracts.Standards.ERC20.TokenList;
-using Nethereum.Web3.Accounts.Managed;
-using System.Transactions;
-using static Arbitrum.Message.L2ToL1MessageReaderNitro;
-using System.Xml;
-using Nethereum.Contracts;
-using Nethereum.ABI;
-using Nethereum.JsonRpc.Client;
-using Nethereum.Hex.HexTypes;
-using Nethereum.Merkle.Patricia;
-using ADRaffy.ENSNormalize;
-using Nethereum.Hex.HexConvertors.Extensions;
-using Org.BouncyCastle.Crypto.Tls;
-using Nethereum.Web3.Accounts;
-using Nethereum.ABI.FunctionEncoding.Attributes;
+﻿using Arbitrum.ContractFactory;
+using Arbitrum.ContractFactory.RollupAdminLogic;
+using Arbitrum.DataEntities;
 using Arbitrum.src.Lib.DataEntities;
+using Arbitrum.Utils;
+using Nethereum.Contracts;
+using Nethereum.Hex.HexConvertors.Extensions;
+using Nethereum.Hex.HexTypes;
+using Nethereum.JsonRpc.Client;
+using Nethereum.RPC.Eth.DTOs;
+using Nethereum.Web3;
+using System.Numerics;
 
 namespace Arbitrum.Message
 {
     public static class CacheUtils
     {
-        // Constants
         public const int ASSERTION_CREATED_PADDING = 50;
         public const int ASSERTION_CONFIRMED_PADDING = 20;
 
-        private static Dictionary<string, object> _l2BlockRangeCache = new Dictionary<string, object>();
+        private static Dictionary<string, int[]> _l2BlockRangeCache = new Dictionary<string, int[]>();
         private static object _lock = new object();
 
-        public static string GetL2BlockRangeCacheKey(int l2ChainId, int l1BlockNumber)
+        public static string GetL2BlockRangeCacheKey(int l2ChainId, ulong l1BlockNumber)
         {
             return $"{l2ChainId}-{l1BlockNumber}";
         }
 
-        public static void SetL2BlockRangeCache(string key, object value)
+        public static void SetL2BlockRangeCache(string key, int[] value)
         {
             lock (_lock)
             {
@@ -49,23 +34,21 @@ namespace Arbitrum.Message
             }
         }
 
-        public static async Task<object> GetBlockRangesForL1BlockWithCache(Web3 l1Provider, Web3 l2Provider, int forL1Block)
+        public static async Task<int[]> GetBlockRangesForL1BlockWithCache(Web3 l1Provider, Web3 l2Provider, dynamic forL1Block)
         {
-            int l2ChainId = (int)(await l2Provider.Eth.ChainId.SendRequestAsync()).Value;//.ToString();
+            int l2ChainId = (int)(await l2Provider.Eth.ChainId.SendRequestAsync()).Value;
             string key = GetL2BlockRangeCacheKey(l2ChainId, forL1Block);
 
             lock (_lock)
             {
-                if (_l2BlockRangeCache.ContainsKey(key))
+                if (_l2BlockRangeCache.TryGetValue(key, out int[]? value))
                 {
-                    return _l2BlockRangeCache[key];
+                    return value;
                 }
             }
 
-            // If not found in cache, obtain the block ranges
-            var l2BlockRange = await Lib.GetBlockRangesForL1Block(l1Provider, forL1Block);
+            int[] l2BlockRange = await Lib.GetBlockRangesForL1Block(l1Provider, forL1Block);
 
-            // Cache the result
             lock (_lock)
             {
                 _l2BlockRangeCache[key] = l2BlockRange;
@@ -75,84 +58,18 @@ namespace Arbitrum.Message
         }
     }
 
-    public class L2BlockRangeCache
-    {
-        private readonly Dictionary<string, List<int?>> _cache = new Dictionary<string, List<int?>>();
-
-        public string GetCacheKey(int l2ChainId, int l1BlockNumber)
-        {
-            return $"{l2ChainId}-{l1BlockNumber}";
-        }
-
-        public void SetCache(string key, List<int?> value)
-        {
-            _cache[key] = value;
-        }
-
-        public List<int?> GetCache(string key)
-        {
-            return _cache.TryGetValue(key, out var value) ? value : new List<int?>();
-        }
-    }
-
-    public class Mutex
-    {
-        public async Task<IDisposable> Acquire()
-        {
-            // Implement mutex acquisition
-            return await Task.FromResult<IDisposable>(new Lock());
-        }
-
-        private class Lock : IDisposable
-        {
-            public void Dispose()
-            {
-                // Implement mutex release
-            }
-        }
-    }
-
-    public class NodeStructOutput
-    {
-        public string? StateHash { get; set; }
-        public string? ChallengeHash { get; set; }
-        public string? ConfirmData { get; set; }
-        public BigInteger? PrevNum { get; set; }
-        public BigInteger? DeadlineBlock { get; set; }
-        public BigInteger? NoChildConfirmedBeforeBlock { get; set; }
-        public BigInteger? StakerCount { get; set; }
-        public BigInteger? ChildStakerCount { get; set; }
-        public BigInteger? FirstChildBlock { get; set; }
-        public BigInteger? LatestChildNumber { get; set; }
-        public BigInteger? CreatedAtBlock { get; set; }
-        public string? NodeHash { get; set; }
-    }
-
-    public class L2ToL1TxEvent : IEventDTO
-    {
-        public string? Caller { get; set; }
-        public string? Destination { get; set; }
-        public BigInteger? Hash { get; set; }
-        public BigInteger? Position { get; set; }
-        public BigInteger? ArbBlockNum { get; set; }
-        public BigInteger? EthBlockNum { get; set; }
-        public BigInteger? Timestamp { get; set; }
-        public BigInteger? CallValue { get; set; }
-        public string? Data { get; set; }
-    }
-
     public abstract class L2ToL1MessageNitro
     {
-        protected readonly L2ToL1TxEvent _event;
+        protected readonly L2ToL1TxEventDTO _event;
 
-        protected L2ToL1MessageNitro(L2ToL1TxEvent @event)
+        protected L2ToL1MessageNitro(L2ToL1TxEventDTO @event)
         {
             _event = @event;
         }
 
         public static L2ToL1MessageNitro FromEvent<T>(
             T l1SignerOrProvider,
-            L2ToL1TxEvent l2ToL1TransactionEvent,
+            L2ToL1TxEventDTO l2ToL1TransactionEvent,
             Web3? l1Provider = null) where T : SignerOrProvider
         {
             if (SignerProviderUtils.IsSigner(l1SignerOrProvider))
@@ -169,7 +86,7 @@ namespace Arbitrum.Message
             }
         }
 
-        public static async Task<List<(L2ToL1TxEvent EventArgs, string TransactionHash)>> GetL2ToL1Events(
+        public static async Task<List<(L2ToL1TxEventDTO EventArgs, string TransactionHash)>> GetL2ToL1Events(
             IWeb3 l2Provider,
             NewFilterInput filter,
             BigInteger? position = null,
@@ -193,7 +110,7 @@ namespace Arbitrum.Message
                 argumentFilters["hash"] = hash!;
             }
 
-            var eventList = await eventFetcher.GetEventsAsync<L2ToL1TxEvent>(
+            var eventList = await eventFetcher.GetEventsAsync<L2ToL1TxEventDTO>(
                 contractFactory: "ArbSys",
                 eventName: "L2ToL1Tx",
                 argumentFilters: argumentFilters,
@@ -210,6 +127,7 @@ namespace Arbitrum.Message
             return eventList.Select(e => (e.Event, e.TransactionHash)).ToList();
         }
     }
+
     public class L2ToL1MessageReaderNitroResults
     {
         public string? SendRootHash { get; set; }
@@ -227,7 +145,7 @@ namespace Arbitrum.Message
 
         protected readonly Web3 l1Provider;
 
-        public L2ToL1MessageReaderNitro(Web3 l1Provider, L2ToL1TxEvent l2ToL1TransactionEvent) : base(l2ToL1TransactionEvent)
+        public L2ToL1MessageReaderNitro(Web3 l1Provider, L2ToL1TxEventDTO l2ToL1TransactionEvent) : base(l2ToL1TransactionEvent)
         {
             this.l1Provider = l1Provider;
         }
@@ -240,6 +158,16 @@ namespace Arbitrum.Message
                 throw new ArbSdkError("Node not yet created, cannot get proof.");
             }
 
+            var outboxProofParam = new ConstructOutboxProofFunction
+            {
+                Size = (ulong)sendProps.SendRootSize.Value,
+                Leaf = (ulong)_event.Position
+            };
+
+            var outboxProofFunc = l2Provider.Eth.GetContractQueryHandler<ConstructOutboxProofFunction>();
+            var outboxProof = await outboxProofFunc.QueryAsync<ConstructOutboxProofOutputDTO>
+                (Constants.NODE_INTERFACE_ADDRESS, outboxProofParam);
+
 
             var nodeInterface = await LoadContractUtils.LoadContract(
                                     contractName: "NodeInterface",
@@ -247,10 +175,11 @@ namespace Arbitrum.Message
                                     address: Constants.NODE_INTERFACE_ADDRESS,
                                     isClassic: false);
 
+            /*
             var outboxProofParams = await nodeInterface.GetFunction("constructOutboxProof").CallAsync<MessageBatchProofInfo>(
                                         sendProps.SendRootSize, _event.Position);
-
-            var result = LoadContractUtils.FormatContractOutput(nodeInterface, "constructOutboxProof", outboxProofParams);
+            */
+            var result = LoadContractUtils.FormatContractOutput(nodeInterface, "constructOutboxProof", outboxProof);
 
             return result.Proof;
         }
@@ -282,7 +211,7 @@ namespace Arbitrum.Message
             return await HasExecuted(l2Provider) ? L2ToL1MessageStatus.EXECUTED : L2ToL1MessageStatus.CONFIRMED;
         }
 
-        public Dictionary<string, string> ParseNodeCreatedAssertion(FetchedEvent<NodeCreatedEvent> nodeCreatedEvent)
+        public Dictionary<string, string> ParseNodeCreatedAssertion(FetchedEvent<NodeCreatedEventDTO> nodeCreatedEvent)
         {
             var assertion = nodeCreatedEvent.Event.Assertion;
             var afterState = assertion!.AfterState!.GlobalState;
@@ -291,28 +220,30 @@ namespace Arbitrum.Message
 
             return new Dictionary<string, string>
             {
-                { "blockHash", blockHash! },
-                { "sendRoot", sendRoot! }
+                { "blockHash", blockHash.ToHex() },
+                { "sendRoot", sendRoot.ToHex() }
             };
         }
 
-        private async Task<ArbBlock> GetBlockFromNodeLog(IClient l2Provider, FetchedEvent<NodeCreatedEvent> log)
+        private async Task<ArbBlock> GetBlockFromNodeLog(Web3 l2Provider, FetchedEvent<NodeCreatedEventDTO> log)
         {
             var arbitrumProvider = new ArbitrumProvider(l2Provider);
 
             if (log == null)
             {
                 Console.WriteLine("No NodeCreated events found, defaulting to block 0");
-                return await arbitrumProvider.GetBlock(0); 
+                return await arbitrumProvider.GetBlock(BigInteger.One.ToHexBigInteger()); 
             }
 
             var parsedLog = ParseNodeCreatedAssertion(log);
 
-            var l2Block = await arbitrumProvider.GetBlock(0);// (new HexBigInteger(parsedLog.TryGetValue("blockHash", out var value) ? value : null));
+            var l2Block = await arbitrumProvider.GetBlock(BigInteger.One.ToHexBigInteger());
+
             if (l2Block == null)
             {
                 throw new ArbSdkError($"Block not found. {parsedLog["blockHash"]}");
             }
+
             if (l2Block.SendRoot != parsedLog["sendRoot"])
             {
                 throw new ArbSdkError($"L2 block send root doesn't match parsed log. {l2Block.SendRoot} {parsedLog["sendRoot"]}");
@@ -320,66 +251,66 @@ namespace Arbitrum.Message
             return l2Block;
         }
 
-        private async Task<ArbBlock> GetBlockFromNodeNum(dynamic rollup, BigInteger nodeNum, Web3 l2Provider)   /////
+        private async Task<ArbBlock> GetBlockFromNodeNum(Contract rollup, ulong nodeNum, Web3 l2Provider)
         {
-            // Get node details
-            var node = (await rollup.GetNode(nodeNum)).createdAtBlock;
-            var formattedNode = LoadContractUtils.FormatContractOutput(rollup, "getNode", node);
+            var contractHandler = l2Provider.Eth.GetContractHandler(rollup.Address);
 
-            // Get created at block
-            var createdAtBlock = BigInteger.Parse(formattedNode["createdAtBlock"]);
+            var funcParam = new GetNodeFunction
+            {
+                NodeNum = nodeNum
+            };
 
-            // Set created block range
-            BigInteger createdFromBlock = createdAtBlock;
-            BigInteger createdToBlock = createdAtBlock;
+            var node = await contractHandler.QueryDeserializingToObjectAsync<GetNodeFunction, GetNodeOutputDTO>(funcParam);
+            var createdAtBlock = node?.ReturnValue1?.CreatedAtBlock;
+
+            var createdFromBlock = createdAtBlock ?? BigInteger.Zero;
+            var createdToBlock = createdAtBlock ?? BigInteger.Zero;
 
 
             if (await Lib.IsArbitrumChain(l1Provider))
             {
                 try
                 {
-                    // Get L2 block range for the given L1 block
-                    var l2BlockRange = await CacheUtils.GetBlockRangesForL1BlockWithCache(l1Provider, l2Provider, createdAtBlock);
+                    var l2BlockRange = await CacheUtils.GetBlockRangesForL1BlockWithCache(l1Provider, l2Provider, createdAtBlock.Value);
 
-                    BigInteger? startBlock = l2BlockRange.startBlock;
-                    BigInteger? endBlock = l2BlockRange.endBlock;
+                    var startBlock = l2BlockRange[0];
+                    var endBlock = l2BlockRange[l2BlockRange.Length-1];
 
                     if (startBlock == null || endBlock == null)
                     {
                         throw new Exception();
                     }
 
-                    createdFromBlock = startBlock.Value;
-                    createdToBlock = endBlock.Value;
+                    createdFromBlock = startBlock;
+                    createdToBlock = endBlock;
                 }
                 catch (Exception)
                 {
-                    createdFromBlock = createdAtBlock;
-                    createdToBlock = createdAtBlock;
+                    createdFromBlock = createdAtBlock ?? BigInteger.Zero;
+                    createdToBlock = createdAtBlock ?? BigInteger.Zero;
                 }
             }
 
-            var eventFetcher = new EventFetcher(rollup.Provider);
+            var eventFetcher = new EventFetcher(l2Provider);
             var argumentFilters = new Dictionary<string, object> { { "nodeNum", nodeNum } };
 
-            List<FetchedEvent<NodeCreatedEvent>> logs = await eventFetcher.GetEventsAsync<NodeCreatedEvent>(
-            contractFactory: rollup,
-            eventName: "NodeCreated",
-            argumentFilters: argumentFilters,
-            filter: new NewFilterInput
-            {
-                FromBlock = new BlockParameter(createdFromBlock.ToHexBigInteger()),
-                ToBlock = new BlockParameter(createdToBlock.ToHexBigInteger()),
-                Address = rollup.Address
-            }
-        );
+            var logs = await eventFetcher.GetEventsAsync<NodeCreatedEventDTO>(
+                        contractFactory: rollup,
+                        eventName: "NodeCreated",
+                        argumentFilters: argumentFilters,
+                        filter: new NewFilterInput
+                        {
+                            FromBlock = new BlockParameter(createdFromBlock.ToHexBigInteger()),
+                            ToBlock = new BlockParameter(createdToBlock.ToHexBigInteger()),
+                            Address = new string[] { rollup.Address }
+                        });
 
-            if (logs.Count > 1)
+            if (logs?.Count > 1)
             {
-                throw new ArbSdkError($"Unexpected number of NodeCreated events. Expected 0 or 1, got {logs.Count}.");
+                throw new ArbSdkError($"Unexpected number of NodeCreated events. Expected 0 or 1, got {logs?.Count}.");
             }
 
-            return await GetBlockFromNodeLog(l2Provider.Client, logs.FirstOrDefault()!);
+            return await GetBlockFromNodeLog(l2Provider, logs.FirstOrDefault());
         }
 
         public async Task<BigInteger?> GetBatchNumber(Web3 l2Provider)
@@ -400,9 +331,7 @@ namespace Arbitrum.Message
                     L1BatchNumber = (int)res;
                 }
                 catch (Exception)
-                {
-                    // do nothing - errors are expected here
-                }
+                {}
             }
             return L1BatchNumber;
         }
@@ -420,7 +349,7 @@ namespace Arbitrum.Message
                     isClassic: false
                     );
 
-                var latestConfirmedNodeNum = await rollupContract.GetFunction("latestConfirmed").CallAsync<BigInteger>();
+                var latestConfirmedNodeNum = await rollupContract.GetFunction<LatestConfirmedFunction>().CallAsync<ulong>();
                 var l2BlockConfirmed = await GetBlockFromNodeNum(rollupContract, latestConfirmedNodeNum, l2Provider);
 
                 var sendRootSizeConfirmed = l2BlockConfirmed.SendCount;
@@ -432,8 +361,7 @@ namespace Arbitrum.Message
                 }
                 else
                 {
-                    // if the node has yet to be confirmed we'll still try to find proof info from unconfirmed nodes
-                    var latestNodeNum = await rollupContract.GetFunction("latestNodeCreated").CallAsync<BigInteger>();
+                    var latestNodeNum = await rollupContract.GetFunction<LatestNodeCreatedFunction>().CallAsync<ulong>();
                     if (latestNodeNum > latestConfirmedNodeNum)
                     {
                         var l2Block = await GetBlockFromNodeNum(rollupContract, latestNodeNum, l2Provider);
@@ -447,6 +375,7 @@ namespace Arbitrum.Message
                     }
                 }
             }
+
             return new L2ToL1MessageReaderNitroResults
             {
                 SendRootSize = SendRootSize,
@@ -455,7 +384,7 @@ namespace Arbitrum.Message
             };
         }
 
-        public async Task<L2ToL1MessageStatus> WaitUntilReadyToExecute(Web3 l2Provider, int retryDelay = 500)
+        public async Task<L2ToL1MessageStatus> WaitUntilReadyToExecute(Web3 l2Provider, int retryDelay = 1500)
         {
             var status = await Status(l2Provider);
             if (status == L2ToL1MessageStatus.CONFIRMED || status == L2ToL1MessageStatus.EXECUTED)
@@ -496,7 +425,7 @@ namespace Arbitrum.Message
             }
 
             var latestBlock = await l1Provider.Eth.Blocks.GetBlockNumber.SendRequestAsync();
-            // Convert HexBigInteger to BigInteger
+
             int latestBlockNumber = (int)latestBlock.Value;
 
             var eventFetcher = new EventFetcher(l1Provider);
@@ -505,22 +434,21 @@ namespace Arbitrum.Message
             var argumentFilters = new Dictionary<string, object>();
 
 
-            var logs = await eventFetcher.GetEventsAsync<NodeCreatedEvent>(
-                                                    contractFactory: rollupContract,
-                                                    eventName: "NodeCreated",
-                                                    argumentFilters: argumentFilters,
-                                                    filter: new NewFilterInput
-                                                    {
-                                                        FromBlock = new BlockParameter((int.Max(latestBlockNumber - l2Network!.ConfirmPeriodBlocks - CacheUtils.ASSERTION_CONFIRMED_PADDING, 0)).ToHexBigInteger()),
-                                                        ToBlock = BlockParameter.CreateLatest(), // Set to latest block
-                                                        Address = new string[] { rollupContract.Address }
-                                                    },
-                                                    isClassic: false
-                                                    );
+            var logs = await eventFetcher.GetEventsAsync<NodeCreatedEventDTO>(
+                contractFactory: rollupContract,
+                eventName: "NodeCreated",
+                argumentFilters: argumentFilters,
+                filter: new NewFilterInput
+                {
+                    FromBlock = new BlockParameter((int.Max(latestBlockNumber - l2Network!.ConfirmPeriodBlocks - CacheUtils.ASSERTION_CONFIRMED_PADDING, 0)).ToHexBigInteger()),
+                    ToBlock = BlockParameter.CreateLatest(),
+                    Address = new string[] { rollupContract.Address }
+                },
+                isClassic: false);
 
             logs.OrderBy(log => log.Event.NodeNum);
 
-            ArbBlock lastL2Block = await this.GetBlockFromNodeLog(l2Provider.Client, logs.LastOrDefault()!);
+            ArbBlock lastL2Block = await GetBlockFromNodeLog(l2Provider, logs.LastOrDefault()!);
 
             var lastSendCount = lastL2Block != null ? lastL2Block.SendCount : BigInteger.Zero;
 
@@ -529,8 +457,6 @@ namespace Arbitrum.Message
                 return l2Network?.ConfirmPeriodBlocks + CacheUtils.ASSERTION_CREATED_PADDING + CacheUtils.ASSERTION_CONFIRMED_PADDING + latestBlockNumber;
             }
 
-            // use binary search to find the first node with sendCount > this.event.position
-            // default to the last node since we already checked above
             var left = 0;
             var right = logs.Count - 1;
             var foundLog = logs.LastOrDefault();
@@ -538,7 +464,7 @@ namespace Arbitrum.Message
             {
                 int mid = (left + right) / 2;
                 var log = logs[mid];
-                var l2Block = await GetBlockFromNodeLog(l2Provider.Client, log);
+                var l2Block = await GetBlockFromNodeLog(l2Provider, log);
                 var sendCount = l2Block.SendCount;
                 if (sendCount > _event.Position)
                 {
@@ -551,10 +477,16 @@ namespace Arbitrum.Message
                 }
             }
 
-            var earliestNodeWithExit = foundLog!.Event.NodeNum;
-            var node = await rollupContract.GetFunction("getNode").CallAsync<NodeStructOutput>(earliestNodeWithExit);
+            var contractHandler = l2Provider.Eth.GetContractHandler(rollupContract.Address);
 
-            return node.DeadlineBlock + CacheUtils.ASSERTION_CONFIRMED_PADDING;
+            var funcParam = new GetNodeFunction
+            {
+                NodeNum = foundLog.Event.NodeNum
+            };
+
+            var node = await contractHandler.QueryDeserializingToObjectAsync<GetNodeFunction, GetNodeOutputDTO>(funcParam);
+
+            return node.ReturnValue1.DeadlineBlock + CacheUtils.ASSERTION_CONFIRMED_PADDING;
         }
     }
 
@@ -562,7 +494,7 @@ namespace Arbitrum.Message
     {
         private readonly SignerOrProvider l1Signer;
 
-        public L2ToL1MessageWriterNitro(SignerOrProvider l1Signer, L2ToL1TxEvent eventArgs, Web3? l1Provider = null)
+        public L2ToL1MessageWriterNitro(SignerOrProvider l1Signer, L2ToL1TxEventDTO eventArgs, Web3? l1Provider = null)
             : base(l1Provider ?? l1Signer.Provider, eventArgs)
         {
             this.l1Signer = l1Signer ?? throw new ArgumentNullException(nameof(l1Signer));
@@ -571,10 +503,10 @@ namespace Arbitrum.Message
         public async Task<TransactionReceipt> Execute(Web3 l2Provider, Overrides? overrides = null)
         {
             var status = await Status(l2Provider);
-            if (status != L2ToL1MessageStatus.CONFIRMED)
+            /*if (status != L2ToL1MessageStatus.CONFIRMED)
             {
                 throw new ArbSdkError($"Cannot execute message. Status is: {status} but must be {L2ToL1MessageStatus.CONFIRMED}.");
-            }
+            }*/
 
             var proof = await GetOutboxProof(l2Provider);
             var l2Network = await NetworkUtils.GetL2Network(l2Provider);
@@ -590,7 +522,6 @@ namespace Arbitrum.Message
             var txReceipt = await outboxContract.GetFunction("executeTransaction").SendTransactionAndWaitForReceiptAsync(
                 from: l1Signer?.Account?.Address,
                 receiptRequestCancellationToken: null,
-                L1BatchNumber.ToString(),
                 proof,
                 _event?.Position,
                 _event?.Caller,
@@ -598,12 +529,10 @@ namespace Arbitrum.Message
                 _event?.ArbBlockNum,
                 _event?.EthBlockNum,
                 _event?.Timestamp,
-                _event?.CallValue,
-                _event?.Data,
-                overrides ?? new Overrides()
-                );
+                _event?.Callvalue,
+                _event?.Data);
+
             return txReceipt!;
         }
     }
 }
-

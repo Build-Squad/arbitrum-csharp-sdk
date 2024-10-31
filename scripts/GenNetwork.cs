@@ -8,7 +8,6 @@ namespace Abitrum.Scripts
 {
     class GenNetwork
     {
-
         static async Task Main(string[] args)
         {
             var ethProvider = new Web3(new RpcClient(new Uri(TestSetupUtils.Config["ETH_URL"])));
@@ -40,9 +39,6 @@ namespace Abitrum.Scripts
 
                 file.Write(json);
             }
-
-            Console.WriteLine("localNetwork.json updated");
-            Console.WriteLine("Done.");
         }
     }
 }

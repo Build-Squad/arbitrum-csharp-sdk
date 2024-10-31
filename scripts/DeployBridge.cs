@@ -1,16 +1,7 @@
 ﻿using Arbitrum.DataEntities;
 using Arbitrum.Utils;
-using Nethereum.ABI.Model;
 using Nethereum.Contracts;
-using Nethereum.Hex.HexTypes;
 using Nethereum.RPC.Eth.DTOs;
-using Nethereum.Web3;
-using Nethereum.Web3.Accounts;
-using Nethereum.Web3.Accounts.Managed;
-using System;
-using System.Collections.Generic;
-using System.Numerics;
-using System.Threading.Tasks;
 
 namespace Arbitrum.Scripts
 {
@@ -26,6 +17,7 @@ namespace Arbitrum.Scripts
         public Contract? Weth { get; set; }
         public Contract? Multicall { get; set; }
     }
+
     public static class DeploymentUtils
     {
         public static async Task<Contract> DeployBehindProxy(

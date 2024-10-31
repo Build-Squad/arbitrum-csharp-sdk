@@ -47,9 +47,8 @@ namespace Arbitrum.Tests.Unit
 
             // Assert
             Assert.That(result, Is.Not.Null);
-            Assert.That(result.Name, Is.EqualTo("Arbitrum Rollup Goerli Testnet"));
-            Assert.That(result.ExplorerUrl, Is.EqualTo("https://goerli.arbiscan.io"));
-            Assert.That(result.ConfirmPeriodBlocks, Is.EqualTo(20));
+            Assert.That(result.Name, Is.EqualTo("Arbitrum One"));
+            Assert.That(result.ConfirmPeriodBlocks, Is.EqualTo(45818));
         }
 
         [Test]
@@ -104,11 +103,11 @@ namespace Arbitrum.Tests.Unit
             Assert.That(l1Network.ExplorerUrl, Is.Empty);
             Assert.That(l1Network.IsCustom, Is.True);
             Assert.That(l1Network.Name, Is.EqualTo("EthLocal"));
-            Assert.That(l1Network.PartnerChainIDs, Is.EquivalentTo(new[] { 412346 }));
+            Assert.That(l1Network.PartnerChainIDs, Is.EquivalentTo(new[] { 42161 }));
             Assert.That(l1Network.IsArbitrum, Is.False);
 
             // Assert L2 network properties
-            Assert.That(l2Network.ChainID, Is.EqualTo(412346));
+            Assert.That(l2Network.ChainID, Is.EqualTo(42161));
             Assert.That(l2Network.ConfirmPeriodBlocks, Is.EqualTo(20));
             Assert.That(l2Network.ExplorerUrl, Is.Empty);
             Assert.That(l2Network.IsArbitrum, Is.True);
