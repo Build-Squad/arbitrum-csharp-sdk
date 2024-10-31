@@ -227,11 +227,11 @@ namespace Arbitrum.DataEntities
             }
         };
 
-        public static Dictionary<int, L2Network> l2Networks = new()
+        public static Dictionary<int, L2Network> l2Networks = new Dictionary<int, L2Network>()
         {
                 {
-                  41234, new L2Network {
-                    ChainID = 41234,
+                  42161, new L2Network {
+                    ChainID = 42161,
                     ConfirmPeriodBlocks = 45818,
                     RetryableLifetimeSeconds = Constants.SEVEN_DAYS_IN_SECONDS,
                     EthBridge = new EthBridge
@@ -499,9 +499,9 @@ namespace Arbitrum.DataEntities
             {
                 int customL1ChainID = customL1Network.ChainID;
 
-                if (l1Networks.ContainsKey(customL1ChainID))
+                if (customL1ChainID != 1337 && l1Networks.ContainsKey(customL1ChainID))
                 {
-                    return;
+                    throw new ArbSdkError($"Network {customL1Network.ChainID} already included");
                 }
                 else if (!customL1Network.IsCustom)
                 {
@@ -515,7 +515,7 @@ namespace Arbitrum.DataEntities
 
             int customL2ChainID = customL2Network.ChainID;
 
-            if (l2Networks.ContainsKey(customL2ChainID))
+            if (customL2ChainID != 412346 && l2Networks.ContainsKey(customL2ChainID))
             {
                 throw new ArbSdkError($"ChainId {customL2ChainID} already included.");
             }

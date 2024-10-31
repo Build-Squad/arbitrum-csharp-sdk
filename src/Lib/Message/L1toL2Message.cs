@@ -1,4 +1,5 @@
-﻿using Arbitrum.DataEntities;
+﻿using Arbitrum.ContractFactory;
+using Arbitrum.DataEntities;
 using Arbitrum.Utils;
 using Nethereum.ABI.FunctionEncoding;
 using Nethereum.Hex.HexConvertors.Extensions;
@@ -13,7 +14,6 @@ using static Arbitrum.DataEntities.NetworkUtils;
 using static Arbitrum.Message.L1ToL2MessageUtils;
 
 namespace Arbitrum.Message
-
 {
     public static class L1ToL2MessageUtils
     {
@@ -45,6 +45,7 @@ namespace Arbitrum.Message
              */
             EXPIRED = 5
         }
+
         public enum EthDepositStatus
         {
             /**
@@ -55,38 +56,6 @@ namespace Arbitrum.Message
              * ETH is deposited successfully on L2
              */
             DEPOSITED = 2
-        }
-        public class IRetryableExistsError : Exception
-        {
-            public int ErrorCode { get; set; }
-            public string? ErrorName { get; set; }
-        }
-
-        // Helper Methods
-        public static byte[] IntToBytes(BigInteger value)
-        {
-            return value.ToByteArray();
-        }
-
-        //from hexadecimal string to Byte array
-        public static byte[] HexToBytes(string value)
-        {
-            return value.HexToByteArray();
-        }
-
-        public static int? ByteArrayToInt(byte[] data)
-        {
-            if (data == null)
-            {
-                throw new ArgumentNullException(nameof(data));
-            }
-
-            if (data.Length % 2 != 0)
-            {
-                return null;
-            }
-
-            return (data.Length / 2);
         }
 
         /** 
@@ -118,45 +87,24 @@ namespace Arbitrum.Message
             }
         }
 
-        public static byte[] FormatNumber(BigInteger value)
+        public static byte[] HexToBytes(string value)
         {
-            // Convert the BigInteger to a byte array
-            byte[] bytes = value.ToByteArray();
-
-            // Convert the byte array to a hexadecimal string
-            string hexStr = bytes.ToHex(prefix: true);
-
-            // Remove leading zeros if any
-            hexStr = hexStr.TrimStart('0');
-
-            // Ensure the length of the hexadecimal string is even
-            if (hexStr.Length % 2 != 0)
-            {
-                hexStr = "0" + hexStr;
-            }
-
-            // Convert the hexadecimal string back to a byte array
-            return hexStr.HexToByteArray();
+            return value.HexToByteArray();
         }
+
 
         public static byte[] Concat(params object[] args)
         {
-            // Initialize an enumerable to store byte arrays
             IEnumerable<byte[]> objects;
 
-            // Check if a single argument is provided and if it's a list or array of byte arrays
             if (args.Length == 1 && (args[0] is IList<byte> || args[0] is IList<byte[]>))
             {
-                // If yes, convert it to an enumerable of byte arrays
                 objects = ((IEnumerable<byte[]>)args[0]).Select(item => item.ToArray());
             }
             else
             {
-                // If multiple arguments are provided or the single argument is not a list or array of byte arrays,
-                // process each argument and convert it to a byte array
                 objects = args.Select(arg =>
                 {
-                    // Convert the argument to a byte array based on its type
                     if (arg is byte)
                     {
                         return new byte[] { (byte)arg };
@@ -180,13 +128,10 @@ namespace Arbitrum.Message
                 });
             }
 
-            // Calculate total length of the concatenated byte arrays
             var length = objects.Sum(item => item.Length);
 
-            // Initialize the resulting byte array with the calculated length
             var result = new byte[length];
 
-            // Copy each byte array to the resulting byte array
             var offset = 0;
             foreach (var obj in objects)
             {
@@ -194,7 +139,6 @@ namespace Arbitrum.Message
                 offset += obj.Length;
             }
 
-            // Return the concatenated byte array
             return result;
         }
     }
@@ -205,7 +149,7 @@ namespace Arbitrum.Message
      * If T is of type Signer then L1ToL2MessageReaderOrWriter<T> will be of
      * type L1ToL2MessageWriter.
      */
-    public class L1ToL2MessageReaderOrWriter
+    public class L1ToL2MessageReaderOrWriter : L1ToL2Message
     {
         private readonly L1ToL2MessageReader? reader;
         private readonly L1ToL2MessageWriter? writer;
@@ -219,57 +163,98 @@ namespace Arbitrum.Message
 
 
         public L1ToL2MessageReaderOrWriter(Web3 l2Provider, BigInteger chainId, string sender, BigInteger messageNumber, BigInteger l1BaseFee, RetryableMessageParams messageData)
+            : base(chainId, sender, messageNumber, l1BaseFee, messageData)
         {
             reader = new L1ToL2MessageReader(l2Provider, chainId, sender, messageNumber, l1BaseFee, messageData);
             writer = null;
+            ChainId = chainId;
+            Sender = sender;
+            MessageNumber = messageNumber;
+            L1BaseFee = l1BaseFee;
+            MessageData = messageData;
+            RetryableCreationId = CalculateSubmitRetryableId(
+                ChainId,
+                Sender,
+                MessageNumber,
+                L1BaseFee,
+                MessageData?.DestAddress.ToString(),
+                MessageData.L2CallValue,
+                MessageData.L1Value,
+                MessageData.MaxSubmissionFee,
+                MessageData?.ExcessFeeRefundAddress.ToString(),
+                MessageData?.CallValueRefundAddress.ToString(),
+                MessageData!.GasLimit,
+                MessageData.MaxFeePerGas,
+                MessageData?.Data.ToString());
         }
 
         public L1ToL2MessageReaderOrWriter(SignerOrProvider l2SignerOrProvider, BigInteger chainId, string sender, BigInteger messageNumber, BigInteger l1BaseFee, RetryableMessageParams messageData)
+            : base(chainId, sender, messageNumber, l1BaseFee, messageData)
         {
             reader = null;
             writer = new L1ToL2MessageWriter(l2SignerOrProvider, chainId, sender, messageNumber, l1BaseFee, messageData);
+            ChainId = chainId;
+            Sender = sender;
+            MessageNumber = messageNumber;
+            L1BaseFee = l1BaseFee;
+            MessageData = messageData;
+            RetryableCreationId = CalculateSubmitRetryableId(
+                ChainId,
+                Sender,
+                MessageNumber,
+                L1BaseFee,
+                MessageData?.DestAddress.ToString(),
+                MessageData.L2CallValue,
+                MessageData.L1Value,
+                MessageData.MaxSubmissionFee,
+                MessageData?.ExcessFeeRefundAddress.ToString(),
+                MessageData?.CallValueRefundAddress.ToString(),
+                MessageData!.GasLimit,
+                MessageData.MaxFeePerGas,
+                MessageData?.Data.ToString());
         }
-        // Exposing Reader methods
 
         public async Task<string> GetBeneficiary()
         {
-            return await reader.GetBeneficiary();
-        }
-        public async Task<BigInteger> GetTimeout()
-        {
-            return await reader.GetTimeout();
+            return await writer.GetBeneficiary();
         }
 
-        //public async Task<BigInteger> GetLifetime(object l2Provider)
-        //{
-        //    return await reader.GetLifetime(l2Provider);
-        //}
+        public async Task<BigInteger> GetTimeout()
+        {
+            return await writer.GetTimeout();
+        }
+
+        public async Task<BigInteger> GetLifetime(Web3 l2Provider)
+        {
+            return await writer.GetLifetime(l2Provider);
+        }
 
         public async Task<L1ToL2MessageWaitResult> WaitForStatus(int? confirmations = null, int? timeout = null)
         {
-            return await reader.WaitForStatus(confirmations, timeout);
+            return reader != null
+                ? await reader.WaitForStatus(confirmations, timeout)
+                : await writer.WaitForStatus(confirmations, timeout);
         }
 
         public async Task<L1ToL2MessageStatus> Status()
         {
-            return await reader.Status();
+            return await writer.Status();
         }
 
         public async Task<L1ToL2MessageWaitResult> GetSuccessfulRedeem()
         {
-            return await reader.GetSuccessfulRedeem();
+            return await writer.GetSuccessfulRedeem();
         }
 
         public async Task<TransactionReceipt?> GetAutoRedeemAttempt()
         {
-            return await reader.GetAutoRedeemAttempt();
+            return await writer.GetAutoRedeemAttempt();
         }
         public async Task<TransactionReceipt?> GetRetryableCreationReceipt(int? confirmations = null, int? timeout = null)
         {
-            return await reader.GetRetryableCreationReceipt(confirmations, timeout);
+            return await writer.GetRetryableCreationReceipt(confirmations, timeout);
         }
 
-        // Exposing Writer methods
         public async Task<RedeemTransaction> Redeem(Dictionary<string, object>? overrides = null)
         {
             return await writer.Redeem(overrides);
@@ -299,7 +284,6 @@ namespace Arbitrum.Message
         public BigInteger L1BaseFee { get; }
         public RetryableMessageParams? MessageData { get; }
         public string RetryableCreationId { get; }
-
 
         public L1ToL2Message(
             BigInteger chainId,
@@ -362,36 +346,54 @@ namespace Arbitrum.Message
             BigInteger maxFeePerGas,
             string data)
         {
-            var chainId = l2ChainId;
-            var msgNum = messageNumber;
-            var fromAddr = new AddressUtil().ConvertToChecksumAddress(fromAddress);
-            var destAddr = destAddress == Constants.ADDRESS_ZERO ? "0x" : new AddressUtil().ConvertToChecksumAddress(destAddress);
-            var callValueRefundAddr = new AddressUtil().ConvertToChecksumAddress(callValueRefundAddress);
-            var excessFeeRefundAddr = new AddressUtil().ConvertToChecksumAddress(excessFeeRefundAddress);
+            string fromAddr = AddressUtil.Current.ConvertToChecksumAddress(fromAddress);
+            string destAddr = destAddress == "0x" ? "0x" : AddressUtil.Current.ConvertToChecksumAddress(destAddress);
+            string callValueRefundAddr = AddressUtil.Current.ConvertToChecksumAddress(callValueRefundAddress);
+            string excessFeeRefundAddr = AddressUtil.Current.ConvertToChecksumAddress(excessFeeRefundAddress);
 
-            var fields = new byte[][]
+            var fields = new List<byte[]>
             {
-            FormatNumber(chainId),
-            ZeroPad(FormatNumber(msgNum), 32),
-            fromAddr.HexToByteArray().ToHex(true).HexToByteArray(),
-            FormatNumber(l1BaseFee),
-            FormatNumber(l1Value),
-            FormatNumber(maxFeePerGas),
-            FormatNumber(gasLimit),
-            destAddr != "0x" ? destAddr.HexToByteArray().ToHex(true).HexToByteArray() : new byte[0],
-            FormatNumber(l2CallValue),
-            callValueRefundAddr.HexToByteArray().ToHex(true).HexToByteArray(),
-            FormatNumber(maxSubmissionFee),
-            excessFeeRefundAddr.HexToByteArray().ToHex(true).HexToByteArray(),
-            data.HexToByteArray().ToHex(true).HexToByteArray()
+                RLP.EncodeElement(TrimLeadingZeros(FormatNumber(l2ChainId))),
+                RLP.EncodeElement(ZeroPad(FormatNumber(messageNumber), 32)),
+                RLP.EncodeElement(fromAddr.HexToByteArray()),
+                RLP.EncodeElement(TrimLeadingZeros(FormatNumber(l1BaseFee))),
+                RLP.EncodeElement(TrimLeadingZeros(FormatNumber(l1Value))),
+                RLP.EncodeElement(TrimLeadingZeros(FormatNumber(maxFeePerGas))),
+                RLP.EncodeElement(TrimLeadingZeros(FormatNumber(gasLimit))),
+                destAddr != "0x" ? RLP.EncodeElement(destAddr.HexToByteArray()) : new byte[0],
+                RLP.EncodeElement(TrimLeadingZeros(FormatNumber(l2CallValue))),
+                RLP.EncodeElement(callValueRefundAddr.HexToByteArray()),
+                RLP.EncodeElement(TrimLeadingZeros(FormatNumber(maxSubmissionFee))),
+                RLP.EncodeElement(excessFeeRefundAddr.HexToByteArray()),
+                RLP.EncodeElement(data.HexToByteArray())
             };
 
-            var rlpEncoded = RLP.EncodeList(fields);
+            var rlpEncodedFields = RLP.EncodeList(fields.ToArray());
 
-            var rlpEncWithType = "69".HexToByteArray().Concat(rlpEncoded).ToArray();
+            var rlpWithTypePrefix = new byte[] { 0x69 }.Concat(rlpEncodedFields).ToArray();
+            var retryableTxId = new Sha3Keccack().CalculateHash(rlpWithTypePrefix);
 
-            var retryableTxId = new Sha3Keccack().CalculateHash(rlpEncWithType);
             return retryableTxId.ToHex();
+        }
+
+        private static byte[] FormatNumber(BigInteger number)
+        {
+            return number.ToByteArray().Reverse().ToArray();
+        }
+
+        private static byte[] ZeroPad(byte[] input, int length)
+        {
+            if (input.Length >= length) return input;
+            var padded = new byte[length];
+            Array.Copy(input, 0, padded, length - input.Length, input.Length);
+            return padded;
+        }
+
+        private static byte[] TrimLeadingZeros(byte[] input)
+        {
+            int i = 0;
+            while (i < input.Length && input[i] == 0) i++;
+            return input.Skip(i).ToArray();
         }
 
         public async Task<L1ToL2MessageWaitResult> WaitForStatus(Web3 l2Provider, int? confirmations = null, int? timeout = null)
@@ -401,7 +403,7 @@ namespace Arbitrum.Message
         }
 
         public static L1ToL2MessageReaderOrWriter FromEventComponents(
-            Web3 l2SignerOrProvider,
+            dynamic l2SignerOrProvider,
             BigInteger chainId,
             string sender,
             BigInteger messageNumber,
@@ -488,9 +490,7 @@ namespace Arbitrum.Message
          */
         public async Task<TransactionReceipt?> GetRetryableCreationReceipt(int? confirmations = null, int? timeout = null)
         {
-            // Ensure you're accessing _l2Provider through an instance
             _retryableCreationReceipt ??= await Lib.GetTransactionReceiptAsync(_l2Provider, RetryableCreationId, confirmations, timeout);
-
             return _retryableCreationReceipt;
         }
 
@@ -510,7 +510,7 @@ namespace Arbitrum.Message
 
                 if (redeemEvents.Count() == 1)
                 {
-                    return await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(redeemEvents?.FirstOrDefault()?.Event?.RetryTxHash);
+                    return await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(redeemEvents?.FirstOrDefault()?.Event?.RetryTxHash.ToHex());
                 }
                 else if (redeemEvents.Count() > 1)
                 {
@@ -557,7 +557,7 @@ namespace Arbitrum.Message
 
             int timeout = (int)fromBlock.Timestamp.Value + l2Network.RetryableLifetimeSeconds;
 
-            List<(int from, int to)> queriedRange = new List<(int from, int to)>();
+            var queriedRange = new List<(int from, int to)>();
 
             var maxBlock = await _l2Provider.Eth.Blocks.GetBlockNumber.SendRequestAsync();
 
@@ -569,18 +569,17 @@ namespace Arbitrum.Message
 
                 queriedRange.Add(outerBlockRange);
 
-                var redeemEvents = await eventFetcher.GetEventsAsync<RedeemScheduledEvent>(
-                                                            contractFactory: "ArbRetryableTx",
-                                                            eventName: "RedeemScheduled",
-                                                            argumentFilters: new Dictionary<string, object> { { "ticketId", RetryableCreationId } },
-                                                            filter: new NewFilterInput
-                                                            {
-                                                                FromBlock = new BlockParameter(outerBlockRange.Item1.ToHexBigInteger()),
-                                                                ToBlock = new BlockParameter(outerBlockRange.Item2.ToHexBigInteger()),
-                                                                Address = new string[] { Constants.ARB_RETRYABLE_TX_ADDRESS }
-                                                            },
-                                                            isClassic: false
-                                                            );
+                var redeemEvents = await eventFetcher.GetEventsAsync<RedeemScheduledEventDTO>(
+                                    contractFactory: "ArbRetryableTx",
+                                    eventName: "RedeemScheduled",
+                                    argumentFilters: new Dictionary<string, object> { { "ticketId", RetryableCreationId } },
+                                    filter: new NewFilterInput
+                                    {
+                                        FromBlock = new BlockParameter(outerBlockRange.Item1.ToHexBigInteger()),
+                                        ToBlock = new BlockParameter(outerBlockRange.Item2.ToHexBigInteger()),
+                                        Address = new string[] { Constants.ARB_RETRYABLE_TX_ADDRESS }
+                                    },
+                                    isClassic: false);
 
                 var successfulRedeem = new List<TransactionReceipt>();
 
@@ -606,21 +605,20 @@ namespace Arbitrum.Message
                 var toBlock = await _l2Provider.Eth.Blocks.GetBlockWithTransactionsByNumber.SendRequestAsync(toBlockNumber.ToHexBigInteger());
                 if (toBlock.Timestamp.Value > timeout)
                 {
-                    // Check for LifetimeExtended event
                     while (queriedRange.Count > 0)
                     {
                         var blockRange = queriedRange.First();
-                        var keepAliveEvents = await eventFetcher.GetEventsAsync<LifetimeExtendedEvent>(
-                                                                           contractFactory: "ArbRetryableTx",
-                                                                           eventName: "LifetimeExtended",
-                                                                           argumentFilters: new Dictionary<string, object> { { "ticketId", RetryableCreationId } },
-                                                                           filter: new NewFilterInput
-                                                                           {
-                                                                               FromBlock = new BlockParameter(blockRange.from.ToHexBigInteger()),
-                                                                               ToBlock = new BlockParameter(blockRange.to.ToHexBigInteger()),
-                                                                               Address = new string[] { Constants.ARB_RETRYABLE_TX_ADDRESS }
-                                                                           },
-                                                                           isClassic: false);
+                        var keepAliveEvents = await eventFetcher.GetEventsAsync<LifetimeExtendedEventDTO>(
+                                                contractFactory: "ArbRetryableTx",
+                                                eventName: "LifetimeExtended",
+                                                argumentFilters: new Dictionary<string, object> { { "ticketId", RetryableCreationId } },
+                                                filter: new NewFilterInput
+                                                {
+                                                    FromBlock = new BlockParameter(blockRange.from.ToHexBigInteger()),
+                                                    ToBlock = new BlockParameter(blockRange.to.ToHexBigInteger()),
+                                                    Address = new string[] { Constants.ARB_RETRYABLE_TX_ADDRESS }
+                                                },
+                                                isClassic: false);
 
                         if (keepAliveEvents.Count > 0)
                         {
@@ -674,15 +672,12 @@ namespace Arbitrum.Message
 
             try
             {
-                BigInteger timeoutTimestamp = await GetTimeout();
-                // timeoutTimestamp returns the timestamp at which the retryable ticket expires
-                // it can also return revert if the ticket l2Tx does not exist
-
+                var timeoutTimestamp = await GetTimeout();
                 return currentTimestamp <= timeoutTimestamp;
             }
             catch (SmartContractRevertException ex)
             {
-                if (ex.EncodedData == "0x80698456")   ///////
+                if (ex.EncodedData == "0x80698456")
                 {
                     Log.Information("Retryable does not exist.");
                     return false;
@@ -719,10 +714,9 @@ namespace Arbitrum.Message
 
             var chosenTimeout = timeout.HasValue ? timeout : l2network.DepositTimeout;
 
-            // try to wait for the retryable ticket to be created
             var _retryableCreationReceipt = await GetRetryableCreationReceipt(confirmations, chosenTimeout);
 
-            if (_retryableCreationReceipt != null)
+            if (_retryableCreationReceipt == null)
             {
                 if (confirmations != null || chosenTimeout != null)
                 {
@@ -737,7 +731,7 @@ namespace Arbitrum.Message
          * The minimium lifetime of a retryable tx
          * @returns
          */
-        public static async Task<BigInteger> GetLifetime(object l2Provider)
+        public async Task<BigInteger> GetLifetime(Web3 l2Provider)
         {
             var arbRetryableTxContract = await LoadContractUtils.LoadContract(
                                                 contractName: "ArbRetryableTx",
@@ -746,7 +740,7 @@ namespace Arbitrum.Message
                                                 isClassic: false
                                                 );
 
-            var getLifetimeFunction = arbRetryableTxContract.GetFunction("getLifetime");   ////////
+            var getLifetimeFunction = arbRetryableTxContract.GetFunction("getLifetime");
 
             return await getLifetimeFunction.CallAsync<BigInteger>();
         }
@@ -765,7 +759,7 @@ namespace Arbitrum.Message
             );
 
             var getTimeoutFunction = arbRetryableTxContract.GetFunction("getTimeout");
-            return await getTimeoutFunction.CallAsync<BigInteger>(RetryableCreationId);
+            return await getTimeoutFunction.CallAsync<BigInteger>(RetryableCreationId.HexToByteArray());
         }
 
         /**
@@ -782,8 +776,8 @@ namespace Arbitrum.Message
                 isClassic: false
             );
 
-            var getBeneficiaryFunction = arbRetryableTxContract.GetFunction("getBeneficiary");   //////
-            return await getBeneficiaryFunction.CallAsync<string>(RetryableCreationId);
+            var getBeneficiaryFunction = arbRetryableTxContract.GetFunction("getBeneficiary");
+            return await getBeneficiaryFunction.CallAsync<string>(RetryableCreationId.HexToByteArray());
         }
     }
 
@@ -809,7 +803,6 @@ namespace Arbitrum.Message
             return num | BigInteger.One << 255;
         }
 
-
         public static string CalculateRetryableCreationId(int chainId, BigInteger messageNumber)
         {
             return new Sha3Keccack().CalculateHash(
@@ -824,7 +817,7 @@ namespace Arbitrum.Message
         {
             return new Sha3Keccack().CalculateHash(
                 Concat(
-                    ZeroPad(HexToBytes(retryableCreationId), 32),
+                    ZeroPad(retryableCreationId.HexToByteArray(), 32),
                     ZeroPad(BigInteger.One.ToByteArray(), 32)
                 )
             ).ToHex();
@@ -845,10 +838,14 @@ namespace Arbitrum.Message
             return new Sha3Keccack().CalculateHash(
                 Concat(
                     ZeroPad(HexToBytes(retryableCreationId), 32),
-                    // BN 0 meaning L2 TX
                     ZeroPad(BigInteger.One.ToByteArray(), 32)
                 )
             ).ToHex();
+        }
+
+        public static byte[] HexToBytes(string value)
+        {
+            return value.HexToByteArray();
         }
 
         /**
@@ -922,31 +919,15 @@ namespace Arbitrum.Message
 
             if (status == L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2)
             {
-                var arbRetryableTxContract = await LoadContractUtils.LoadContract(
-                                                        contractName: "ArbRetryableTx",
-                                                        address: Constants.ARB_RETRYABLE_TX_ADDRESS,
-                                                        provider: _l2Signer.Provider,
-                                                        isClassic: false
-                                                    );
-                if (overrides == null)
+                var funcParam = new RedeemFunction
                 {
-                    overrides = new Dictionary<string, object>();
-                }
-                if (!overrides.ContainsKey("from"))
-                {
-                    overrides["from"] = _l2Signer?.Account?.Address;
-                }
-                if (overrides.ContainsKey("gasLimit"))
-                {
-                    overrides["gas"] = overrides["gasLimit"];
-                    if ((BigInteger)overrides["gas"] == 0)
-                        overrides.Remove("gas");
-                }
+                    TicketId = RetryableCreationId.HexToByteArray()
+                };
 
-                var redeemFunction = arbRetryableTxContract.GetFunction("redeem");
-                var redeemHash = await redeemFunction.SendTransactionAsync(RetryableCreationId, overrides);
+                if ((BigInteger)overrides["gasLimit"] != BigInteger.Zero) funcParam.Gas = (BigInteger)overrides["gasLimit"];
 
-                var txReceipt = await _l2Provider.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(redeemHash);
+                var contractHandler = _l2Signer.Provider.Eth.GetContractHandler(Constants.ARB_RETRYABLE_TX_ADDRESS);
+                var txReceipt = await contractHandler.SendRequestAndWaitForReceiptAsync(funcParam);
 
                 return L2TransactionReceipt.ToRedeemTransaction(
                     L2TransactionReceipt.MonkeyPatchWait(txReceipt), _l2Provider);
@@ -1053,7 +1034,6 @@ namespace Arbitrum.Message
 
     }
 
-
     /**
      * A message for Eth deposits from L1 to L2
      */
@@ -1083,35 +1063,50 @@ namespace Arbitrum.Message
         }
 
         public static string CalculateDepositTxId(
-            int l2ChainId,
+            BigInteger l2ChainId,
             BigInteger messageNumber,
             string fromAddress,
             string toAddress,
             BigInteger value)
         {
-            BigInteger chainId = new BigInteger(l2ChainId);
-            BigInteger msgNum = messageNumber;
+            string fromAddr = AddressUtil.Current.ConvertToChecksumAddress(fromAddress);
+            string toAddr = AddressUtil.Current.ConvertToChecksumAddress(toAddress);
 
-            byte[][] fields = new byte[][]
+            var fields = new List<byte[]>
             {
-                FormatNumber(chainId),
-                ZeroPad(FormatNumber(msgNum), 32),
-                HexToBytes(LoadContractUtils.GetAddress(fromAddress)),
-                HexToBytes(LoadContractUtils.GetAddress(toAddress)),
-                FormatNumber(value)
+                RLP.EncodeElement(TrimLeadingZeros(FormatNumber(l2ChainId))),
+                RLP.EncodeElement(ZeroPad(FormatNumber(messageNumber), 32)),
+                RLP.EncodeElement(fromAddr.HexToByteArray()),
+                RLP.EncodeElement(toAddr.HexToByteArray()),
+                RLP.EncodeElement(TrimLeadingZeros(FormatNumber(value)))
             };
 
-            // Encode fields using RLP
-            byte[] rlpEncoded = RLP.EncodeList(fields);
+            var rlpEncodedFields = RLP.EncodeList(fields.ToArray());
 
-            // Concatenate the RLP encoded data with prefix 0x64
-            byte[] rlpEncWithType = ByteUtil.Merge(new byte[] { 0x64 }, rlpEncoded);
+            var rlpWithTypePrefix = new byte[] { 0x64 }.Concat(rlpEncodedFields).ToArray();
+            var depositTxId = new Sha3Keccack().CalculateHash(rlpWithTypePrefix);
 
-            // Calculate the hash
-            byte[] hashBytes = new Sha3Keccack().CalculateHash(rlpEncWithType);
+            return depositTxId.ToHex();
+        }
 
-            // Convert the hash bytes to hexadecimal string
-            return hashBytes.ToHex();
+        private static byte[] FormatNumber(BigInteger number)
+        {
+            return number.ToByteArray().Reverse().ToArray();
+        }
+
+        private static byte[] ZeroPad(byte[] input, int length)
+        {
+            if (input.Length >= length) return input;
+            var padded = new byte[length];
+            Array.Copy(input, 0, padded, length - input.Length, input.Length);
+            return padded;
+        }
+
+        private static byte[] TrimLeadingZeros(byte[] input)
+        {
+            int i = 0;
+            while (i < input.Length && input[i] == 0) i++;
+            return input.Skip(i).ToArray();
         }
 
         /**
@@ -1122,11 +1117,21 @@ namespace Arbitrum.Message
          */
         public static (string to, BigInteger value) ParseEthDepositData(string eventData)
         {
-            var to = eventData.Substring(0, 42); // Extract destination address
-            var valueHex = eventData.Substring(42); // Extract value in hex
-            var value = BigInteger.Parse("0x" + valueHex); // Convert hex value to BigInteger
+            if (eventData.StartsWith("0x"))
+            {
+                eventData = eventData.Substring(2);
+            }
 
-            return (to, value);
+            var addressEnd = 2 + 20 * 2;
+            var toAddressHex = string.Concat("0x", eventData.AsSpan(0, addressEnd - 2));
+
+            var toAddress = Web3.ToChecksumAddress(toAddressHex);
+
+            var valueHex = eventData[addressEnd..];
+
+            var value = BigInteger.Parse("0" + valueHex, System.Globalization.NumberStyles.HexNumber);
+
+            return (toAddress, value);
         }
 
         /**
@@ -1162,15 +1167,12 @@ namespace Arbitrum.Message
 
             var chosenTimeout = timeout ?? l2Network?.DepositTimeout;
 
-            if (L2DepositTxReceipt == null)
-            {
-                L2DepositTxReceipt = await Lib.GetTransactionReceiptAsync(
+            L2DepositTxReceipt ??= await Lib.GetTransactionReceiptAsync(
                     L2Provider,
                     L2DepositTxHash,
                     confirmations,
                     chosenTimeout
                 );
-            }
 
             return L2DepositTxReceipt;
         }

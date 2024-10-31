@@ -21,7 +21,6 @@ namespace Arbitrum.Inbox
         public FetchedEvent<MessageDeliveredEventDTO>? Event { get; set; }
         public string? DelayedAcc { get; set; }
 
-
         public class GasComponents
         {
             public BigInteger? GasEstimate { get; set; }
@@ -239,7 +238,7 @@ namespace Arbitrum.Inbox
                 var block = await _l1Provider.Eth.Blocks.GetBlockWithTransactionsByHash.SendRequestAsync(eventInfo?.Event?.BlockHash);
 
                 return await sequencerInbox.GetFunction("forceInclusion").SendTransactionAndWaitForReceiptAsync(
-                    from: _l1Signer?.Account.Address,      ////////////////
+                    from: _l1Signer?.Account.Address,
                     receiptRequestCancellationToken: null,
                     eventInfo?.Event?.Event?.MessageIndex + 1,
                     eventInfo?.Event?.Event?.Kind,
@@ -257,12 +256,11 @@ namespace Arbitrum.Inbox
 
                 var sendDataBytes = SendDataBytes(packedMessageType, signedTx);
 
-                var delayedInbox = await LoadContractUtils.DeployAbiContract(
+                var delayedInbox = await LoadContractUtils.LoadContract(
                                             contractName: "Inbox",
                                             provider: _l1Provider,
-                                            deployer: _l1Signer,
-                                            isClassic: false,
-                                            constructorArgs: new object[] { new BigInteger(sendDataBytes.Length) }
+                                            address: _l2Network.EthBridge.Inbox,
+                                            isClassic: false
                                         );                
 
                 var fn = delayedInbox.GetFunction("sendL2Message");
@@ -280,7 +278,6 @@ namespace Arbitrum.Inbox
 
             public async Task<string> SignL2Tx(TransactionRequest txRequest, SignerOrProvider l2Signer)
             {
-                // Initialize the transaction by copying properties from txRequest
                 var tx = new TransactionRequest
                 {
                     Data = txRequest?.Data,
@@ -297,13 +294,10 @@ namespace Arbitrum.Inbox
                     AccessList = txRequest?.AccessList,
                 };
 
-                // Determine if this is a contract creation transaction
                 var contractCreation = IsContractCreation(tx);
 
-                // Check and set the nonce if not provided
                 tx.Nonce ??= await l2Signer.Provider.Eth.Transactions.GetTransactionCount.SendRequestAsync(l2Signer?.Account.Address);
 
-                // Handle gas price or fee parameters based on transaction type
                 if (tx.Type?.Value == 1 || tx.GasPrice != null)
                 {
                     tx.GasPrice ??= await l2Signer.Provider?.Eth?.GasPrice.SendRequestAsync();
@@ -327,13 +321,11 @@ namespace Arbitrum.Inbox
                 tx.From = l2Signer?.Account.Address;
                 tx.ChainId = await l2Signer?.Provider.Eth.ChainId.SendRequestAsync();
 
-                // Check and set the "to" address if not provided
                 if (string.IsNullOrEmpty(tx.To))
                 {
                     tx.To = AddressUtil.Current.ConvertToChecksumAddress("0x0000000000000000000000000000000000000000");
                 }
 
-                // Estimate gas if required and handle exceptions
                 try
                 {
                     tx.Gas ??= (await EstimateArbitrumGas(tx, l2Signer.Provider))?.GasEstimateForL2.Value.ToHexBigInteger();
@@ -343,13 +335,11 @@ namespace Arbitrum.Inbox
                     throw new ArbSdkError("Execution failed (estimate gas failed)");
                 }
 
-                // Remove the "to" field for contract creation transactions
                 if (contractCreation)
                 {
                     tx.To = null;
                 }
 
-                // Sign the transaction
                 return await l2Signer?.Provider.TransactionManager.SignTransactionAsync(tx);
             }
 

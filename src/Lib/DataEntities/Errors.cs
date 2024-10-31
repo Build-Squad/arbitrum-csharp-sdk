@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Arbitrum.DataEntities
+﻿namespace Arbitrum.DataEntities
 {
     /// <summary>
     /// Errors originating in Arbitrum SDK

@@ -1,11 +1,9 @@
-﻿using NUnit.Framework;
-using System.Threading.Tasks;
-using Arbitrum.Message;
-using Arbitrum.DataEntities;
+﻿using Arbitrum.DataEntities;
+using Arbitrum.Scripts;
 using Arbitrum.Utils;
-using Nethereum.JsonRpc.Client;
-using Nethereum.Web3;
 using Nethereum.Hex.HexTypes;
+using Nethereum.Web3;
+using NUnit.Framework;
 using System.ComponentModel.DataAnnotations;
 
 namespace Arbitrum.Tests.Unit
@@ -13,12 +11,21 @@ namespace Arbitrum.Tests.Unit
     [TestFixture]
     public class L2BlocksLookupTests
     {
-        private readonly Web3 provider = new Web3("https://arb1.arbitrum.io/rpc");
-        private readonly ArbitrumProvider arbProvider;
+        private ArbitrumProvider arbProvider;
 
-        public L2BlocksLookupTests()
+        public async Task InitializeAsync()
         {
-            arbProvider = new ArbitrumProvider(provider);
+            await TestSetupUtils.TestSetup();
+            arbProvider = new ArbitrumProvider(new Web3("https://arb1.arbitrum.io/rpc"));
+        }
+
+        [SetUp]
+        public async Task SetUp()
+        {
+            if (arbProvider == null)
+            {
+                await InitializeAsync();
+            }
         }
 
         [Test]
@@ -70,25 +77,20 @@ namespace Arbitrum.Tests.Unit
                 throw new ArgumentException($"Expected L2 block range to have the array length of {l2BlocksCount}, got {l2Blocks.Length}.");
             }
 
-            // Check if all blocks are integers or null when blockType is "number"
             if (l2Blocks.Any(block => block.GetType().Name.ToLower() == "int32" && !l2Blocks.All(block => block == null || block is int)))
             {
                 throw new ArgumentException("Expected all blocks to be integers or None.");
             }
 
-            // Check if all blocks are null when blockType is "undefined"
             if (l2Blocks.Any(block => block.GetType().Name.ToLower() == "undefined") && !l2Blocks.All(block => block == null))
             {
                 throw new ArgumentException("Expected all blocks to be None when block type is 'undefined'.");
             }
 
-            // Early return if blockType is "undefined"
             if (type == "undefined")
             {
                 return;
             }
-
-            var arbProvider = new ArbitrumProvider(new Web3(new RpcClient(new Uri("https://arb1.arbitrum.io/rpc"))));
             
             var tasks = new List<Task<ArbBlock>>();
             for (int index = 0; index < l2BlocksCount; index++)
@@ -100,20 +102,17 @@ namespace Arbitrum.Tests.Unit
                 }
 
                 bool isStartBlock = index == 0;
-                tasks.Add(arbProvider.GetBlock(l2Block.ToHexBigInteger())); // Current block
-                tasks.Add(arbProvider.GetBlock((l2Block + (isStartBlock ? -1  : 1)).ToHexBigInteger())); // Adjacent block
+                tasks.Add(arbProvider.GetBlock(l2Block.ToHexBigInteger()));
+                tasks.Add(arbProvider.GetBlock((l2Block + (isStartBlock ? -1  : 1)).ToHexBigInteger()));
             }
 
-            // Await all tasks (equivalent to asyncio.gather in Python)
             var blocks = await Task.WhenAll(tasks);
 
-            // Loop through the fetched blocks in pairs (current and adjacent)
             for (int i = 0; i < blocks.Length; i += 2)
             {
                 var currentBlock = blocks[i];
                 var adjacentBlock = blocks[i + 1];
 
-                // Skip if either block is null
                 if (currentBlock == null || adjacentBlock == null) continue;
 
                 int currentBlockNumber = Convert.ToInt32(currentBlock.L1BlockNumber, 16);
@@ -136,16 +135,6 @@ namespace Arbitrum.Tests.Unit
                     }
                 }
             }
-
-            //if (startBlock < blockBeforeStartBlock)
-            //{
-            //    throw new Exception("L2 block is not the first block in range for L1 block.");
-            //}
-
-            //if (endBlock < blockAfterEndBlock)
-            //{
-            //    throw new Exception("L2 block is not the last block in range for L1 block.");
-            //}
         }
     }
 }

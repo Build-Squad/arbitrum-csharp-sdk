@@ -1,17 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Numerics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Arbitrum.ContractFactory;
 using Arbitrum.DataEntities;
-using Nethereum.Web3;
+using Arbitrum.src.Lib.DataEntities;
 using Arbitrum.Utils;
-using Nethereum.RPC.Eth.DTOs;
-using Nethereum.Contracts.ContractHandlers;
-using System.Transactions;
-using Nethereum.ABI.FunctionEncoding.Attributes;
 using Nethereum.Hex.HexConvertors.Extensions;
+using Nethereum.RPC.Eth.DTOs;
+using Nethereum.Web3;
+using System.Numerics;
 
 namespace Arbitrum.Message
 {
@@ -65,7 +59,7 @@ namespace Arbitrum.Message
             }
         }
 
-        public static async Task<List<(L2ToL1TransactionEvent EventArgs, string TransactionHash)>> GetL2ToL1Events(
+        public static async Task<List<(L2ToL1TransactionEventDTO EventArgs, string TransactionHash)>> GetL2ToL1Events(
             IWeb3 l2Provider,
             NewFilterInput filter,
             BigInteger? batchNumber = null,
@@ -90,7 +84,7 @@ namespace Arbitrum.Message
                 argumentFilters["uniqueId"] = uniqueId;
             }
 
-            var eventList = await eventFetcher.GetEventsAsync<L2ToL1TransactionEvent>(
+            var eventList = await eventFetcher.GetEventsAsync<L2ToL1TransactionEventDTO>(
                             contractFactory: "ArbSys",
                             eventName: "L2ToL1Transaction",
                             argumentFilters: argumentFilters,
@@ -102,8 +96,7 @@ namespace Arbitrum.Message
                                 Topics = filter.Topics,
 
                             },
-                            isClassic: false
-                            );
+                            isClassic: false);
 
             var formattedEvents = eventList.Select(e => (e.Event, e.TransactionHash)).ToList();
 
@@ -116,7 +109,7 @@ namespace Arbitrum.Message
                 }
                 else
                 {
-                    return new List<(L2ToL1TransactionEvent, string)>();
+                    return new List<(L2ToL1TransactionEventDTO, string)>();
                 }
             }
             else
@@ -150,7 +143,7 @@ namespace Arbitrum.Message
                 {
                     var sortedOutboxes = outboxes.OrderBy(o => o.Value);
                     var res = sortedOutboxes.FirstOrDefault(o => o.Value > batchNumber);
-                    outboxAddress = res.Key ?? "0x0000000000000000000000000000000000000000";                 /////////
+                    outboxAddress = res.Key ?? "0x0000000000000000000000000000000000000000";
                 }
                 else
                 {
@@ -167,7 +160,7 @@ namespace Arbitrum.Message
                 provider: l2Provider,
                 contractName: "Outbox",
                 address: outboxAddress,
-                isClassic: false
+                isClassic: true
                 );
 
             var getOutboxEntryExistsFunction = outboxContract.GetFunction("outboxEntryExists"); 
@@ -231,7 +224,7 @@ namespace Arbitrum.Message
 
                 await transaction.SendTransactionAsync(
                         from: proofInfo.L2Sender,
-                        BatchNumber.ToString(),   ///////
+                        BatchNumber.ToString(),
                         proofInfo.Proof,
                         proofInfo.Path,
                         proofInfo.L2Sender,
@@ -302,7 +295,7 @@ namespace Arbitrum.Message
             _l1Signer = l1Signer;
         }
 
-        public async Task<TransactionReceipt> Execute(Web3 l2Provider, Dictionary<string, object>? overrides = null)    ////////ContractTransaction
+        public async Task<TransactionReceipt> Execute(Web3 l2Provider, Overrides? overrides = null)
         {
             var status = await Status(l2Provider);
             if (status != L2ToL1MessageStatus.CONFIRMED)
@@ -327,17 +320,13 @@ namespace Arbitrum.Message
 
             if (overrides == null)
             { 
-                overrides = new Dictionary<string, object>();
+                overrides = new Overrides();
             }
 
-            if (!overrides.ContainsKey("from"))
-            {
-                overrides["from"] = _l1Signer.Account!.Address;
-            }
             var txReceipt = await outboxContract.GetFunction("executeTransaction").SendTransactionAndWaitForReceiptAsync(
                                     from: proofInfo.L2Sender,
                                     receiptRequestCancellationToken: null,
-                                    BatchNumber.ToString(),   ///////
+                                    BatchNumber.ToString(),
                                     proofInfo.Proof,
                                     proofInfo.Path,
                                     proofInfo.L2Sender,
@@ -347,7 +336,7 @@ namespace Arbitrum.Message
                                     proofInfo.Timestamp,
                                     proofInfo.Amount,
                                     proofInfo.CalldataForL1,
-                                    overrides ?? new Dictionary<string, object>()
+                                    overrides ?? new Overrides()
                                 );
             return txReceipt;
         }

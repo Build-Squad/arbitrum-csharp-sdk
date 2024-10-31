@@ -1,4 +1,5 @@
-﻿using Arbitrum.DataEntities;
+﻿using Arbitrum.ContractFactory;
+using Arbitrum.DataEntities;
 using Nethereum.Hex.HexTypes;
 using Nethereum.JsonRpc.Client;
 using Nethereum.RPC.Eth.DTOs;
@@ -19,9 +20,8 @@ namespace Arbitrum.Utils
                     address: Constants.ARB_SYS_ADDRESS,
                     isClassic: false
                     );
-                var arbSysContractFunction = arbSysContract.GetFunction("arbOSVersion");
 
-                await arbSysContractFunction.CallAsync<BigInteger>();
+                var arbOSVersion = await arbSysContract.GetFunction<ArbOSVersionFunction>().CallAsync<BigInteger>();
                 return true;
             }
             catch (Exception)
@@ -29,7 +29,6 @@ namespace Arbitrum.Utils
                 return false;
             }
         }
-
 
         public static async Task<BigInteger> GetBaseFee(Web3 provider)
         {
@@ -85,26 +84,21 @@ namespace Arbitrum.Utils
         }
 
         public static async Task<dynamic?> GetFirstBlockForL1Block(
-        Web3 provider,
-        int forL1Block,
-        bool allowGreater = false,
-        int? minL2Block = null,
-        dynamic maxL2Block = null
-        )
+            Web3 provider,
+            long forL1Block,
+            bool allowGreater = false,
+            int? minL2Block = null,
+            dynamic maxL2Block = null)
         {
-            // Check if maxL2Block is null or a string
             if (maxL2Block == null || maxL2Block is string)
             {
-                // Handle if maxL2Block is null or a string value
-                // You can convert it to string if necessary
                 maxL2Block = maxL2Block?.ToString() ?? "latest";
-                // Proceed with your logic
             }
+
             if (!await IsArbitrumChain(provider))
             {
                 return forL1Block;
             }
-            //17926372 < 17926532
 
             var arbProvider = new ArbitrumProvider(provider);
 
@@ -163,7 +157,6 @@ namespace Arbitrum.Utils
                     end = mid - 1;
                 }
 
-                // Stores last valid Arbitrum block corresponding to the current, or greater, L1 block.
                 if (l1Block != null)
                 {
                     if (l1Block == forL1Block)
@@ -181,22 +174,18 @@ namespace Arbitrum.Utils
             return resultForTargetBlock ?? resultForGreaterBlock;
         }
 
-        private const long L1BaseBlockNumber = 121900000; // L1 Block to be referenced
-        private const long L2BaseBlockNumber = 17926532; // Corresponding L2 Block Number for L1 Base
+        private const long L1BaseBlockNumber = 121900000;
+        private const long L2BaseBlockNumber = 17926532;
 
 
-        // Method to get the corresponding L2 block number for a given L1 block number
-        public static async Task<long> GetCorrespondingL2Block(dynamic l1BlockNumber)
+        public static async Task<long> GetCorrespondingL2Block(long l1BlockNumber)
         {
-            // Simulate some async operation
             await Task.Delay(100);
 
-            // Calculate the corresponding L2 block number
             long correspondingL2BlockNumber = L2BaseBlockNumber + (100 + 2 * (l1BlockNumber - L1BaseBlockNumber));
 
             return correspondingL2BlockNumber;
         }
-
 
         public static async Task<int[]> GetBlockRangesForL1Block(
         Web3 provider,
@@ -206,20 +195,18 @@ namespace Arbitrum.Utils
         dynamic maxL2Block = null
         )
         {
-            // Check if maxL2Block is null or a string
             if (maxL2Block == null || maxL2Block is string)
             {
-                // Handle if maxL2Block is null or a string value
-                // You can convert it to string if necessary
                 maxL2Block = maxL2Block?.ToString() ?? "latest";
-            }
-            // Convert maxL2Block to current block number if needed
-            if (maxL2Block.ToString() == "latest")
-            {
-                maxL2Block = (await provider.Eth.Blocks.GetBlockNumber.SendRequestAsync()).Value.ToString();
             }
 
             var arbProvider = new ArbitrumProvider(provider);
+            var current_block = await arbProvider.Provider.Eth.Blocks.GetBlockNumber.SendRequestAsync();
+
+            if (maxL2Block?.ToString() == "latest")
+            {
+                maxL2Block = current_block;
+            }
 
             // Get start block
             var startBlock = await GetFirstBlockForL1Block(
@@ -304,7 +291,6 @@ public class L1Block
     public DateTime Timestamp { get; set; }
 }
 
-// Define a simple L2 block structure
 public class L2Block
 {
     public long BlockNumber { get; set; }

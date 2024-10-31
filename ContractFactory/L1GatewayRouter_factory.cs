@@ -123,6 +123,21 @@ namespace Arbitrum.ContractFactory.L1GatewayRouter
         public virtual string ReturnValue1 { get; set; }
     }
 
+    public partial class OutboundTransferFunction2 : OutboundTransferFunctionBase2 { }
+
+    [Function("outboundTransfer", "bytes")]
+    public class OutboundTransferFunctionBase2 : FunctionMessage
+    {
+        [Parameter("address", "_l1Token", 1)]
+        public virtual string L1Token { get; set; }
+        [Parameter("address", "_to", 2)]
+        public virtual string To { get; set; }
+        [Parameter("uint256", "_amount", 3)]
+        public virtual BigInteger Amount { get; set; }
+        [Parameter("bytes", "_data", 4)]
+        public virtual byte[] Data { get; set; }
+    }
+
     public partial class OutboundTransferFunction : OutboundTransferFunctionBase { }
 
     [Function("outboundTransfer", "bytes")]

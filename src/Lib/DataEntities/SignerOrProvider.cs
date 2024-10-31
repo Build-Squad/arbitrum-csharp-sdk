@@ -1,8 +1,6 @@
-﻿using System.Threading.Tasks;
-using Arbitrum.DataEntities;
-using Nethereum.Web3.Accounts;
+﻿using Nethereum.JsonRpc.Client;
 using Nethereum.Web3;
-using Nethereum.JsonRpc.Client;
+using Nethereum.Web3.Accounts;
 
 namespace Arbitrum.DataEntities
 {
@@ -19,6 +17,7 @@ namespace Arbitrum.DataEntities
             }
             Provider = provider;
         }
+
         public SignerOrProvider(Account account)
         {
             if (account == null)

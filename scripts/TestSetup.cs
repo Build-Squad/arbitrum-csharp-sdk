@@ -44,7 +44,7 @@ namespace Arbitrum.Scripts
 
     public static class TestSetupUtils
     {
-        public static readonly Dictionary<string, string> Config = new Dictionary<string, string>
+        public static readonly Dictionary<string, string> Config = new()
         {
             { "ARB_URL", Environment.GetEnvironmentVariable("ARB_URL") },
             { "ETH_URL", Environment.GetEnvironmentVariable("ETH_URL") },

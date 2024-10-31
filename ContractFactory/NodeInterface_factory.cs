@@ -7,15 +7,12 @@ namespace Arbitrum.ContractFactory
     public partial class NodeInterfaceDeployment : NodeInterfaceDeploymentBase
     {
         public NodeInterfaceDeployment() : base(BYTECODE) { }
-        public NodeInterfaceDeployment(string byteCode) : base(byteCode) 
-        {
-            BYTECODE = byteCode;
-        }
+        public NodeInterfaceDeployment(string byteCode) : base(byteCode) { }
     }
 
     public class NodeInterfaceDeploymentBase : ContractDeploymentMessage
     {
-        public static string BYTECODE;
+        public static string BYTECODE = "";
         public NodeInterfaceDeploymentBase() : base(BYTECODE) { }
         public NodeInterfaceDeploymentBase(string byteCode) : base(byteCode) { }
 

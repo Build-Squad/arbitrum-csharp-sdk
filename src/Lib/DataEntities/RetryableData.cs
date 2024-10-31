@@ -48,6 +48,7 @@ namespace Arbitrum.src.Lib.DataEntities
         {
             try
             {
+                var l = errorData.Length;
                 errorData = errorData.StartsWith("0x") ? errorData[10..] : errorData[8..];
 
                 var _addressDecoder = new AddressTypeDecoder();
@@ -58,7 +59,7 @@ namespace Arbitrum.src.Lib.DataEntities
 
                 var retryableData = new RetryableData();
                 int offset = 0;
-                int chunkSize = 32; // Standard size for most encoded ABI types
+                int chunkSize = 32;
 
                 // Decoding "From" (address type)
                 retryableData.From = (string)_addressDecoder.Decode(encodedData.Skip(offset).Take(chunkSize).ToArray(), typeof(string));
@@ -98,7 +99,14 @@ namespace Arbitrum.src.Lib.DataEntities
 
                 // Decoding "Data" (bytes type) (can have variable length)
                 int dataLength = BitConverter.ToInt32(encodedData.Skip(offset).Take(32).ToArray().Reverse().ToArray(), 0);
-                retryableData.Data = (byte[]?)_bytesDecoder.Decode(encodedData.Skip(offset + 32).Take(dataLength).ToArray(), typeof(byte[]));
+                var data = (byte[]?)_bytesDecoder.Decode(encodedData.Skip(offset + 32).Take(dataLength + 32).ToArray(), typeof(byte[]));
+
+                if (data?.Length % 32 != 0)
+                {
+                    Array.Resize(ref data, ((data.Length / 32) + 1) * 32);
+                }
+
+                retryableData.Data = data;
 
                 return retryableData;
             }

@@ -4,6 +4,7 @@ using Nethereum.RPC.Eth.DTOs;
 using Nethereum.JsonRpc.Client;
 using System.Reflection;
 using Arbitrum.src.Lib.DataEntities;
+using Nethereum.Web3;
 
 namespace Arbitrum.DataEntities
 {
@@ -49,7 +50,7 @@ namespace Arbitrum.DataEntities
     public class L2ToL1TransactionRequest
     {
         public TransactionRequest? TxRequest { get; set; }
-        public Func<IClient, Task<BigInteger>>? EstimateL1GasLimit { get; set; }
+        public Func<Web3, Task<BigInteger>>? EstimateL1GasLimit { get; set; }
 
     }
 
